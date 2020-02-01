@@ -80,17 +80,16 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="bpv2.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="MainWindow.cpp" />
+    <ClCompile Include="TestingOperations.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <QtMoc Include="bpv2.h" />
+    <QtMoc Include="MainWindow.h" />
+    <ClInclude Include="TestingOperations.h" />
   </ItemGroup>
   <ItemGroup>
-    <QtUic Include="bpv2.ui" />
-  </ItemGroup>
-  <ItemGroup>
-    <QtRcc Include="bpv2.qrc" />
+    <QtUic Include="MainWindow.ui" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Condition="Exists('$(QtMsBuild)\qt.targets')">

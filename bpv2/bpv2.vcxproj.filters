@@ -28,23 +28,26 @@
     <ClCompile Include="main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="bpv2.cpp">
+    <ClCompile Include="MainWindow.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="TestingOperations.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <QtMoc Include="bpv2.h">
+    <QtMoc Include="MainWindow.h">
       <Filter>Header Files</Filter>
     </QtMoc>
   </ItemGroup>
   <ItemGroup>
-    <QtUic Include="bpv2.ui">
+    <QtUic Include="MainWindow.ui">
       <Filter>Form Files</Filter>
     </QtUic>
   </ItemGroup>
   <ItemGroup>
-    <QtRcc Include="bpv2.qrc">
-      <Filter>Resource Files</Filter>
-    </QtRcc>
+    <ClInclude Include="TestingOperations.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

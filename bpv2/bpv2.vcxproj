@@ -88,14 +88,14 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="ImageReader.cpp" />
+    <ClCompile Include="Image.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="MainWindow.cpp" />
     <ClCompile Include="GeneralOperations.cpp" />
   </ItemGroup>
   <ItemGroup>
     <QtMoc Include="MainWindow.h" />
-    <ClInclude Include="ImageReader.h" />
+    <ClInclude Include="Image.h" />
     <ClInclude Include="GeneralOperations.h" />
   </ItemGroup>
   <ItemGroup>

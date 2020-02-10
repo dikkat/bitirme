@@ -1,6 +1,5 @@
 #include "MainWindow.h"
-#include "GeneralOperations.h"
-#include "Image.h"
+#include "ImageOperations.h"
 #include <QtWidgets/QApplication>
 #include <QDebug>
 
@@ -8,12 +7,24 @@ int main(int argc, char *argv[])
 {
 	gen::tout << "xawedxawehello world" << std::endl;
 
-	try { 
-		img::Image losessomeonedear("C:/ukbench00008.jpg", cv::IMREAD_COLOR);
-		losessomeonedear.setImageHist(179, 255);
-		losessomeonedear.getImageHist()->setHistogramDisplayImage();
-
-		cv::Mat xde = losessomeonedear.getImageMat();
+	try {
+		img::Image ima("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench/full/ukbench00000.jpg", cv::IMREAD_COLOR);
+		std::vector<img::Image> asd = img::readImageFolder("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench/full/", cv::IMREAD_COLOR, false, 150);
+		gen::tout << ima.getImageName() << std::endl;
+		std::vector<gen::CompareTest> xdc;
+		for (int i = 0; i < asd.size(); i++) {
+			float xd = iop::calculateCosineSimilarity(asd[i], ima, 10, 4);
+			gen::CompareTest xdf(&ima, &asd[i], xd);
+			xdc.push_back(xdf);
+		}
+		std::sort(xdc.begin(), xdc.end(), gen::compareBySimilarityValue);
+		for (auto a : xdc) {
+			gen::tout << a.imgrh->getImageName() << "\t" << a.simval << std::endl;
+		}
+		//img::Image imb("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench/full/ukbench03661.jpg", cv::IMREAD_COLOR);		
+		//float xd = iop::calculateCosineSimilarity(ima, imb, 10, 4);
+		//gen::tout << xd;
+		cv::Mat xde = ima.getImageMat();
 		cv::uint8_t* pixelPtr = (uint8_t*)xde.data;
 		int cn = xde.channels();
 		cv::Scalar_<uint8_t> bgrPixel;

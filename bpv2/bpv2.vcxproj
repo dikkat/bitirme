@@ -89,11 +89,15 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Image.cpp" />
+    <ClCompile Include="ImageOperations.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="MainWindow.cpp" />
     <ClCompile Include="GeneralOperations.cpp" />
+    <ClCompile Include="SimilarityMeasures.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="ImageOperations.h" />
+    <ClInclude Include="SimilarityMeasures.h" />
     <QtMoc Include="MainWindow.h" />
     <ClInclude Include="Image.h" />
     <ClInclude Include="GeneralOperations.h" />

@@ -1,15 +1,22 @@
 #include "MainWindow.h"
 #include "ImageOperations.h"
+#include "DatabaseOperations.h"
 #include <QtWidgets/QApplication>
 #include <QDebug>
 
+
 int main(int argc, char *argv[])
 {
-	gen::tout << "xawedxawehello world" << std::endl;
-
+	bool we = dbop::connectToDatabase("localhost", "vsdev", "1235", "bitirme");
+	gen::tout << we << std::endl;
 	try {
 		img::Image ima("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench/full/ukbench00000.jpg", cv::IMREAD_COLOR);
-		std::vector<img::Image> asd = img::readImageFolder("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench/full/", cv::IMREAD_COLOR, false, 150);
+		std::string xd = dbop::serializeMat(ima.getImageMat());
+		cv::Mat woah = dbop::deserializeMat(xd);
+		
+
+		/*std::vector<img::Image> asd = img::readImageFolder("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench/full/", cv::IMREAD_COLOR, false, 1);
+		gen::tout << ima.getImageMat().rows * ima.getImageMat().cols << std::endl;
 		gen::tout << ima.getImageName() << std::endl;
 		std::vector<gen::CompareTest> xdc;
 		for (int i = 0; i < asd.size(); i++) {
@@ -20,10 +27,7 @@ int main(int argc, char *argv[])
 		std::sort(xdc.begin(), xdc.end(), gen::compareBySimilarityValue);
 		for (auto a : xdc) {
 			gen::tout << a.imgrh->getImageName() << "\t" << a.simval << std::endl;
-		}
-		//img::Image imb("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench/full/ukbench03661.jpg", cv::IMREAD_COLOR);		
-		//float xd = iop::calculateCosineSimilarity(ima, imb, 10, 4);
-		//gen::tout << xd;
+		}*/
 		cv::Mat xde = ima.getImageMat();
 		cv::uint8_t* pixelPtr = (uint8_t*)xde.data;
 		int cn = xde.channels();

@@ -48,4 +48,6 @@ namespace img {
 	};
 
 	std::vector<Image> readImageFolder(std::string imagefoldername, int flag, bool all, int number);
+	std::string typeToString(int type);
+	void displayImage(cv::Mat imgmat);
 }

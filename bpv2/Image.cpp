@@ -18,12 +18,16 @@ cv::Mat img::Image::getImageMat() {
     return this->imagemat;
 }
 
-void img::Image::setImageHist(int hb, int sb) {
-    imagehist = new Histogram(this, hb, sb);
+void img::Image::setImageHist(int fb, int sb, int tb, int flag) {
+    imagehist = new Histogram(this, fb, sb, tb, flag);
 }
 
 img::Histogram* img::Image::getImageHist() {
     return imagehist;
+}
+
+void img::Image::destroyImageHist() {
+    this->imagehist == NULL;
 }
 
 std::string img::Image::buildImageName(std::string imgdir) {
@@ -33,7 +37,8 @@ std::string img::Image::buildImageName(std::string imgdir) {
             j = i;
         }
     }
-    std::string imnm = imgdir.substr(j + 1);
+    j = j + 1;
+    std::string imnm = imgdir.substr(j);
     return imnm;
 }
 
@@ -47,11 +52,17 @@ cv::Mat img::Image::readImageFile(std::string imgdir, int flag) {
 	return matoperator;
 }
 
-img::Histogram::Histogram(Image* srimg, int hb, int sb) {
+img::Histogram::Histogram(Image* srimg, int fb, int sb, int tb, int flag) {
     srcimg = srimg;
-    hbin = hb;
+    fbin = fb;
     sbin = sb;
-    histmat = histogramCalculation(getSourceMat());
+    tbin = tb;
+    if (flag == CALC_BGRHIST)
+        histmat = histogramBGRCalculation(getSourceMat());
+    else if (flag == CALC_HSVHIST)
+        histmat = histogramHSVCalculation(getSourceMat());
+    else
+        throw std::exception("Illegal histogram build flag.");    
     nhistmat = normalizeMat(histmat, 0, 1);
 }
 
@@ -68,28 +79,42 @@ cv::Mat img::Histogram::getSourceMat() {
 }
 
 int* img::Histogram::getBin() {
-    int binval[] = { hbin, sbin };
+    int binval[] = { fbin, sbin , tbin};
     return binval;
 }
 
 void img::Histogram::setHistogramDisplayImage(int width, int height) {
-    histBGR = histogramBGRCalculation(getSourceMat());
+    histBGR = histogramBGRSeparateCalculation(getSourceMat());
     *histdspimg = createHistogramDisplayImage(histBGR, width, height);
 }
 
-cv::Mat img::Histogram::histogramCalculation(cv::Mat sourcemat) {
+cv::Mat img::Histogram::histogramHSVCalculation(cv::Mat sourcemat) {
     cv::MatND hsvbase, histbase;
     cv::cvtColor(sourcemat, hsvbase, cv::COLOR_BGR2HSV);
-    int histSize[] = { hbin, sbin};
+    int histSize[] = { getBin()[0], getBin()[1], getBin()[2] };
 
     float h_ranges[] = { 0, 180 };
-    float s_ranges[] = { 0, 256 };
-    const float* histRange[] = { h_ranges, s_ranges};
+    float sv_ranges[] = { 0, 256 };
+    const float* histRange[] = { h_ranges, sv_ranges, sv_ranges};
 
     bool uniform = true; bool accumulate = false;
-    int channels[] = { 0, 1};
+    int channels[] = { 0, 1, 2};
 
-    cv::calcHist(&hsvbase, 1, channels, cv::Mat(), histbase, 2, histSize, histRange, uniform, accumulate);
+    cv::calcHist(&hsvbase, 1, channels, cv::Mat(), histbase, 3, histSize, histRange, uniform, accumulate);
+    return histbase;
+}
+
+cv::Mat img::Histogram::histogramBGRCalculation(cv::Mat sourcemat) {
+    int histSize[] = { getBin()[0], getBin()[1], getBin()[2] };
+
+    float bgr_ranges[] = { 0, 256 };
+    const float* histRange[] = { bgr_ranges, bgr_ranges , bgr_ranges };
+
+    bool uniform = true; bool accumulate = false;
+    int channels[] = { 0, 1, 2 };
+
+    cv::MatND histbase;
+    cv::calcHist(&sourcemat, 1, channels, cv::Mat(), histbase, 3, histSize, histRange, uniform, accumulate);
     return histbase;
 }
 
@@ -99,7 +124,7 @@ cv::Mat img::Histogram::normalizeMat(cv::Mat sourcemat, float alpha, float beta)
     return nhist;
 }
 
-std::vector<cv::Mat> img::Histogram::histogramBGRCalculation(cv::Mat sourcemat) {
+std::vector<cv::Mat> img::Histogram::histogramBGRSeparateCalculation(cv::Mat sourcemat) {
     std::vector<cv::Mat> bgr_planes;
     cv::split(sourcemat, bgr_planes);
 

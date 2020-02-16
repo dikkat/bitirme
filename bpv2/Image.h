@@ -5,6 +5,9 @@
 #include <filesystem>
 #include "GeneralOperations.h"
 
+#define CALC_BGRHIST 1
+#define CALC_HSVHIST 2
+
 namespace img {
 	class Histogram;
 
@@ -15,7 +18,8 @@ namespace img {
 		Image() {}
 		std::string getImageName();
 		cv::Mat getImageMat();
-		void setImageHist(int hb, int sb);
+		void destroyImageHist();
+		void setImageHist(int fb, int sb, int tb, int flag);
 		Histogram* getImageHist();
 	private:
 		cv::Mat imagemat;
@@ -27,7 +31,7 @@ namespace img {
 
 	class Histogram {
 	public:
-		Histogram(Image* srimg, int hb, int sb);
+		Histogram(Image* srimg, int fb, int sb, int tb, int flag);
 		Histogram() {}
 		cv::Mat getHistogramMat();
 		cv::Mat getNormalizedHistogramMat();
@@ -36,14 +40,15 @@ namespace img {
 		void setHistogramDisplayImage(int w, int h);
 	private:
 		cv::Mat histmat, nhistmat;
-		int hbin, sbin;
+		int fbin, sbin, tbin;
 		Image* histdspimg;
 		Image* srcimg;
 		std::vector<cv::Mat> histBGR; //[0] BLUE, [1] GREEN, [2] RED
 		std::vector<cv::Mat> nhistBGR;
-		cv::Mat histogramCalculation(cv::Mat sourcemat);
+		cv::Mat histogramHSVCalculation(cv::Mat sourcemat);
+		cv::Mat histogramBGRCalculation(cv::Mat sourcemat);
 		cv::Mat normalizeMat(cv::Mat sourcemat, float alpha, float beta);
-		std::vector<cv::Mat> histogramBGRCalculation(cv::Mat sourcemat);
+		std::vector<cv::Mat> histogramBGRSeparateCalculation(cv::Mat sourcemat);
 		img::Image createHistogramDisplayImage(std::vector<cv::Mat> bgrhist, int hist_w, int hist_h);
 	};
 

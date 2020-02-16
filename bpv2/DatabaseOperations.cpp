@@ -1,7 +1,6 @@
 #include "DatabaseOperations.h"
 
-
-MYSQL* dbop::connectToDatabase(std::string server, std::string user, std::string password, std::string database) {
+MYSQL* dbop::connectToDatabaseMYSQL(std::string server, std::string user, std::string password, std::string database) {
     MYSQL* connect;
     connect = mysql_init(NULL);
     if (!connect) {
@@ -16,13 +15,19 @@ MYSQL* dbop::connectToDatabase(std::string server, std::string user, std::string
     }
 }
 
-void dbop::disconnectFromDatabase(MYSQL* connect) {
+void dbop::disconnectFromDatabaseMYSQL(MYSQL* connect) {
     if (connect) {
         mysql_close(connect);
         return;
     }
     else
         return;
+}
+
+bool dbop::connectToDatabaseSQLITE(const char* file) {
+    sqlite3 db();
+    
+    return true;
 }
 
 std::string dbop::serializeMat(cv::Mat operand) {
@@ -47,13 +52,16 @@ std::string dbop::serializeMat(cv::Mat operand) {
 
 cv::Mat dbop::deserializeMat(std::string operand){
     uint16_t uintoperator1, uintoperator2, uintoperator3;
-    int row, col, type;
     std::istringstream desrlzstrstream(operand);
+    int row, col, type;
+
     desrlzstrstream >> row;
     desrlzstrstream >> col;
     desrlzstrstream >> type;
+
     cv::Mat matoper(row, col, CV_8UC3);
     cv::Vec3b* ptr;
+
     for (int i = 0; i < row; i++) {
          ptr = matoper.ptr<cv::Vec3b>(i);
         for (int j = 0; j < col; j++) {
@@ -63,6 +71,7 @@ cv::Mat dbop::deserializeMat(std::string operand){
             ptr[j] = cv::Vec3b(uintoperator1, uintoperator2, uintoperator3);
         }
     }
+
     return matoper;
 }
 

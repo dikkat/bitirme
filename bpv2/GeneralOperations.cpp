@@ -17,7 +17,7 @@ gen::CompareTest::CompareTest(img::Image* lh, img::Image* rh, float sv) {
 
 bool gen::compareBySimilarityValue(const CompareTest& a, const CompareTest& b)
 {
-	return a.simval < b.simval;
+	return a.simval > b.simval;
 }
 
 

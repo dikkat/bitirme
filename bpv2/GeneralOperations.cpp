@@ -9,6 +9,10 @@ void gen::printTesting(std::ostringstream &osoperator) {
 	testfile.close();
 }
 
+void gen::imageTesting(img::Image srcimg) {
+	cv::imwrite("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/testImage.jpg", srcimg.getImageMat());
+}
+
 gen::CompareTest::CompareTest(img::Image* lh, img::Image* rh, float sv) {
 	imglh = lh;
 	imgrh = rh;
@@ -19,8 +23,3 @@ bool gen::compareBySimilarityValue(const CompareTest& a, const CompareTest& b)
 {
 	return a.simval > b.simval;
 }
-
-
-
-
-

@@ -12,6 +12,7 @@ namespace img {
 
 namespace gen {
 	extern std::ostringstream tout;
+	void imageTesting(img::Image srcimg);
 	void printTesting(std::ostringstream &osoperator);
 	class CompareTest{
 	public: 

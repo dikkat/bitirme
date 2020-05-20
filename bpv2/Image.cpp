@@ -10,16 +10,27 @@ img::Image::Image(cv::Mat sourcemat) {
     imagemat = sourcemat.clone();
 }
 
-std::string img::Image::getImageName() {
+img::Image::Image(cv::Mat sourcemat, std::string imgdir) {
+    imagemat = sourcemat.clone();
+    name = buildImageName(imgdir);
+    dir = imgdir;
+}
+
+void img::Image::setImageHist(int fb, int sb, int tb, int flag) {
+    imagehist = new Histogram(this, fb, sb, tb, flag);
+}
+
+void img::Image::setImageDirectory(std::string imgdir) {
+    name = buildImageName(imgdir);
+    dir = imgdir;
+}
+
+const std::string img::Image::getImageName() {
     return name;
 }
 
 cv::Mat img::Image::getImageMat() {
     return this->imagemat;
-}
-
-void img::Image::setImageHist(int fb, int sb, int tb, int flag) {
-    imagehist = new Histogram(this, fb, sb, tb, flag);
 }
 
 img::Histogram* img::Image::getImageHist() {
@@ -61,6 +72,8 @@ img::Histogram::Histogram(Image* srimg, int fb, int sb, int tb, int flag) {
         histmat = histogramBGRCalculation(getSourceMat());
     else if (flag == CALC_HSVHIST)
         histmat = histogramHSVCalculation(getSourceMat());
+    else if (flag == CALC_GRAYHIST)
+        histmat = histogramGRAYCalculation(getSourceMat());
     else
         throw std::exception("Illegal histogram build flag.");    
     nhistmat = normalizeMat(histmat, 0, 1);
@@ -115,6 +128,23 @@ cv::Mat img::Histogram::histogramBGRCalculation(cv::Mat sourcemat) {
 
     cv::MatND histbase;
     cv::calcHist(&sourcemat, 1, channels, cv::Mat(), histbase, 3, histSize, histRange, uniform, accumulate);
+    return histbase;
+}
+
+cv::Mat img::Histogram::histogramGRAYCalculation(cv::Mat sourcemat) {
+    int histSize[] = { getBin()[0] };
+
+    cv::Mat greyMat;
+    cv::cvtColor(sourcemat, greyMat, cv::COLOR_BGR2GRAY);
+
+    float gray_range[] = { 0, 256 };
+    const float* histRange[] = { gray_range };
+
+    bool uniform = true; bool accumulate = false;
+    int channels[] = { 0 };
+
+    cv::MatND histbase;
+    cv::calcHist(&sourcemat, 1, channels, cv::Mat(), histbase, 1, histSize, histRange, uniform, accumulate);
     return histbase;
 }
 

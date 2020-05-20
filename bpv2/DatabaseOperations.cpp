@@ -74,6 +74,3 @@ cv::Mat dbop::deserializeMat(std::string operand){
 
     return matoper;
 }
-
-
-

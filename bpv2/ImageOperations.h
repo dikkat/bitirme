@@ -1,6 +1,7 @@
 #pragma once
 #include "Image.h"
 #include "SimilarityMeasures.h"
+#include <QList>
 
 #define SIM_COSSIM 1
 #define SIM_MANDIST 2
@@ -9,6 +10,8 @@
 #define SIM_JACSIM 5
 #define SIM_HISINTR 6
 #define SIM_CROCOR 7
+
+static QList<img::Image> imageList;
 
 namespace iop {
 	bool histogramEqualityCheck(img::Image operand, int fb, int sb, int tb);

@@ -9,8 +9,9 @@ void gen::printTesting(std::ostringstream &osoperator) {
 	testfile.close();
 }
 
-void gen::imageTesting(img::Image srcimg) {
-	cv::imwrite("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/testImage.jpg", srcimg.getImageMat());
+void gen::imageTesting(img::Image srcimg, std::string filename) {
+	std::string stroper = "C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/" + filename + ".jpg";
+	cv::imwrite(stroper, srcimg.getImageMat());
 }
 
 gen::CompareTest::CompareTest(img::Image* lh, img::Image* rh, float sv) {
@@ -19,7 +20,7 @@ gen::CompareTest::CompareTest(img::Image* lh, img::Image* rh, float sv) {
 	simval = sv;
 }
 
-bool gen::compareBySimilarityValue(const CompareTest& a, const CompareTest& b)
-{
+bool gen::compareBySimilarityValue(const CompareTest& a, const CompareTest& b) {
 	return a.simval > b.simval;
 }
+

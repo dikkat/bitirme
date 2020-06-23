@@ -3,6 +3,7 @@
 #include <fstream>
 #include <sstream>
 #include <algorithm>
+#include <functional>
 #include "Image.h"
 
 namespace img {
@@ -12,7 +13,7 @@ namespace img {
 
 namespace gen {
 	extern std::ostringstream tout;
-	void imageTesting(img::Image srcimg);
+	void imageTesting(img::Image srcimg, std::string filename);
 	void printTesting(std::ostringstream &osoperator);
 	class CompareTest{
 	public: 
@@ -23,3 +24,4 @@ namespace gen {
 	};
 	bool compareBySimilarityValue(const CompareTest& a, const CompareTest& b);
 }
+

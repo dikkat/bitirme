@@ -1,5 +1,7 @@
 #include "Image.h"
 
+
+
 img::Image::Image(std::string imgdir, int flag) {
 	imagemat = readImageFile(imgdir, flag);
     name = buildImageName(imgdir);
@@ -68,7 +70,15 @@ img::Histogram::Histogram(Image* srimg, int fb, int sb, int tb, int flag) {
     fbin = fb;
     sbin = sb;
     tbin = tb;
-    if (flag == CALC_BGRHIST)
+    if (flag == 0) {
+        if (getSourceMat().channels() == 1)
+            histmat = histogramGRAYCalculation(getSourceMat());
+        else if (getSourceMat().channels() == 3)
+            histmat = histogramBGRCalculation(getSourceMat());
+        else
+            throw std::exception("Illegal histogram build flag.");
+    }
+    else if (flag == CALC_BGRHIST)
         histmat = histogramBGRCalculation(getSourceMat());
     else if (flag == CALC_HSVHIST)
         histmat = histogramHSVCalculation(getSourceMat());
@@ -135,7 +145,8 @@ cv::Mat img::Histogram::histogramGRAYCalculation(cv::Mat sourcemat) {
     int histSize[] = { getBin()[0] };
 
     cv::Mat greyMat;
-    cv::cvtColor(sourcemat, greyMat, cv::COLOR_BGR2GRAY);
+    if (sourcemat.channels() == 3)
+        cv::cvtColor(sourcemat, greyMat, cv::COLOR_BGR2GRAY);
 
     float gray_range[] = { 0, 256 };
     const float* histRange[] = { gray_range };
@@ -203,6 +214,18 @@ img::Image img::Histogram::createHistogramDisplayImage(std::vector<cv::Mat> bgrh
     Image imoperator(histImage);
     return imoperator;
 }
+
+img::Edge::Edge(img::Image* srimg, int flag) {
+    srcimg = srimg;
+    
+}
+
+
+
+img::Image* img::Edge::getSourceImg() {
+    return srcimg;
+}
+
 
 std::vector<img::Image> img::readImageFolder(std::string imagefolderdirectory, int flag, bool all, int number) {
     if (imagefolderdirectory.find(".") != std::string::npos)

@@ -5,6 +5,7 @@
 #include <filesystem>
 #include "GeneralOperations.h"
 #include "SimilarityMeasures.h"
+#include "ImageOperations.h"
 
 #define CALC_BGRHIST 1
 #define CALC_HSVHIST 2
@@ -12,6 +13,7 @@
 
 namespace img {
 	class Histogram;
+	class Edge;
 
 	class Image {
 	public:
@@ -27,6 +29,7 @@ namespace img {
 		Histogram* getImageHist();
 	private:
 		cv::Mat imagemat;
+		std::vector<Edge*> imageEdgeList;
 		Histogram* imagehist = NULL;
 		std::string name, dir;
 		std::string buildImageName(std::string imgdir);
@@ -54,14 +57,15 @@ namespace img {
 		cv::Mat histogramGRAYCalculation(cv::Mat sourcemat);
 		cv::Mat normalizeMat(cv::Mat sourcemat, float alpha, float beta);
 		std::vector<cv::Mat> histogramBGRSeparateCalculation(cv::Mat sourcemat);
-		img::Image createHistogramDisplayImage(std::vector<cv::Mat> bgrhist, int hist_w, int hist_h);
+		Image createHistogramDisplayImage(std::vector<cv::Mat> bgrhist, int hist_w, int hist_h);
 	};
 
 	class Edge {
 	public:
-		Edge(Image* srcimg) {
-
-		}
+		Edge(Image* srimg, int flag);
+		Image* getSourceImg();
+	private:
+		Image* srcimg;
 	};
 
 	std::vector<Image> readImageFolder(std::string imagefoldername, int flag, bool all, int number);

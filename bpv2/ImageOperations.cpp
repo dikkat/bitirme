@@ -12,15 +12,28 @@ bool iop::histogramEqualityCheck(img::Image operand, int fb, int sb, int tb) {
 		return true;
 }
 
-float iop::calculateSimilarity(img::Image lefthand, img::Image righthand, int fb, int sb, int tb, int flaghist, int flagsim) {
+float iop::calculateHistogramSimilarity(img::Image& lefthand, img::Image& righthand, int fb, int sb, int tb, int flaghist, int flagsim) { //PARALLELISE
 	if (!histogramEqualityCheck(lefthand, fb, sb, tb))
 		lefthand.setImageHist(fb, sb, tb, flaghist);
 
 	if (!histogramEqualityCheck(righthand, fb, sb, tb))
 		righthand.setImageHist(fb, sb, tb, flaghist);
 
-	std::vector<float> lvecoperator = sim::matToVector(lefthand.getImageHist()->getNormalizedHistogramMat());
-	std::vector<float> rvecoperator = sim::matToVector(righthand.getImageHist()->getNormalizedHistogramMat());
+	std::vector<float> lvecoperator = sim::matToVector<float>(lefthand.getImageHist()->getNormalizedHistogramMat());
+	std::vector<float> rvecoperator = sim::matToVector<float>(righthand.getImageHist()->getNormalizedHistogramMat());
+	
+	cv::Mat xde = sim::vectorToMat(lvecoperator);
+
+	/*for (int i = 0; i < 4; i++) {
+		float xd = (float)lefthand.getImageHist()->getNormalizedHistogramMat().data[i];
+		float xda = (float)xde.data[i];
+		gen::tout << xda << "\t"
+			<< lvecoperator[i] << "\t"
+			<< lefthand.getImageHist()->getNormalizedHistogramMat().at<float>(0, 0, i) << "\t"
+			<< xd << "\t"
+			<< xde.at<float>(i, 0)
+			<< std::endl;
+	}*/
 
 	float iopoperator;
 
@@ -37,6 +50,9 @@ float iop::calculateSimilarity(img::Image lefthand, img::Image righthand, int fb
 	case SIM_MINKDIST: // DONT USE THIS WITHOUT SETTING MINK ORDER FIRST
 		iopoperator = sim::distanceMinkowski(lvecoperator, rvecoperator, getMinkowskiOrder());
 		break;
+	case SIM_CSQDIST:
+		iopoperator = sim::distanceChiSquared(lvecoperator, rvecoperator);
+		break;
 	case SIM_JACSIM:
 		iopoperator = sim::similarityJaccard(lvecoperator, rvecoperator);
 		break;
@@ -49,9 +65,11 @@ float iop::calculateSimilarity(img::Image lefthand, img::Image righthand, int fb
 	default:
 		throw std::exception("Illegal similarity calculation flag.");
 	}
-	delete(lefthand.getImageHist());
-	delete(righthand.getImageHist());
 	return iopoperator;
+}
+
+cv::Mat iop::calculateEdge(img::Image& lefthand, int flag) {
+	return lefthand.getImageMat();
 }
 
 int iop::getMinkowskiOrder() {
@@ -61,3 +79,4 @@ void iop::setMinkowskiOrder(int value) {
 	iop::minkorder = value;
 	return;
 }
+

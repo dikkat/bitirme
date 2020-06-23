@@ -10,12 +10,19 @@
 #define SIM_JACSIM 5
 #define SIM_HISINTR 6
 #define SIM_CROCOR 7
+#define SIM_CSQDIST 8
+
+
+namespace img {
+	class Image;
+}
 
 static QList<img::Image> imageList;
 
 namespace iop {
 	bool histogramEqualityCheck(img::Image operand, int fb, int sb, int tb);
-	float calculateSimilarity(img::Image lefthand, img::Image righthand, int fb, int sb, int tb, int flaghist, int flagsim);
+	float calculateHistogramSimilarity(img::Image& lefthand, img::Image& righthand, int fb, int sb, int tb, int flaghist, int flagsim);
+	cv::Mat calculateEdge(img::Image& lefthand, int flag);
 	int getMinkowskiOrder();
 	void setMinkowskiOrder(int value);
 	extern int minkorder;

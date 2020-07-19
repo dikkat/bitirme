@@ -22,19 +22,6 @@ float iop::calculateHistogramSimilarity(img::Image& lefthand, img::Image& righth
 	std::vector<float> lvecoperator = sim::matToVector<float>(lefthand.getImageHist()->getNormalizedHistogramMat());
 	std::vector<float> rvecoperator = sim::matToVector<float>(righthand.getImageHist()->getNormalizedHistogramMat());
 	
-	cv::Mat xde = sim::vectorToMat(lvecoperator);
-
-	/*for (int i = 0; i < 4; i++) {
-		float xd = (float)lefthand.getImageHist()->getNormalizedHistogramMat().data[i];
-		float xda = (float)xde.data[i];
-		gen::tout << xda << "\t"
-			<< lvecoperator[i] << "\t"
-			<< lefthand.getImageHist()->getNormalizedHistogramMat().at<float>(0, 0, i) << "\t"
-			<< xd << "\t"
-			<< xde.at<float>(i, 0)
-			<< std::endl;
-	}*/
-
 	float iopoperator;
 
 	switch (flagsim) {

@@ -1,3 +1,4 @@
+#include "SimilarityMeasures.h"
 #include "MainWindow.h"
 #include "ImageOperations.h"
 #include "DatabaseOperations.h"
@@ -15,17 +16,56 @@ int main(int argc, char *argv[])
 
 	const char* gszFile = "C:/Users/ASUS/source/repos/bpv2/bpv2/Database.db";
 	
-	img::Image ima("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/bikesgray.jpg", cv::IMREAD_UNCHANGED);
+	img::Image ima("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/flowergirl.jpg", cv::IMREAD_COLOR);
 
-	/*for (int i = 0; i < xde.total(); i++) {
-		
-			float f1 = (float)ima.getImageMat().data[i];
-			float f2 = (float)xde.data[i];
-			std::cout << xdeaf[i+4] << "\t" << ima.getImageHist()->getNormalizedHistogramMat().at<float>(i,i,i)<< "\t" << xde.at<float>(i, i, i)<< "\t" << f1 << "\t" << f2 << " " << std::endl;
-		
-	}*/
-	cv::Mat kernely = sim::edgeDetectionCanny(ima.getImageMat());
+	/*
+	for (int i = 0; i < xde.total(); i++) {
+		float f1 = (float)ima.getImageMat().data[i];
+		float f2 = (float)xde.data[i];
+		std::cout << xdeaf[i+4] << "\t" << ima.getImageHist()->getNormalizedHistogramMat().at<float>(i,i,i)<< "\t" << xde.at<float>(i, i, i)<< "\t" << f1 << "\t" << f2 << " " << std::endl;
+	}
+	*/
+
+	
+	std::vector<float> timeVec;
+	for (int i = 0; i < 100; i++) {
+		auto t1 = std::chrono::steady_clock::now(); //COMPLETE THE CONVOLUTION OPERATION THEN TEST CONVOLUTION2D FUNCTION TIME COMPLEXITY
+		cv::Mat xd = ima.getImageMat().clone();
+		cv::Mat kernelx = (cv::Mat_<float>(3, 3) << 1, 0, -1, 1, 0, -1, 1, 0, -1);
+		sim::convolution2DHelix(xd, kernelx);
+		auto t2 = std::chrono::steady_clock::now();
+		float d_micro = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count();
+		timeVec.push_back(d_micro);
+	}
+	float sum = 0;
+	for (int i = 0; i < timeVec.size(); i++)
+		sum += timeVec[i];	
+	std::cout << sum / timeVec.size() << std::endl;
+
+	for (int i = 0; i < 100; i++) {
+		auto t1 = std::chrono::steady_clock::now(); //COMPLETE THE CONVOLUTION OPERATION THEN TEST CONVOLUTION2D FUNCTION TIME COMPLEXITY
+		cv::Mat xd = ima.getImageMat().clone();
+		cv::Mat kernelx = (cv::Mat_<float>(3, 3) << 1, 0, -1, 1, 0, -1, 1, 0, -1);
+		sim::convolution2D(xd, kernelx);
+		auto t2 = std::chrono::steady_clock::now();
+		float d_micro = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count();
+		timeVec[i] = d_micro;
+	}
+	sum = 0;
+	for (int i = 0; i < timeVec.size(); i++)
+		sum += timeVec[i];
+	std::cout << sum / timeVec.size() << std::endl;
+	
+	cv::Mat xd = ima.getImageMat().clone();
+	cv::Mat kernelx = (cv::Mat_<float>(3, 3) << 1, 0, -1, 1, 0, -1, 1, 0, -1);
+	sim::convolution2DHelix(xd, kernelx);
+
+	cv::Mat conv = sim::edgeDetectionPrewitt(ima.getImageMat());
+	gen::imageTesting(img::Image(conv), "testing");
+	cv::Mat kernely = sim::EdgeDetectorCanny::edgeDetectionCanny(ima.getImageMat());
 	gen::imageTesting(img::Image(kernely), "test");
+	kernely = sim::edgeDetectionPrewitt(ima.getImageMat());
+	gen::imageTesting(img::Image(kernely), "test2");
 	
 	std::vector<img::Image> asd = img::readImageFolder("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench/full/", 
 		cv::IMREAD_COLOR, false, 25);

@@ -24,3 +24,5 @@ bool gen::compareBySimilarityValue(const CompareTest& a, const CompareTest& b) {
 	return a.simval > b.simval;
 }
 
+
+

@@ -9,15 +9,14 @@
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/gapi.hpp>
-#include <fftw3.h>""
-#include "GeneralOperations.h"
+#include "gen.h"
 
 using cf = std::complex<float>;
 
 namespace sim {
 	class EdgeDetectorCanny {
 	public:
-		EdgeDetectorCanny() : kernelsize(5), sigma(1), mu(0), thigh(0.07), tlow(0.02), weakratio(0.09),
+		EdgeDetectorCanny() : kernelsize(3), sigma(10), mu(0), thigh(0.13), tlow(0.075), weakratio(0.09),
 			kernelx((cv::Mat_<float>(3, 3) << 1, 0, -1, 1, 0, -1, 1, 0, -1)), 
 			kernely((cv::Mat_<float>(3, 3) << 1, 0, 1, 0, 0, 0, -1, 0, -1)) {}
 
@@ -35,7 +34,7 @@ namespace sim {
 		float weakratio;
 		cv::Mat kernelx;
 		cv::Mat kernely;
-		cv::Mat suppressNonMaxima(cv::Mat& dirMat, cv::Mat& magMat);
+		cv::Mat nonMaximumSuppression(cv::Mat& dirMat, cv::Mat& magMat);
 		void performHysteresis(cv::Mat& resultMat, float weak, float strong);
 		void doubleThreshold(cv::Mat& resultMat, cv::Mat const magMat, float max, float tlow, float thigh, float weakratio);
 	}; //HAUSDORFF DISTANCE FOR EDGE COMPARISON ALSO MAYBE SIFT ALGORITHM
@@ -81,13 +80,13 @@ namespace sim {
 	template <typename T>
 	cv::Mat vectorToMat(std::vector<T> operand);
 	template <typename T>
-	std::vector<T> matElemsToVec(cv::Mat operand);
+	std::vector<T> matElementsToVector(cv::Mat operand);
 	template <typename T>
-	cv::Mat vectorToMatElemsRowMajor(std::vector<T> operand, int mrows, int mcols, int mtype);
+	cv::Mat vectorToMatElementsRowMajor(std::vector<T> operand, int mrows, int mcols, int mtype);
 
 	cv::Mat convolution2D(cv::Mat const image, cv::Mat kernel);
-	cv::Mat convolution2DSeparable(cv::Mat const image, cv::Mat kernel);
-	cv::Mat convolution2DNormal(cv::Mat const image, cv::Mat kernel);
+	//cv::Mat convolution2DSeparable(cv::Mat const image, cv::Mat kernel);
+	//cv::Mat convolution2DNormal(cv::Mat const image, cv::Mat kernel);
 	cv::Mat convolution2DHelix(cv::Mat const image, cv::Mat kernel);
 
 	cv::Mat rotateMatrix180(cv::Mat srcmat);

@@ -1,7 +1,8 @@
-#include "SimilarityMeasures.h"
+#include "sim.h"
 #include "MainWindow.h"
-#include "ImageOperations.h"
-#include "DatabaseOperations.h"
+#include "iop.h"
+#include "linker.h"
+#include "dbop.h"
 #include <QtWidgets/QApplication>
 #include <QDebug>
 #include <boost/thread.hpp>
@@ -16,7 +17,7 @@ int main(int argc, char *argv[])
 
 	const char* gszFile = "C:/Users/ASUS/source/repos/bpv2/bpv2/Database.db";
 	
-	img::Image ima("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/flowergirl.jpg", cv::IMREAD_COLOR);
+	img::Image ima("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ege.jpg", cv::IMREAD_COLOR);
 
 	/*
 	for (int i = 0; i < xde.total(); i++) {
@@ -26,7 +27,7 @@ int main(int argc, char *argv[])
 	}
 	*/
 
-	
+	/*
 	std::vector<float> timeVec;
 	for (int i = 0; i < 100; i++) {
 		auto t1 = std::chrono::steady_clock::now(); //COMPLETE THE CONVOLUTION OPERATION THEN TEST CONVOLUTION2D FUNCTION TIME COMPLEXITY
@@ -55,10 +56,7 @@ int main(int argc, char *argv[])
 	for (int i = 0; i < timeVec.size(); i++)
 		sum += timeVec[i];
 	std::cout << sum / timeVec.size() << std::endl;
-	
-	cv::Mat xd = ima.getImageMat().clone();
-	cv::Mat kernelx = (cv::Mat_<float>(3, 3) << 1, 0, -1, 1, 0, -1, 1, 0, -1);
-	sim::convolution2DHelix(xd, kernelx);
+	*/
 
 	cv::Mat conv = sim::edgeDetectionPrewitt(ima.getImageMat());
 	gen::imageTesting(img::Image(conv), "testing");
@@ -109,7 +107,7 @@ int main(int argc, char *argv[])
 			<< "\t" << xdg[i * j + 8]
 			<< std::endl;
 	}
-		
+	//bune amk	-Enes kardeþ	
 	/*for (int i = 0; i < xdc.size(); i++) {
 		gen::tout << xdc[i].imgrh->getImageName() << "\t" << xdc[i].simval << "\t" << xde[i].simval << "\t" << xdc[i].simval - xde[i].simval << std::endl;
 	}*/

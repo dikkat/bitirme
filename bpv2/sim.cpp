@@ -1,4 +1,4 @@
-#include "SimilarityMeasures.h"
+#include "sim.h"
 
 template<typename T>
 bool sim::vectorSizeEqualityCheck(std::vector<T> lefthand, std::vector<T> righthand) {
@@ -148,20 +148,19 @@ cv::Mat sim::EdgeDetectorCanny::edgeDetectionCanny(cv::Mat const imageMat, sim::
 		cannyoper = imageMat.clone();
 
 	cannyoper = sim::filterGauss(cannyoper, edcOperator.kernelsize, edcOperator.sigma, edcOperator.mu);
-	cv::Mat kernelx = (cv::Mat_<float>(3, 3) << 1, 0, -1, 2, 0, -2, 1, 0, -1);
+	gen::imageTesting(img::Image(cannyoper), "test09");
+	cv::Mat kernelx = (cv::Mat_<float>(3, 3) << -1, 0, 1, -2, 0, 2, -1, 0, 1);
 	cv::Mat kernely = (cv::Mat_<float>(3, 3) << 1, 2, 1, 0, 0, 0, -1, -2, -1);
 	std::vector<cv::Mat> temp = sim::calculateEdgeGradientMagnitudeDirection(kernelx, kernely, cannyoper);
 	cv::Mat magMat = std::ref(temp[0]);
 	cv::Mat dirMat = std::ref(temp[1]);
 
 	gen::imageTesting(img::Image(magMat), "test10");
-	cv::Mat nonMaximaMat = edcOperator.suppressNonMaxima(dirMat, magMat);
+	cv::Mat nonMaximaMat = edcOperator.nonMaximumSuppression(dirMat, magMat);
 	gen::imageTesting(img::Image(nonMaximaMat), "test11");
 	
-	float max = 0;
-	for (int i = 0; i < nonMaximaMat.total(); i++)
-		if (nonMaximaMat.at<float>(i) > max)
-			max = nonMaximaMat.at<float>(i);
+	double max;
+	cv::minMaxLoc(nonMaximaMat, 0, &max);
 
 	float hThreshold = max * edcOperator.thigh;
 	float lThreshold = hThreshold * edcOperator.tlow;
@@ -178,60 +177,68 @@ cv::Mat sim::EdgeDetectorCanny::edgeDetectionCanny(cv::Mat const imageMat, sim::
 	return dtMat;
 }
 
-cv::Mat sim::EdgeDetectorCanny::suppressNonMaxima(cv::Mat &dirMat, cv::Mat &magMat) {
+
+cv::Mat sim::EdgeDetectorCanny::nonMaximumSuppression(cv::Mat &dirMat, cv::Mat &magMat) {
 	cv::Mat resultMat = cv::Mat::zeros(magMat.rows, magMat.cols, magMat.type());
 	cv::Mat angleMat = cv::Mat::zeros(dirMat.rows, dirMat.cols, dirMat.type());
 	for (int i = 0; i < angleMat.total(); i++) {
+		
 		angleMat.at<float>(i) = dirMat.at<float>(i) * 180 / M_PI;
 		if (angleMat.at<float>(i) < 0)
 			angleMat.at<float>(i) += 2 * M_PI;
 	}
 	for (int i = 0; i < magMat.rows; i++) {
 		for (int j = 0; j < magMat.cols; j++) {
-			try {
-				float q = 255;
-				float r = 255;
-				float angleOper = angleMat.at<float>(i, j);
-				//angle 0
-				if (0 <= angleOper < 22.5 || 157.5 <= angleOper <= 180) {
-					q = magMat.at<float>(i, j + 1);
-					r = magMat.at<float>(i, j - 1);
-				}
-				//angle 45
-				else if (22.5 <= angleMat.at<float>(i, j) < 67.5) {
-					q = magMat.at<float>(i + 1, j - 1);
-					r = magMat.at<float>(i - 1, j + 1);
-				}
-				else if (67.5 <= angleMat.at<float>(i, j) < 112.5) {
-					q = magMat.at<float>(i + 1, j);
-					r = magMat.at<float>(i - 1, j);
-				}
-				else if (112.5 <= angleMat.at<float>(i, j) < 157.5) {
-					q = magMat.at<float>(i - 1, j - 1);
-					r = magMat.at<float>(i + 1, j + 1);
-				}
-				if (magMat.at<float>(i, j) >= q && magMat.at<float>(i, j) >= r)
-					resultMat.at<float>(i, j) = magMat.at<float>(i, j);
-				else
-					resultMat.at<float>(i, j) = 0;
+			float q = 255;
+			float r = 255;
+			float angleOper = angleMat.at<float>(i, j);
+
+			if ((0 <= angleOper && angleOper < 22.5) || (337.5 <= angleOper && angleOper < 360) || (157.5 <= angleOper && angleOper < 202.5)) {
+				if (j - 1 < 0 || j + 1 >= magMat.cols)
+					continue;
+				q = magMat.at<float>(i, j + 1);
+				r = magMat.at<float>(i, j - 1);
 			}
-			catch (...) {
-				continue;
+
+			else if ((22.5 <= angleOper && angleOper < 67.5) || 202.5 <= angleOper && angleOper < 247.5) {
+				if (i - 1 < 0 || j - 1 < 0 || i + 1 >= magMat.rows || j + 1 >= magMat.cols)
+					continue;
+				q = magMat.at<float>(i + 1, j - 1);
+				r = magMat.at<float>(i - 1, j + 1);
 			}
+
+			else if ((67.5 <= angleOper && angleOper < 112.5) || (247.5 <= angleOper && angleOper < 292.5)) {
+				if (i - 1 < 0 || i + 1 >= magMat.rows)
+					continue;
+				q = magMat.at<float>(i + 1, j);
+				r = magMat.at<float>(i - 1, j);
+			}
+
+			else if ((112.5 <= angleOper && angleOper < 157.5) || (292.5 <= angleOper && angleOper < 337.5)) {
+				if (i - 1 < 0 || j - 1 < 0 || i + 1 >= magMat.rows || j + 1 >= magMat.cols)
+					continue;
+				q = magMat.at<float>(i - 1, j - 1);
+				r = magMat.at<float>(i + 1, j + 1);
+			}
+
+			if (magMat.at<float>(i, j) >= q && magMat.at<float>(i, j) >= r)
+				resultMat.at<float>(i, j) = magMat.at<float>(i, j);
+			else
+				resultMat.at<float>(i, j) = 0;
 		}
 	}
 	return resultMat;
 }
 
-void sim::EdgeDetectorCanny::doubleThreshold(cv::Mat& resultMat, cv::Mat const nonMaximaMat, float max, float tlow, float thigh, float weakratio) { //https://towardsdatascience.com/canny-edge-detection-step-by-step-in-python-computer-vision-b49c3a2d8123
+void sim::EdgeDetectorCanny::doubleThreshold(cv::Mat& resultMat, cv::Mat const nonMaximaMat, float max, float lThreshold, float hThreshold, float weakratio) { //https://towardsdatascience.com/canny-edge-detection-step-by-step-in-python-computer-vision-b49c3a2d8123
 	float strong = max;
 	float weak = strong * weakratio;
 	
 	
 	for (int i = 0; i < nonMaximaMat.total(); i++) {
-		if (nonMaximaMat.at<float>(i) > thigh)
+		if (nonMaximaMat.at<float>(i) > hThreshold)
 			resultMat.at<float>(i) = strong;
-		else if (nonMaximaMat.at<float>(i) < tlow)
+		else if (nonMaximaMat.at<float>(i) < lThreshold)
 			resultMat.at<float>(i) = 0;
 		else
 			resultMat.at<float>(i) = weak;
@@ -242,22 +249,21 @@ void sim::EdgeDetectorCanny::performHysteresis(cv::Mat& resultMat, float weak, f
 	for (int i = 0; i < resultMat.rows; i++) {
 		for (int j = 0; j < resultMat.cols; j++){
 			if (resultMat.at<float>(i, j) == weak) {
-				try {
-					if ((resultMat.at<float>(i - 1, j - 1) == strong)
-						|| (resultMat.at<float>(i - 1, j) == strong)
-						|| (resultMat.at<float>(i - 1, j + 1) == strong)
-						|| (resultMat.at<float>(i, j - 1) == strong)
-						|| (resultMat.at<float>(i, j + 1) == strong)
-						|| (resultMat.at<float>(i + 1, j - 1) == strong)
-						|| (resultMat.at<float>(i + 1, j) == strong)
-						|| (resultMat.at<float>(i + 1, j + 1) == strong))
-						resultMat.at<float>(i, j) = strong;
-					else
-						resultMat.at<float>(i, j) = 0;
-				}
-				catch (...) {
+				if (i - 1 < 0 || i + 1 >= resultMat.rows || j - 1 < 0 || j + 1 >= resultMat.cols) {
+					resultMat.at<float>(i, j) = 0;
 					continue;
 				}
+				if ((resultMat.at<float>(i - 1, j - 1) == strong)
+					|| (resultMat.at<float>(i - 1, j) == strong)
+					|| (resultMat.at<float>(i - 1, j + 1) == strong)
+					|| (resultMat.at<float>(i, j - 1) == strong)
+					|| (resultMat.at<float>(i, j + 1) == strong)
+					|| (resultMat.at<float>(i + 1, j - 1) == strong)
+					|| (resultMat.at<float>(i + 1, j) == strong)
+					|| (resultMat.at<float>(i + 1, j + 1) == strong))
+					resultMat.at<float>(i, j) = strong;
+				else
+					resultMat.at<float>(i, j) = 0;
 			}
 		}
 	}
@@ -292,14 +298,17 @@ cv::Mat sim::commonOperationsSPR(cv::Mat const kx, cv::Mat const ky, cv::Mat con
 	cv::Mat kernelx = kx;
 	cv::Mat kernely = ky;
 
-	cv::Mat sprgx = convolution2DHelix(imat, kernelx);
-	cv::Mat sprgy = convolution2DHelix(imat, kernely);
+	cv::Mat sprgx = convolution2D(imat, kernelx);
+	cv::Mat sprgy = convolution2D(imat, kernely);
 
 	cv::Mat sprg(sprgx.dims, sprgx.size, sprgx.type());
 	for (int i = 0; i < sprg.rows; i++) {
 		for (int j = 0; j < sprg.cols; j++)
 			sprg.at<float>(i, j) = hypot(sprgx.at<float>(i, j), sprgy.at<float>(i, j));
 	}
+	double sprgMAX;
+	cv::minMaxLoc(sprg, 0, &sprgMAX);
+	sprg = sprg / sprgMAX * 255;
 	return sprg;
 }
 
@@ -314,9 +323,14 @@ std::vector<cv::Mat> sim::calculateEdgeGradientMagnitudeDirection(cv::Mat const 
 	cv::Mat sprgDir(sprgx.dims, sprgx.size, sprgx.type());
 
 	for (int i = 0; i < sprgMag.rows; i++) {
-		for (int j = 0; j < sprgMag.cols; j++)
+		for (int j = 0; j < sprgMag.cols; j++) {
 			sprgMag.at<float>(i, j) = hypot(sprgx.at<float>(i, j), sprgy.at<float>(i, j));
+		}
 	}
+
+	double sprgMAX;
+	cv::minMaxLoc(sprgMag, 0, &sprgMAX);
+	sprgMag = sprgMag / sprgMAX * 255;
 
 	for (int i = 0; i < sprgDir.rows; i++) {
 		for (int j = 0; j < sprgDir.cols; j++) {
@@ -383,7 +397,7 @@ template cv::Mat sim::vectorToMat<float>(std::vector<float> operand);
 template cv::Mat sim::vectorToMat<uchar>(std::vector<uchar> operand);
 
 template <typename T>
-std::vector<T> sim::matElemsToVec(cv::Mat operand) {
+std::vector<T> sim::matElementsToVector(cv::Mat operand) {
 	std::vector<T> vecOper;
 	int cn = operand.channels();
 	int lele = operand.total();
@@ -406,12 +420,12 @@ std::vector<T> sim::matElemsToVec(cv::Mat operand) {
 	return vecOper;
 }
 
-template std::vector<float> sim::matElemsToVec<float>(cv::Mat operand);
-template std::vector<uchar> sim::matElemsToVec<uchar>(cv::Mat operand);
-template std::vector<cf> sim::matElemsToVec<cf>(cv::Mat operand);
+template std::vector<float> sim::matElementsToVector<float>(cv::Mat operand);
+template std::vector<uchar> sim::matElementsToVector<uchar>(cv::Mat operand);
+template std::vector<cf> sim::matElementsToVector<cf>(cv::Mat operand);
 
 template <typename T>
-cv::Mat sim::vectorToMatElemsRowMajor(std::vector<T> operand, int mrows, int mcols, int mtype) {
+cv::Mat sim::vectorToMatElementsRowMajor(std::vector<T> operand, int mrows, int mcols, int mtype) {
 	cv::Mat matoper(mrows, mcols, mtype);
 
 	for (int j = 0; j < matoper.total(); j++) {
@@ -420,8 +434,8 @@ cv::Mat sim::vectorToMatElemsRowMajor(std::vector<T> operand, int mrows, int mco
 	return matoper;
 }
 
-template cv::Mat sim::vectorToMatElemsRowMajor<float>(std::vector<float> operand, int mrows, int mcols, int mtype);
-template cv::Mat sim::vectorToMatElemsRowMajor<cf>(std::vector<cf> operand, int mrows, int mcols, int mtype);
+template cv::Mat sim::vectorToMatElementsRowMajor<float>(std::vector<float> operand, int mrows, int mcols, int mtype);
+template cv::Mat sim::vectorToMatElementsRowMajor<cf>(std::vector<cf> operand, int mrows, int mcols, int mtype);
 //O(log2(N) * N )
 /*
 cv::Mat sim::fastFourierTransform_2D(cv::Mat const image) { //Introduction to Algorithms, 2009
@@ -682,22 +696,14 @@ cv::Mat sim::convolution2D(cv::Mat const image, cv::Mat const kernel) {
 	else
 		oper = image.clone();
 
-	bool separable = false;
-
-	cv::Mat kerOper = rotateMatrix180(kernel);
-	if (rankOfMatrix(kerOper) == 1) {
-		separable = true;
-	}
 	cv::Mat resultMat;
 
-	if (separable)
-		resultMat = convolution2DSeparable(oper, kerOper);
-	else
-		resultMat = convolution2DNormal(oper, kerOper);
+	resultMat = convolution2DHelix(oper, kernel);
 
 	return resultMat;
 }
 
+/*
 cv::Mat sim::convolution2DSeparable(cv::Mat const image, cv::Mat kernel) {
 	std::function<int(int, int)> gcd = [&gcd](int a, int b) {
 		if (a == 0)
@@ -721,7 +727,6 @@ cv::Mat sim::convolution2DSeparable(cv::Mat const image, cv::Mat kernel) {
 		float scale = M.at<float>(0, 0) / (X.at<float>(0) * Y.at<float>(0));
 		X = X * scale;
 		cv::Mat result = Y * X;
-		std::cout << Y << std::endl << X << std::endl << result << std::endl << M << std::endl;
 		bool valid = std::equal(result.begin<float>(), result.end<float>(), M.begin<float>());
 		std::vector<cv::Mat> matVec;
 		if (valid) {
@@ -757,7 +762,7 @@ cv::Mat sim::convolution2DSeparable(cv::Mat const image, cv::Mat kernel) {
 
 	for (int i = 0; i < matOperX.rows; i++) {
 		for (int j = 0; j < matOperX.cols; j++) {
-			for (int k = 0; k < xkernel->total(); k++) {
+			for (int k = 0; k < xkernel->total(); k++) { //fazlalýk deðerler daha sonra kýrpýlýr
 				int index = j - 1 + k;
 				if (index < 0 || index >= image.cols)
 					continue;
@@ -804,10 +809,10 @@ cv::Mat sim::convolution2DNormal(cv::Mat const oper, cv::Mat kernel) {  // CPU I
 		}
 	return convmat;
 }
+*/
 
 cv::Mat sim::convolution2DHelix(cv::Mat const image, cv::Mat kernel) { //https://sites.ualberta.ca/~mostafan/Files/Papers/md_convolution_TLE2009.pdf
-	cv::Mat imageOper;
-	cv::cvtColor(image, imageOper, cv::COLOR_BGR2GRAY);
+	cv::Mat imageOper = image.clone();
 	
 	float RSIZE = imageOper.rows + kernel.rows - 1;
 	float CSIZE = imageOper.cols + kernel.cols - 1;
@@ -815,10 +820,15 @@ cv::Mat sim::convolution2DHelix(cv::Mat const image, cv::Mat kernel) { //https:/
 	cv::Mat imOper = cv::Mat::zeros(RSIZE, CSIZE, CV_32FC1);
 	for (int i = 0; i < imageOper.rows; i++) {
 		for (int j = 0; j < imageOper.cols; j++) {
-			imOper.at<float>(i, j) = (float)imageOper.at<uchar>(i, j);
+			if (imageOper.elemSize() == 1)
+				imOper.at<float>(i, j) = (float)imageOper.at<uchar>(i, j);
+			else if (imageOper.elemSize() == 4)
+				imOper.at<float>(i, j) = imageOper.at<float>(i, j);
+			else
+				throw std::exception("Illegal image element size.");
 		}
 	}
-
+	
 	std::vector<float> imVec;
 	for (int i = 0; i < CSIZE; i++) {
 		for (int j = 0; j < RSIZE; j++) {
@@ -831,7 +841,7 @@ cv::Mat sim::convolution2DHelix(cv::Mat const image, cv::Mat kernel) { //https:/
 	cv::Mat kerOper = cv::Mat::zeros(RSIZE, CSIZE, CV_32FC1);
 	for (int i = 0; i < kernel.rows; i++) {
 		for (int j = 0; j < kernel.cols; j++) {
-			kerOper.at<float>(i, j) = kernel.at<float>(i,j);
+			kerOper.at<float>(i, j) = kernel.at<float>(i, j);
 		}
 	}
 
@@ -853,26 +863,7 @@ cv::Mat sim::convolution2DHelix(cv::Mat const image, cv::Mat kernel) { //https:/
 			k++;
 		}
 	}
-
 	std::vector<float> convVec;
-	for (int i = 0; i < 12; i++) {
-		std::vector<float> Xpp = { -9, -3, -1, 0, 0, 4, -4 };
-		std::vector<float> Ypp = { -4, -2, 0, 0, -1, 1 };
-		convVec.push_back(0);
-		
-		std::vector<float>nonZeroKerVec2 = { 0, 1,4,5 };
-		int kmin = 0;
-		int kmax = (i < Xpp.size() - 1) ? i : Xpp.size() - 1;
-		for (int k : nonZeroKerVec2) {
-			if ((i - k) < 0 || (i - k) >= Xpp.size())
-				continue;
-			if (k > kmax)
-				break;
-			convVec[i] += Xpp[i - k] * Ypp[k];
-		}
-	}
-
-	convVec.erase(convVec.begin(), convVec.end());
 	for (int i = 0; i < imVec.size() + kerVec.size() - 1; i++) {
 		int kmin, kmax;
 
@@ -888,16 +879,6 @@ cv::Mat sim::convolution2DHelix(cv::Mat const image, cv::Mat kernel) { //https:/
 		}
 	}
 
-	/*cv::Mat ccc = sim::convolution2D(image, kernel);
-	gen::imageTesting(img::Image(ccc), "testere2");
-	for (int i = 0; i < imageOper.cols; i++) {
-		for (int j = 0; j < 10; j++) {
-			if (imVec[i * imageOper.rows + j] != ccc.at<float>(j, i));
-			std::cout << convVec[i * imageOper.rows + j] << " " << ccc.at<float>(j, i) << std::endl;
-		}
-		std::cout << std::endl;
-	}*/
-
 	cv::Mat convMat(image.rows + kernel.rows - 1, image.cols + kernel.cols - 1, CV_32FC1);
 
 	for (int i = 0; i < convMat.cols; i++) {
@@ -906,13 +887,15 @@ cv::Mat sim::convolution2DHelix(cv::Mat const image, cv::Mat kernel) { //https:/
 		}
 	}
 
+	convMat(cv::Range(kernel.rows, convMat.rows - kernel.rows), cv::Range(kernel.cols, convMat.cols - kernel.cols)).copyTo(convMat);
+
 	return convMat;
 }
 
 cv::Mat sim::rotateMatrix180(cv::Mat srcmat)
 {
 	if (srcmat.rows != srcmat.cols)
-		throw std::exception("Matrix to rotate must be square.");
+		throw std::exception("Matrix to be rotated must be square.");
 
 	cv::Mat retmat;
 	retmat = srcmat.clone();
@@ -930,7 +913,7 @@ cv::Mat sim::filterGauss(cv::Mat const operand, int ksize, float sigma, float mu
 		throw std::exception("Illegal kernel size.");
 	cv::Mat gaussmat(ksize, ksize, CV_32FC1);
 
-	std::vector<float> gaussVec = gaussKernel(ksize, 1, 0);
+	std::vector<float> gaussVec = gaussKernel(ksize, sigma, mu);
 
 	cv::Mat xvec(ksize, 1, CV_32F);
 	cv::Mat yvec(1, ksize, CV_32F);

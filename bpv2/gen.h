@@ -4,7 +4,7 @@
 #include <sstream>
 #include <algorithm>
 #include <functional>
-#include "Image.h"
+#include "image.h"
 
 namespace img {
 	class Image;

@@ -1,16 +1,9 @@
 #pragma once
-#include "Image.h"
-#include "SimilarityMeasures.h"
+#include "image.h"
+#include "sim.h"
 #include <QList>
 
-#define SIM_COSSIM 1
-#define SIM_MANDIST 2
-#define SIM_EUCDIST 3
-#define SIM_MINKDIST 4
-#define SIM_JACSIM 5
-#define SIM_HISINTR 6
-#define SIM_CROCOR 7
-#define SIM_CSQDIST 8
+enum hist_cmpr_flag { SIM_COSSIM, SIM_MANDIST, SIM_EUCDIST, SIM_MINKDIST, SIM_JACSIM, SIM_HISINTR, SIM_CROCOR, SIM_CSQDIST };
 
 
 namespace img {

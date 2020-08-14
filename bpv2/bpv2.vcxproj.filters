@@ -31,19 +31,25 @@
     <ClCompile Include="MainWindow.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="GeneralOperations.cpp">
+    <ClCompile Include="image.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Image.cpp">
+    <ClCompile Include="dbop.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="SimilarityMeasures.cpp">
+    <ClCompile Include="gen.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="ImageOperations.cpp">
+    <ClCompile Include="iop.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="DatabaseOperations.cpp">
+    <ClCompile Include="sim.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="feat.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="linker.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -58,19 +64,25 @@
     </QtUic>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="GeneralOperations.h">
+    <ClInclude Include="image.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Image.h">
+    <ClInclude Include="dbop.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="SimilarityMeasures.h">
+    <ClInclude Include="gen.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="ImageOperations.h">
+    <ClInclude Include="iop.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="DatabaseOperations.h">
+    <ClInclude Include="sim.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="linker.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="feat.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

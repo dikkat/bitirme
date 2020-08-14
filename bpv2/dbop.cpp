@@ -1,33 +1,36 @@
-#include "DatabaseOperations.h"
+#include "dbop.h"
 
-MYSQL* dbop::connectToDatabaseMYSQL(std::string server, std::string user, std::string password, std::string database) {
-    MYSQL* connect;
-    connect = mysql_init(NULL);
-    if (!connect) {
-        return false;
-    }
-    connect = mysql_real_connect(connect, server.c_str(), user.c_str(), password.c_str(), database.c_str(), 0, NULL, 0);
-    if (connect) {
-        return connect;
-    }
-    else {
-        return false;
-    }
+void dbop::initializeDatabase() {
+    if (!connectToDatabaseSQLITE())
+        throw std::exception("Can't connect to database.");
+
 }
 
-void dbop::disconnectFromDatabaseMYSQL(MYSQL* connect) {
-    if (connect) {
-        mysql_close(connect);
-        return;
+static int dbop::callback(void* data, int argc, char** argv, char** azColName) {
+    int i;
+    fprintf(stderr, "%s: ", (const char*)data);
+
+    for (i = 0; i < argc; i++) {
+        printf("%s = %s\n", azColName[i], argv[i] ? argv[i] : "NULL");
+    }
+
+    printf("\n");
+    return 0;
+}
+
+
+bool dbop::connectToDatabaseSQLITE() {
+    sqlite3 *db;
+    int rc;
+
+    rc = sqlite3_open("bitirme.db", &db);
+
+    if (rc) {
+        fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
+        return false;
     }
     else
-        return;
-}
-
-bool dbop::connectToDatabaseSQLITE(const char* file) {
-    sqlite3 db();
-    
-    return true;
+        return true;
 }
 
 std::string dbop::serializeMat(cv::Mat operand) {

@@ -20,7 +20,7 @@
 #include <QAbstractTableModel>
 
 #include "ui_MainWindow.h"
-#include "ImageOperations.h"
+#include "iop.h"
 
 class TextEdit;
 

@@ -1,4 +1,4 @@
-#include "ImageOperations.h"
+#include "iop.h"
 
 int iop::minkorder;
 

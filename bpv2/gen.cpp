@@ -1,4 +1,4 @@
-#include "GeneralOperations.h"
+#include "gen.h"
 
 std::ostringstream gen::tout;
 

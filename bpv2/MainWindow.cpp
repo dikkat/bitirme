@@ -158,7 +158,7 @@ bool MainWindow::loadFile(const QString& fileName)
 	}
 
 	setImage(ui.imageLabel_4, newImage);
-	imageList[0].setImageDirectory(fileName.toStdString());
+	//imageList[0].setImageDirectory(fileName.toStdString());
 	setWindowFilePath(fileName);
 
 	const QString message = tr("Opened \"%1\", %2x%3, Depth: %4")

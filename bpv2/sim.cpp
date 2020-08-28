@@ -139,213 +139,6 @@ float sim::crossCorrelation(std::vector<float> lefthand, std::vector<float> righ
 	return crcooperator;
 }
 
-cv::Mat sim::EdgeDetectorCanny::edgeDetectionCanny(cv::Mat const imageMat, sim::EdgeDetectorCanny edcOperator) { //Computer Vision, Mar 2000, Alg 24
-	cv::Mat cannyoper;																							 //https://towardsdatascience.com/canny-edge-detection-step-by-step-in-python-computer-vision-b49c3a2d8123
-																												 //http://www.tomgibara.com/computer-vision/CannyEdgeDetector.java
-	if (imageMat.channels() == 3)
-		cv::cvtColor(imageMat, cannyoper, cv::COLOR_BGR2GRAY);
-	else
-		cannyoper = imageMat.clone();
-
-	cannyoper = sim::filterGauss(cannyoper, edcOperator.kernelsize, edcOperator.sigma, edcOperator.mu);
-	gen::imageTesting(img::Image(cannyoper), "test09");
-	cv::Mat kernelx = (cv::Mat_<float>(3, 3) << -1, 0, 1, -2, 0, 2, -1, 0, 1);
-	cv::Mat kernely = (cv::Mat_<float>(3, 3) << 1, 2, 1, 0, 0, 0, -1, -2, -1);
-	std::vector<cv::Mat> temp = sim::calculateEdgeGradientMagnitudeDirection(kernelx, kernely, cannyoper);
-	cv::Mat magMat = std::ref(temp[0]);
-	cv::Mat dirMat = std::ref(temp[1]);
-
-	gen::imageTesting(img::Image(magMat), "test10");
-	cv::Mat nonMaximaMat = edcOperator.nonMaximumSuppression(dirMat, magMat);
-	gen::imageTesting(img::Image(nonMaximaMat), "test11");
-	
-	double max;
-	cv::minMaxLoc(nonMaximaMat, 0, &max);
-
-	float hThreshold = max * edcOperator.thigh;
-	float lThreshold = hThreshold * edcOperator.tlow;
-
-	cv::Mat dtMat(nonMaximaMat.rows, nonMaximaMat.cols, nonMaximaMat.type());
-	edcOperator.doubleThreshold(dtMat, nonMaximaMat, max, lThreshold, hThreshold, edcOperator.weakratio);
-	gen::imageTesting(img::Image(dtMat), "test12");
-
-	float strong = max;
-	float weak = strong * edcOperator.weakratio;
-
-	edcOperator.performHysteresis(dtMat, weak, strong);
-	gen::imageTesting(img::Image(dtMat), "test13");
-	return dtMat;
-}
-
-
-cv::Mat sim::EdgeDetectorCanny::nonMaximumSuppression(cv::Mat &dirMat, cv::Mat &magMat) {
-	cv::Mat resultMat = cv::Mat::zeros(magMat.rows, magMat.cols, magMat.type());
-	cv::Mat angleMat = cv::Mat::zeros(dirMat.rows, dirMat.cols, dirMat.type());
-	for (int i = 0; i < angleMat.total(); i++) {
-		
-		angleMat.at<float>(i) = dirMat.at<float>(i) * 180 / M_PI;
-		if (angleMat.at<float>(i) < 0)
-			angleMat.at<float>(i) += 2 * M_PI;
-	}
-	for (int i = 0; i < magMat.rows; i++) {
-		for (int j = 0; j < magMat.cols; j++) {
-			float q = 255;
-			float r = 255;
-			float angleOper = angleMat.at<float>(i, j);
-
-			if ((0 <= angleOper && angleOper < 22.5) || (337.5 <= angleOper && angleOper < 360) || (157.5 <= angleOper && angleOper < 202.5)) {
-				if (j - 1 < 0 || j + 1 >= magMat.cols)
-					continue;
-				q = magMat.at<float>(i, j + 1);
-				r = magMat.at<float>(i, j - 1);
-			}
-
-			else if ((22.5 <= angleOper && angleOper < 67.5) || 202.5 <= angleOper && angleOper < 247.5) {
-				if (i - 1 < 0 || j - 1 < 0 || i + 1 >= magMat.rows || j + 1 >= magMat.cols)
-					continue;
-				q = magMat.at<float>(i + 1, j - 1);
-				r = magMat.at<float>(i - 1, j + 1);
-			}
-
-			else if ((67.5 <= angleOper && angleOper < 112.5) || (247.5 <= angleOper && angleOper < 292.5)) {
-				if (i - 1 < 0 || i + 1 >= magMat.rows)
-					continue;
-				q = magMat.at<float>(i + 1, j);
-				r = magMat.at<float>(i - 1, j);
-			}
-
-			else if ((112.5 <= angleOper && angleOper < 157.5) || (292.5 <= angleOper && angleOper < 337.5)) {
-				if (i - 1 < 0 || j - 1 < 0 || i + 1 >= magMat.rows || j + 1 >= magMat.cols)
-					continue;
-				q = magMat.at<float>(i - 1, j - 1);
-				r = magMat.at<float>(i + 1, j + 1);
-			}
-
-			if (magMat.at<float>(i, j) >= q && magMat.at<float>(i, j) >= r)
-				resultMat.at<float>(i, j) = magMat.at<float>(i, j);
-			else
-				resultMat.at<float>(i, j) = 0;
-		}
-	}
-	return resultMat;
-}
-
-void sim::EdgeDetectorCanny::doubleThreshold(cv::Mat& resultMat, cv::Mat const nonMaximaMat, float max, float lThreshold, float hThreshold, float weakratio) { //https://towardsdatascience.com/canny-edge-detection-step-by-step-in-python-computer-vision-b49c3a2d8123
-	float strong = max;
-	float weak = strong * weakratio;
-	
-	
-	for (int i = 0; i < nonMaximaMat.total(); i++) {
-		if (nonMaximaMat.at<float>(i) > hThreshold)
-			resultMat.at<float>(i) = strong;
-		else if (nonMaximaMat.at<float>(i) < lThreshold)
-			resultMat.at<float>(i) = 0;
-		else
-			resultMat.at<float>(i) = weak;
-	}
-}
-
-void sim::EdgeDetectorCanny::performHysteresis(cv::Mat& resultMat, float weak, float strong) {
-	for (int i = 0; i < resultMat.rows; i++) {
-		for (int j = 0; j < resultMat.cols; j++){
-			if (resultMat.at<float>(i, j) == weak) {
-				if (i - 1 < 0 || i + 1 >= resultMat.rows || j - 1 < 0 || j + 1 >= resultMat.cols) {
-					resultMat.at<float>(i, j) = 0;
-					continue;
-				}
-				if ((resultMat.at<float>(i - 1, j - 1) == strong)
-					|| (resultMat.at<float>(i - 1, j) == strong)
-					|| (resultMat.at<float>(i - 1, j + 1) == strong)
-					|| (resultMat.at<float>(i, j - 1) == strong)
-					|| (resultMat.at<float>(i, j + 1) == strong)
-					|| (resultMat.at<float>(i + 1, j - 1) == strong)
-					|| (resultMat.at<float>(i + 1, j) == strong)
-					|| (resultMat.at<float>(i + 1, j + 1) == strong))
-					resultMat.at<float>(i, j) = strong;
-				else
-					resultMat.at<float>(i, j) = 0;
-			}
-		}
-	}
-}
-
-
-cv::Mat sim::edgeDetectionSobel(cv::Mat const imageMat) {
-	cv::Mat kernelx = (cv::Mat_<float>(3, 3) << 1, 0, -1, 2, 0, -2, 1, 0, -1);
-	cv::Mat kernely = (cv::Mat_<float>(3, 3) << 1, 2, 1, 0, 0, 0, -1, -2, -1);
-
-	cv::Mat sobelg = commonOperationsSPR(kernelx, kernely, imageMat);
-	return sobelg;
-}
-
-cv::Mat sim::edgeDetectionPrewitt(cv::Mat const imageMat) {
-	cv::Mat kernelx = (cv::Mat_<float>(3, 3) << 1, 0, -1, 1, 0, -1, 1, 0, -1);
-	cv::Mat kernely = (cv::Mat_<float>(3, 3) << 1, 1, 1, 0, 0, 0, -1, -1, -1);
-
-	cv::Mat prewittg = commonOperationsSPR(kernelx, kernely, imageMat);
-	return prewittg;
-}
-
-cv::Mat sim::edgeDetectionRobertsCross(cv::Mat const imageMat) {
-	cv::Mat kernelx = (cv::Mat_<float>(2, 2) << 1, 0, 0, -1);
-	cv::Mat kernely = (cv::Mat_<float>(2, 2) << 0, 1, -1, 0);
-
-	cv::Mat robertsg = commonOperationsSPR(kernelx, kernely, imageMat);
-	return robertsg;
-}
-
-cv::Mat sim::commonOperationsSPR(cv::Mat const kx, cv::Mat const ky, cv::Mat const imat) {
-	cv::Mat kernelx = kx;
-	cv::Mat kernely = ky;
-
-	cv::Mat sprgx = convolution2D(imat, kernelx);
-	cv::Mat sprgy = convolution2D(imat, kernely);
-
-	cv::Mat sprg(sprgx.dims, sprgx.size, sprgx.type());
-	for (int i = 0; i < sprg.rows; i++) {
-		for (int j = 0; j < sprg.cols; j++)
-			sprg.at<float>(i, j) = hypot(sprgx.at<float>(i, j), sprgy.at<float>(i, j));
-	}
-	double sprgMAX;
-	cv::minMaxLoc(sprg, 0, &sprgMAX);
-	sprg = sprg / sprgMAX * 255;
-	return sprg;
-}
-
-std::vector<cv::Mat> sim::calculateEdgeGradientMagnitudeDirection(cv::Mat const kx, cv::Mat const ky, cv::Mat const imat) {
-	cv::Mat kernelx = kx;
-	cv::Mat kernely = ky;
-
-	cv::Mat sprgx = convolution2D(imat, kernelx);
-	cv::Mat sprgy = convolution2D(imat, kernely);
-
-	cv::Mat sprgMag(sprgx.dims, sprgx.size, sprgx.type());
-	cv::Mat sprgDir(sprgx.dims, sprgx.size, sprgx.type());
-
-	for (int i = 0; i < sprgMag.rows; i++) {
-		for (int j = 0; j < sprgMag.cols; j++) {
-			sprgMag.at<float>(i, j) = hypot(sprgx.at<float>(i, j), sprgy.at<float>(i, j));
-		}
-	}
-
-	double sprgMAX;
-	cv::minMaxLoc(sprgMag, 0, &sprgMAX);
-	sprgMag = sprgMag / sprgMAX * 255;
-
-	for (int i = 0; i < sprgDir.rows; i++) {
-		for (int j = 0; j < sprgDir.cols; j++) {
-			sprgDir.at<float>(i, j) = atan2f(sprgy.at<float>(i, j), sprgx.at<float>(i, j));
-			if (sprgDir.at<float>(i, j) < 0)
-				sprgDir.at<float>(i, j) += M_PI * 2;
-		}
-	}
-
-	return std::vector<cv::Mat>{sprgMag, sprgDir};
-}
-
-
-
-
 template<typename T> 
 std::vector<T> sim::matToVector(cv::Mat operand) {   //https://stackoverflow.com/questions/62325615/opencv-data-of-two-mats-are-the-same-but-values-when-retrieved-with-matat-are
 	std::vector<T> vecoper;
@@ -427,7 +220,6 @@ template std::vector<cf> sim::matElementsToVector<cf>(cv::Mat operand);
 template <typename T>
 cv::Mat sim::vectorToMatElementsRowMajor(std::vector<T> operand, int mrows, int mcols, int mtype) {
 	cv::Mat matoper(mrows, mcols, mtype);
-
 	for (int j = 0; j < matoper.total(); j++) {
 		matoper.at<T>(j) = operand[j];
 	}
@@ -531,6 +323,54 @@ cv::Mat sim::fastFourierTransform_2D(cv::Mat const image) { //Introduction to Al
 }
 */
 
+void sim::Convolution::fftRosetta(std::valarray<cf>& x) { //https://rosettacode.org/wiki/Fast_Fourier_transform#C.2B.2B
+	// DFT
+	unsigned int N = x.size(), k = N, n;
+	double thetaT = 3.14159265358979323846264338328L / N;
+	cf phiT = cf(cos(thetaT), -sin(thetaT)), T;
+	while (k > 1) {
+		n = k;
+		k >>= 1;
+		phiT = phiT * phiT;
+		T = 1.0L;
+		for (unsigned int l = 0; l < k; l++) {
+			for (unsigned int a = l; a < N; a += n) {
+				unsigned int b = a + k;
+				cf t = x[a] - x[b];
+				x[a] += x[b];
+				x[b] = t * T;
+			}
+			T *= phiT;
+		}
+	}
+	// Decimate
+	unsigned int m = (unsigned int)log2(N);
+	for (unsigned int a = 0; a < N; a++) {
+		unsigned int b = a;
+		// Reverse bits
+		b = (((b & 0xaaaaaaaa) >> 1) | ((b & 0x55555555) << 1));
+		b = (((b & 0xcccccccc) >> 2) | ((b & 0x33333333) << 2));
+		b = (((b & 0xf0f0f0f0) >> 4) | ((b & 0x0f0f0f0f) << 4));
+		b = (((b & 0xff00ff00) >> 8) | ((b & 0x00ff00ff) << 8));
+		b = ((b >> 16) | (b << 16)) >> (32 - m);
+		if (b > a) {
+			cf t = x[a];
+			x[a] = x[b];
+			x[b] = t;
+		}
+	}
+}
+
+void sim::Convolution::ifftRosetta(std::valarray<cf>& x) { //https://rosettacode.org/wiki/Fast_Fourier_transform#C.2B.2B
+	x = x.apply(std::conj);
+
+	fftRosetta(x);
+
+	x = x.apply(std::conj);
+
+	x /= x.size();
+}
+
 /*
 void sim::fft(std::vector<cf>& a, bool invert) { //https://cp-algorithms.com/algebra/fft.html
 	int n = a.size();
@@ -558,18 +398,18 @@ void sim::fft(std::vector<cf>& a, bool invert) { //https://cp-algorithms.com/alg
 	}
 }
 */
-/*
+
 cv::Mat sim::Convolution::convolution2D(cv::Mat image, cv::Mat kernel) {
 	Convolution convOper;
-	cv::Mat imMat, kerMat; 
+	cv::Mat imMat, kerMat, imopenCV, keropenCV;
 
-	imMat = convertToComplexMat(image);
-	kerMat = convertToComplexMat(kernel);
+	imMat = convOper.convertToComplexMat(image);
+	kerMat = convOper.convertToComplexMat(kernel);
 
 	std::vector<cf> imVec, kerVec, resultVec;
 
-	imVec = matElemsToVec<cf>(imMat);
-	kerVec = matElemsToVec<cf>(kerMat);
+	imVec = matElementsToVector<cf>(imMat);
+	kerVec = matElementsToVector<cf>(kerMat);
 
 	float power = log2f(imVec.size());
 	if (abs(power - (int)power) == 0)
@@ -579,24 +419,73 @@ cv::Mat sim::Convolution::convolution2D(cv::Mat image, cv::Mat kernel) {
 
 	convOper.zeroPadding(imVec, power);
 	convOper.zeroPadding(kerVec, power);
+	
+	std::valarray<cf> imCArr(imVec.data(), imVec.size());
+	std::valarray<cf> kerCArr(kerVec.data(), kerVec.size());
 
-	convOper.fastFourierTransform2D(imVec, false);
-	convOper.fastFourierTransform2D(kerVec, false);
+	convOper.fftRosetta(imCArr);
+	convOper.fftRosetta(kerCArr);
 
-	resultVec = convOper.signalMultiplication(imVec, kerVec);
+	imVec.assign(std::begin(imCArr), std::end(imCArr));
+	kerVec.assign(std::begin(kerCArr), std::end(kerCArr));
 
-	convOper.fastFourierTransform2D(resultVec, true);
+	cv::dft(image, imopenCV);
+	cv::dft(kernel, keropenCV);
 
-	cv::Mat resultMat = cv::Mat::zeros(imMat.rows, imMat.cols, imMat.type());
-	resultMat = vectorToMatElems(resultVec, imMat.rows, imMat.cols, imMat.type());
+	convOper.signalMultiplication(image, kernel);
+	resultVec = imVec;
+	std::valarray<cf> resCArr(resultVec.data(), resultVec.size());
+
+	convOper.ifftRosetta(resCArr);
+	resultVec.assign(std::begin(resCArr), std::end(resCArr));
+
+	cv::Mat resultMat;
+	resultMat = vectorToMatElementsRowMajor(resultVec, imMat.rows, imMat.cols, imMat.type());
 
 	std::vector<cv::Mat> matVec;
 	cv::split(resultMat, matVec);
 
-	for (int i = 0; i < resultMat.total(); i++)
-		matVec[0].at<float>(i) = roundf(matVec[0].at<float>(i));
+	double sprgMAX;
+	cv::minMaxLoc(matVec[0], 0, &sprgMAX);
+	matVec[0] = matVec[0] / sprgMAX * 255;
+
+	gen::imageTesting(img::Image(matVec[0]), "tester4");
 
 	return matVec[0];
+}
+
+cv::Mat sim::Convolution::convolution2DopenCV(cv::Mat image, cv::Mat kernel) {
+	cv::Mat paddedImage, paddedKernel, imgOper, kerOper;
+	if (image.channels() == 3)
+		cv::cvtColor(image, imgOper, cv::COLOR_BGR2GRAY);
+	else
+		imgOper = image.clone();
+
+	kerOper = kernel;
+
+	int m = imgOper.rows + kerOper.rows - 1;
+	int n = imgOper.cols + kerOper.cols - 1;
+	cv::copyMakeBorder(imgOper, paddedImage, 0, m - imgOper.rows, 0, n - imgOper.cols, cv::BORDER_CONSTANT, cv::Scalar::all(0));
+	cv::copyMakeBorder(kerOper, paddedKernel, 0, m - kerOper.rows, 0, n - kerOper.cols, cv::BORDER_CONSTANT, cv::Scalar::all(0));
+
+	cv::Mat planesImage[] = { cv::Mat_<float>(paddedImage), cv::Mat::zeros(paddedImage.size(), CV_32F) };
+	cv::Mat cmpImgMat;
+	cv::merge(planesImage, 2, cmpImgMat);
+	cv::dft(cmpImgMat, cmpImgMat);
+
+	cv::Mat planesKernel[] = { cv::Mat_<float>(paddedKernel), cv::Mat::zeros(paddedKernel.size(), CV_32F) };
+	cv::Mat cmpKerMat;
+	cv::merge(planesKernel, 2, cmpKerMat);
+	cv::dft(cmpKerMat, cmpKerMat);
+
+	cv::Mat resultMat;
+	cv::mulSpectrums(cmpImgMat, cmpKerMat, resultMat, 0);
+
+	cv::Mat planes[2];
+	cv::idft(resultMat, resultMat);
+	cv::split(resultMat, planes);
+
+	return planes[0];
 }
 
 cv::Mat sim::Convolution::convertToComplexMat(cv::Mat imageMat) {
@@ -633,12 +522,14 @@ void sim::Convolution::zeroPadding(std::vector<cf>& a, int power) {
 
 
 //FAST COMPLEX MULTIPLICATION = FCM
+/*
 constexpr cf sim::Convolution::fcm(const cf& lh, const cf& rh) const { //https://www.embedded.com/digital-signal-processing-tricks-fast-multiplication-of-complex-numbers/
 	float a = lh.real(), b = lh.imag(), c = rh.real(), d = rh.imag();
 	float k1 = a * (c + d), k2 = d * (a + b), k3 = c * (b - a);
 	cf result(k1 - k2, k1 + k3);
 	return result;
 }
+*/
 
 
 std::vector<cf> sim::Convolution::signalMultiplication(std::vector<cf> lh, std::vector<cf> rh) { //IMAGE MUST ALWAYS BE LEFTHAND
@@ -646,7 +537,7 @@ std::vector<cf> sim::Convolution::signalMultiplication(std::vector<cf> lh, std::
 
 	resultVec.resize(imVec.size());
 
-	std::transform(imVec.begin(), imVec.end(), kerVec.begin(), resultVec.begin(), Convolution());
+	std::transform(imVec.begin(), imVec.end(), kerVec.begin(), resultVec.begin(), std::multiplies<cf>());
 
 	return resultVec;
 }
@@ -687,7 +578,7 @@ void sim::Convolution::fastFourierTransform2D(std::vector<cf>& a, bool invert) {
 			x /= n;
 	}
 }
-*/
+
 
 cv::Mat sim::convolution2D(cv::Mat const image, cv::Mat const kernel) {
 	cv::Mat oper;
@@ -703,57 +594,52 @@ cv::Mat sim::convolution2D(cv::Mat const image, cv::Mat const kernel) {
 	return resultMat;
 }
 
-/*
-cv::Mat sim::convolution2DSeparable(cv::Mat const image, cv::Mat kernel) {
-	std::function<int(int, int)> gcd = [&gcd](int a, int b) {
-		if (a == 0)
-			return b;
-		return gcd(b % a, a);
-	};
 
-	auto decompose = [&gcd](cv::Mat const M) {
-		cv::Mat X = M.row(0).clone();
-		cv::Mat Y = M.col(0).clone();
-		int nx = X.total();
-		int ny = Y.total();
-		float gx = X.at<float>(0);
-		for (int i = 1; i < nx; i++)
-			gx = gcd(gx, X.at<float>(i));
-		float gy = Y.at<float>(0);
-		for (int i = 1; i < ny; i++)
-			gy = gcd(gy, Y.at<float>(i));
-		X = X / gx;
-		Y = Y / gy;
-		float scale = M.at<float>(0, 0) / (X.at<float>(0) * Y.at<float>(0));
-		X = X * scale;
-		cv::Mat result = Y * X;
-		bool valid = std::equal(result.begin<float>(), result.end<float>(), M.begin<float>());
+cv::Mat sim::convolution2DSeparable(cv::Mat const image, cv::Mat const kernel) {
+	auto decompose = [](cv::Mat const M) { //https://www.mathworks.com/matlabcentral/fileexchange/28238-kernel-decomposition
+		cv::Mat S, U, VT;
+		cv::SVDecomp(M, S, U, VT, cv::SVD::FULL_UV);
+
 		std::vector<cv::Mat> matVec;
-		if (valid) {
-			matVec.push_back(X);
-			matVec.push_back(Y);
-			return matVec;
+		cv::Mat M1(M.rows, 1, M.type());
+		cv::Mat M2(1, M.cols, M.type());
+
+		for (int i = 0; i < M.rows; i++) {
+			M1.at<float>(i) = U.at<float>(i, 0) * sqrt(S.at<float>(0, 0));
+			M2.at<float>(i) = VT.at<float>(0, i) * sqrt(S.at<float>(0, 0));
 		}
-		else {
-			matVec.push_back(M);
-			return matVec;
-		}
+
+		matVec.push_back(M1);
+		matVec.push_back(M2);
+		return matVec;
 	};
-	std::vector<cv::Mat> matVec = decompose(kernel);
-	if (matVec.size() == 1) {
-		return convolution2DNormal(image, kernel);
+	
+	if (kernel.rows != kernel.cols) {
+		std::cout << "Separable convolution failed.";
+		return convolution2DHelix(image, kernel);		
 	}
+
+	if (rankOfMatrix(kernel) != 1) {
+		std::cout << "Separable convolution failed.";
+		return convolution2DHelix(image, kernel);
+	}
+
+	std::vector<cv::Mat> matVec = decompose(kernel);
+
 	cv::Mat* xkernel = &matVec[0];
 	cv::Mat* ykernel = &matVec[1];
 	cv::Mat matOperY = cv::Mat::zeros(image.rows, image.cols, CV_32FC1);
+
+	cv::Mat imgOper;
+	image.convertTo(imgOper, CV_32FC1);
 
 	for (int i = 0; i < matOperY.rows; i++) {
 		for (int j = 0; j < matOperY.cols; j++) {
 			for (int k = 0; k < ykernel->total(); k++) {
 				int index = i - 1 + k;
-				if (index < 0 || index >= image.rows)
+				if (index < 0 || index >= imgOper.rows)
 					continue;
-				matOperY.at<float>(i, j) += (float)image.at<uchar>(index, j) * ykernel->at<float>(k);
+				matOperY.at<float>(i, j) += imgOper.at<float>(index, j) * ykernel->at<float>(k);
 			}
 		}
 	}
@@ -809,7 +695,6 @@ cv::Mat sim::convolution2DNormal(cv::Mat const oper, cv::Mat kernel) {  // CPU I
 		}
 	return convmat;
 }
-*/
 
 cv::Mat sim::convolution2DHelix(cv::Mat const image, cv::Mat kernel) { //https://sites.ualberta.ca/~mostafan/Files/Papers/md_convolution_TLE2009.pdf
 	cv::Mat imageOper = image.clone();
@@ -870,7 +755,7 @@ cv::Mat sim::convolution2DHelix(cv::Mat const image, cv::Mat kernel) { //https:/
 		convVec.push_back(0);
 
 		kmax = (i < imVec.size() - 1) ? i : imVec.size() - 1;
-		for (int k : nonZeroKerVec) {
+		for (float k : nonZeroKerVec) {
 			if ((i - k) < 0 || (i - k) >= imVec.size())
 				continue;
 			if (k > kmax)
@@ -887,8 +772,7 @@ cv::Mat sim::convolution2DHelix(cv::Mat const image, cv::Mat kernel) { //https:/
 		}
 	}
 
-	convMat(cv::Range(kernel.rows, convMat.rows - kernel.rows), cv::Range(kernel.cols, convMat.cols - kernel.cols)).copyTo(convMat);
-
+	convMat(cv::Range(ceil(kernel.rows/2), convMat.rows - ceil(kernel.rows / 2)), cv::Range(ceil(kernel.cols / 2), convMat.cols - ceil(kernel.cols / 2))).copyTo(convMat);
 	return convMat;
 }
 
@@ -908,32 +792,26 @@ cv::Mat sim::rotateMatrix180(cv::Mat srcmat)
 	return retmat;
 }
 
-cv::Mat sim::filterGauss(cv::Mat const operand, int ksize, float sigma, float mu) { 
+cv::Mat sim::filterGauss(cv::Mat const operand, int ksize, float sigma, float mu, bool openCV) {
 	if (ksize % 2 != 1 || ksize < 0)
 		throw std::exception("Illegal kernel size.");
-	cv::Mat gaussmat(ksize, ksize, CV_32FC1);
 
-	std::vector<float> gaussVec = gaussKernel(ksize, sigma, mu);
+	cv::Mat gaussmat = gaussKernel(ksize, sigma, mu);	
 
-	cv::Mat xvec(ksize, 1, CV_32F);
-	cv::Mat yvec(1, ksize, CV_32F);
-	float sumofVec = 0;
+	cv::Mat filterOper;
 
-	for (int i = 0; i < ksize; i++) {
-		xvec.at<float>(i, 0) = yvec.at<float>(0, i) = gaussVec[i];
-		sumofVec += gaussVec[i];
+	if (openCV) {
+		filterOper = sim::Convolution::convolution2DopenCV(operand, gaussmat);
+		filterOper(cv::Range(floor(ksize / 2), filterOper.rows - floor(ksize / 2)), cv::Range(floor(ksize / 2), filterOper.cols - floor(ksize / 2))).copyTo(filterOper);
 	}
+	else
+		filterOper = sim::convolution2D(operand, gaussmat);
 
-	gaussmat = xvec * yvec;
 
-	gaussmat = gaussmat * sumofVec;
-
-	cv::Mat filterOper = sim::convolution2D(operand, gaussmat);
-	
 	return filterOper;
 }
 
-std::vector<float> sim::gaussKernel(float kernel_size, float sigma, float mu) {  //http://dev.theomader.com/gaussian-kernel-calculator/
+cv::Mat sim::gaussKernel(float kernel_size, float sigma, float mu) {  //http://dev.theomader.com/gaussian-kernel-calculator/
 	auto erf = [](float x) {
 		float a1 = 0.254829592;
 		float a2 = -0.284496736;
@@ -981,7 +859,22 @@ std::vector<float> sim::gaussKernel(float kernel_size, float sigma, float mu) { 
 		i /= sum;
 	}
 
-	return coeff;
+	cv::Mat gaussMat(kernel_size, kernel_size, CV_32FC1);
+
+	cv::Mat xvec(kernel_size, 1, CV_32F);
+	cv::Mat yvec(1, kernel_size, CV_32F);
+	float sumofVec = 0;
+
+	for (int i = 0; i < kernel_size; i++) {
+		xvec.at<float>(i, 0) = yvec.at<float>(0, i) = coeff[i];
+		sumofVec += coeff[i];
+	}
+
+	gaussMat = xvec * yvec;
+
+	gaussMat = gaussMat * sumofVec;
+
+	return gaussMat;
 }
 
 float sim::sumOfVectorMembers(std::vector<float> operand, int offset) {
@@ -1056,6 +949,15 @@ template int sim::getI<uchar>(std::vector<uchar> operand);
 	float y = (float)x;
 	return y;
 }*/
+
+cv::Mat sim::channelCheck(cv::Mat const image) {
+	cv::Mat oper;
+	if (image.channels() == 3)
+		cv::cvtColor(image, oper, cv::COLOR_BGR2GRAY);
+	else
+		oper = image.clone();
+	return oper;
+}
 
 template <typename T>
 std::vector<T> operator+(const std::vector<T>& a, const std::vector<T>& b) {

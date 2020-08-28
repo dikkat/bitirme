@@ -3,17 +3,17 @@
 
 
 img::Image::Image(std::string imgdir, int flag) {
-	imagemat = readImageFile(imgdir, flag);
+	imageMat = readImageFile(imgdir, flag);
     name = buildImageName(imgdir);
     dir = imgdir;
 }
 
 img::Image::Image(cv::Mat sourcemat) {
-    imagemat = sourcemat.clone();
+    imageMat = sourcemat.clone();
 }
 
 img::Image::Image(cv::Mat sourcemat, std::string imgdir) {
-    imagemat = sourcemat.clone();
+    imageMat = sourcemat.clone();
     name = buildImageName(imgdir);
     dir = imgdir;
 }
@@ -25,7 +25,7 @@ const std::string img::Image::getImageName() {
 }
 
 cv::Mat img::Image::getImageMat() {
-    return this->imagemat;
+    return this->imageMat;
 }
 
 std::string img::Image::buildImageName(std::string imgdir) {

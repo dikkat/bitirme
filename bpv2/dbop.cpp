@@ -1,10 +1,16 @@
 #include "dbop.h"
 
-void dbop::initializeDatabase() {
-    if (!connectToDatabaseSQLITE())
-        throw std::exception("Can't connect to database.");
-
-}
+//void dbop::initializeDatabase() {
+//    sqlite3* db;
+//    int rc;
+//
+//    rc = sqlite3_open("bitirme.db", &db);
+//
+//    if (rc) {
+//        fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
+//        throw std::exception("Can't connect to database.");
+//    }    
+//}
 
 static int dbop::callback(void* data, int argc, char** argv, char** azColName) {
     int i;
@@ -16,21 +22,6 @@ static int dbop::callback(void* data, int argc, char** argv, char** azColName) {
 
     printf("\n");
     return 0;
-}
-
-
-bool dbop::connectToDatabaseSQLITE() {
-    sqlite3 *db;
-    int rc;
-
-    rc = sqlite3_open("bitirme.db", &db);
-
-    if (rc) {
-        fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
-        return false;
-    }
-    else
-        return true;
 }
 
 std::string dbop::serializeMat(cv::Mat operand) {

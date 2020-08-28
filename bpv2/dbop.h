@@ -7,7 +7,6 @@
 namespace dbop {
 	void initializeDatabase();
 	static int callback(void* NotUsed, int argc, char** argv, char** azColName);
-	bool connectToDatabaseSQLITE();
 	std::string serializeMat(cv::Mat operand);
 	cv::Mat deserializeMat(std::string operand);
 }

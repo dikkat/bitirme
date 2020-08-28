@@ -8,6 +8,22 @@
 #include <boost/thread.hpp>
 #include <chrono>
 
+/*
+	---------ROADMAP FOR THE PROJECT-------------
+	MOVE EDGE DETECTION METHODS TO FEAT.H -- DONE
+	ADD THE LAST EDGE OPERATOR FORGOT ITS NAME -- SKIPPED
+	ADD CORNER DETECTION -- SKIP NO TIME
+	ADD KEYPOINT DETECTION  
+	ASK STACKOVERFLOW QUESTION ABOUT FFT OUTPUT BEING USELESS
+	ADD HASHING
+	BUILD THE DATABASE DETAILS WILL FOLLOW
+	BUILD GUI DETAILS WILL FOLLOW
+	FINISH UNIVERSITY
+	GET A 15K DOLLAR PER MONTH JOB
+	FINISH LIFE
+*/
+
+
 int main(int argc, char *argv[])
 {
 	AllocConsole();
@@ -16,8 +32,6 @@ int main(int argc, char *argv[])
 	freopen("conout$", "w", stderr);
 
 	const char* gszFile = "C:/Users/ASUS/source/repos/bpv2/bpv2/Database.db";
-	
-	img::Image ima("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ege.jpg", cv::IMREAD_COLOR);
 
 	/*
 	for (int i = 0; i < xde.total(); i++) {
@@ -57,13 +71,26 @@ int main(int argc, char *argv[])
 		sum += timeVec[i];
 	std::cout << sum / timeVec.size() << std::endl;
 	*/
-
-	cv::Mat conv = sim::edgeDetectionPrewitt(ima.getImageMat());
+	img::Image ima("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/flowergirl.jpg", cv::IMREAD_COLOR);
+	cv::imwrite("testXD.jpg", ima.getImageMat());
+	gen::imageTesting(ima.getImageMat(), "testXD");
+	cv::Mat conv = feat::Edge::edgeDetectionDeriche(ima.getImageMat(), 2);
 	gen::imageTesting(img::Image(conv), "testing");
-	cv::Mat kernely = sim::EdgeDetectorCanny::edgeDetectionCanny(ima.getImageMat());
+	cv::Mat kernely = feat::Edge::EdgeDetectorCanny::edgeDetectionCanny(ima.getImageMat());
 	gen::imageTesting(img::Image(kernely), "test");
-	kernely = sim::edgeDetectionPrewitt(ima.getImageMat());
+	kernely = feat::Edge::edgeDetectionPrewitt(ima.getImageMat());
+	gen::imageTesting(img::Image(kernely), "test4");
+	/*kernely = feat::Corner::cornerDetectorHarris::cornerDetectionHarris(ima.getImageMat());
+	kernely = feat::Corner::paintPointsOverImage(ima.getImageMat(), kernely);
+	gen::imageTesting(img::Image(kernely), "test5");*/
+	kernely = feat::Corner::cornerDetectionHarrisLaplace(ima.getImageMat(), 0.5, 3);
+	gen::imageTesting(img::Image(kernely), "test6");
+	kernely = feat::Corner::paintPointsOverImage(ima.getImageMat(), kernely, true, 100000);
 	gen::imageTesting(img::Image(kernely), "test2");
+	kernely = feat::Edge::edgeDetectionSobel(ima.getImageMat());
+	gen::imageTesting(img::Image(kernely), "test2");
+	kernely = feat::Edge::edgeDetectionPrewitt(ima.getImageMat());
+	gen::imageTesting(img::Image(kernely), "test3");
 	
 	std::vector<img::Image> asd = img::readImageFolder("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench/full/", 
 		cv::IMREAD_COLOR, false, 25);
@@ -81,17 +108,17 @@ int main(int argc, char *argv[])
 		<< std::endl;
 	std::vector<float> xdg;
 	for (int i = 0; i < asd.size(); i++) {
-		xdg.push_back(iop::calculateHistogramSimilarity(asd[i], ima, 4, 4, 4, CALC_HSVHIST, SIM_COSSIM));
-		xdg.push_back(iop::calculateHistogramSimilarity(asd[i], ima, 4, 4, 4, CALC_HSVHIST, SIM_EUCDIST));
-		xdg.push_back(iop::calculateHistogramSimilarity(asd[i], ima, 4, 4, 4, CALC_HSVHIST, SIM_MANDIST));
+		/*xdg.push_back(iop::calculateHistogramSimilarity(asd[i], ima, 4, 4, 4, HIST_HSV, SIM_COSSIM));
+		xdg.push_back(iop::calculateHistogramSimilarity(asd[i], ima, 4, 4, 4, HIST_HSV, SIM_EUCDIST));
+		xdg.push_back(iop::calculateHistogramSimilarity(asd[i], ima, 4, 4, 4, HIST_HSV, SIM_MANDIST));
 		iop::setMinkowskiOrder(5);
-		xdg.push_back(iop::calculateHistogramSimilarity(asd[i], ima, 4, 4, 4, CALC_HSVHIST, SIM_MINKDIST));
-		xdg.push_back(iop::calculateHistogramSimilarity(asd[i], ima, 4, 4, 4, CALC_HSVHIST, SIM_CSQDIST));
-		xdg.push_back(iop::calculateHistogramSimilarity(asd[i], ima, 4, 4, 4, CALC_HSVHIST, SIM_JACSIM));
-		xdg.push_back(iop::calculateHistogramSimilarity(asd[i], ima, 4, 4, 4, CALC_HSVHIST, SIM_HISINTR));
-		xdg.push_back(iop::calculateHistogramSimilarity(asd[i], ima, 4, 4, 4, CALC_HSVHIST, SIM_CROCOR));
-		asd[i].setImageHist(4, 4, 4, CALC_HSVHIST);
-		ima.setImageHist(4, 4, 4, CALC_HSVHIST);
+		xdg.push_back(iop::calculateHistogramSimilarity(asd[i], ima, 4, 4, 4, HIST_HSV, SIM_MINKDIST));
+		xdg.push_back(iop::calculateHistogramSimilarity(asd[i], ima, 4, 4, 4, HIST_HSV, SIM_CSQDIST));
+		xdg.push_back(iop::calculateHistogramSimilarity(asd[i], ima, 4, 4, 4, HIST_HSV, SIM_JACSIM));
+		xdg.push_back(iop::calculateHistogramSimilarity(asd[i], ima, 4, 4, 4, HIST_HSV, SIM_HISINTR));
+		xdg.push_back(iop::calculateHistogramSimilarity(asd[i], ima, 4, 4, 4, HIST_HSV, SIM_CROCOR));*/
+		/*asd[i].setImageHist(4, 4, 4, HIST_HSV);
+		ima.setImageHist(4, 4, 4, HIST_HSV);
 		xdg.push_back(cv::compareHist(ima.getImageHist()->getNormalizedHistogramMat(), asd[i].getImageHist()->getNormalizedHistogramMat(), cv::HISTCMP_CHISQR));
 		asd[i].destroyImageHist();
 		int j = 9;
@@ -105,7 +132,7 @@ int main(int argc, char *argv[])
 			<< "\t" << xdg[i * j + 6]
 			<< "\t" << xdg[i * j + 7]
 			<< "\t" << xdg[i * j + 8]
-			<< std::endl;
+			<< std::endl;*/
 	}
 	//bune amk	-Enes kardeþ	
 	/*for (int i = 0; i < xdc.size(); i++) {

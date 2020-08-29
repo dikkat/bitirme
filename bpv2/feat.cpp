@@ -119,7 +119,7 @@ cv::Mat feat::Histogram::histogramGRAYCalculation(cv::Mat sourcemat) {
     if (sourcemat.channels() == 3)
         cv::cvtColor(sourcemat, greyMat, cv::COLOR_BGR2GRAY);
 
-    float gray_range[] = { 0, 256 };
+    float gray_range[] = { - pow(2,32) + 1, pow(2,32) - 1 };
     const float* histRange[] = { gray_range };
 
     bool uniform = true; bool accumulate = false;
@@ -297,9 +297,6 @@ cv::Mat feat::Edge::edgeDetectionDeriche(cv::Mat const imageMat, float alpha) {
     cv::Mat xMat = operationBody(smoothMat, ax, cx);
     cv::Mat yMat = operationBody(smoothMat, ay, cy);
     
-    gen::imageTesting(xMat, "testere1");
-    gen::imageTesting(yMat, "testere2");
-
     cv::Mat resultMat(imageMat.rows, imageMat.cols, CV_32FC1);
     
     for (int i = 0; i < resultMat.rows; i++) {
@@ -372,7 +369,6 @@ cv::Mat feat::Edge::EdgeDetectorCanny::edgeDetectionCanny(cv::Mat const imageMat
         cannyoper = imageMat.clone();
 
     cannyoper = sim::filterGauss(cannyoper, edcOperator.gaussKernelSize, edcOperator.sigma, edcOperator.mu);
-    gen::imageTesting(cannyoper, "test1");
     cv::Mat kernelx = (cv::Mat_<float>(3, 3) << -1, 0, 1, -2, 0, 2, -1, 0, 1);
     cv::Mat kernely = (cv::Mat_<float>(3, 3) << 1, 2, 1, 0, 0, 0, -1, -2, -1);
     std::vector<cv::Mat> temp = feat::Edge::calculateEdgeGradientMagnitudeDirection(kernelx, kernely, cannyoper);
@@ -516,10 +512,11 @@ cv::Mat feat::Corner::paintPointsOverImage(cv::Mat const image, cv::Mat const po
 
 cv::Mat feat::Corner::cornerDetectionHarrisLaplace(cv::Mat image, float scaleRatio, float n) {
     //https://www.robots.ox.ac.uk/~vgg/research/affine/det_eval_files/mikolajczyk_ijcv2004.pdf
+    //%85 ben -- %15 https://www.mathworks.com/matlabcentral/fileexchange/64689-harris-affine-and-harris-laplace-interest-point-detector
     //VEEEEEEEEEEERY SLOW
     std::vector<float> setOfScales;
     float ki = 1.4;
-    float sigma0 = 1;
+    float sigma0 = 1.0;
     for (int i = 1; i < n + 1; i++)
         setOfScales.push_back(pow(ki, i) * sigma0);
 
@@ -540,91 +537,52 @@ cv::Mat feat::Corner::cornerDetectionHarrisLaplace(cv::Mat image, float scaleRat
 
     //POINT CALCULATION FOR EVERY SCALE
     for (int i = 0; i < n; i++) {
-        float gauss_size = 5;
-        cv::Mat loopOper = sim::filterGauss(imgOper, gauss_size, setOfScales[i] * scaleConstant, 1, false);
+        float gauss_size = 31;
 
-        cv::Mat derivativeX = sim::convolution2D(loopOper, prewittX);
-        cv::Mat derivativeY = sim::convolution2D(loopOper, prewittY);
-
-        cv::Mat LoGDerivative = sim::filterGauss(imgOper, gauss_size, setOfScales[i], 1, false);
+        cv::Mat LoGDerivative = sim::filterGauss(imgOper, gauss_size, setOfScales[i], 1, true);
         cv::Laplacian(LoGDerivative, LoGDerivative, CV_32F, 3);
         setOfDerivatives[i] = LoGDerivative;
 
-        float radius = 3;
-        int center = floor(radius / 2);
-
-        cv::Mat harrisPointMat = cv::Mat::zeros(imgOper.rows, imgOper.cols, CV_32FC1);
+        cornerDetectorHarris cdhOper;
+        cdhOper.sigmai = setOfScales[i];
+        cdhOper.sigmad = scaleConstant * setOfScales[i];
+        cdhOper.squareSize = 5;
         
-        float tensor_size = 2;
-        cv::Mat temp;
-        cv::Mat tensor;
-        cv::Mat weightFMat = pow(setOfScales[i] * scaleConstant, 2) * sim::gaussKernel(gauss_size, setOfScales[i], 0);
-
-        for (int j = center; j < imgOper.rows - center - 1; j++) {
-            for (int k = center; k < imgOper.cols - center - 1; k++) {
-                temp = cv::Mat::zeros(tensor_size, tensor_size, CV_32FC1);
-                for (int p = 0; p < radius; p++)
-                    for (int q = 0; q < radius; q++) {
-                        float weightF = 1;// / (2 * M_PI * pow(setOfScales[i], 2)) * pow(M_E, -((pow(p, 2) + pow(q, 2)) / 2 * pow(setOfScales[i], 2)));
-                        temp.at<float>(0, 0) += weightF * pow(derivativeX.at<float>(p + j - center, q + k - center), 2);
-                        temp.at<float>(0, 1) += weightF * derivativeX.at<float>(p + j - center, q + k - center) * derivativeY.at<float>(p + j - center, q + k - center);
-                        temp.at<float>(1, 0) += weightF * derivativeX.at<float>(p + j - center, q + k - center) * derivativeY.at<float>(p + j - center, q + k - center);
-                        temp.at<float>(1, 1) += weightF * pow(derivativeY.at<float>(p + j - center, q + k - center), 2);
-                    }
-
-                tensor = sim::Convolution::convolution2DopenCV(temp, weightFMat);
-                tensor *= 0.027777777; //TO EQUALIZE WITH MATLAB RESULTS
-                std::cout << tensor << std::endl << weightFMat << std::endl << temp << std::endl;
-                tensor(cv::Range(floor(gauss_size / 2), tensor.rows - floor(gauss_size / 2)), cv::Range(floor(gauss_size / 2), tensor.cols - floor(gauss_size / 2))).copyTo(tensor);
-
-                float alpha = 0.04;
-                float R = cv::determinant(tensor) - alpha * pow(cv::trace(tensor)[0], 2);
-                harrisPointMat.at<float>(j, k) = R;
-            }
-        }
+        cv::Mat harrisPointMat = cornerDetectorHarris::cornerDetectionHarris(imgOper, cdhOper);
         
-        gen::imageTesting(harrisPointMat, "tester" + std::to_string(i) + "4");
-
-        float squareSize = 3;
-        float threshold = 254;
-        localMaxima(harrisPointMat, harrisPointMat, squareSize, threshold);
-        
-        gen::imageTesting(harrisPointMat, "tester" + std::to_string(i) + "5");
-
         while (true) {
             cv::Point pointOper;
             double value;
             cv::minMaxLoc(harrisPointMat, NULL, &value, NULL, &pointOper);
-            if (value == 0)
+            if (value < 1)
                 break;
             pointLocVec[i].push_back(pointOper);
             harrisPointMat.at<float>(pointOper) = 0;
         }
-        cv::Mat imgoperx = imgOper.clone();
 
-        if (imgOper.channels() == 1)
-            cv::cvtColor(imgOper, imgoperx, cv::COLOR_GRAY2BGR);
-        
+        /*cv::Mat imgoperx = imgOper.clone();
+
+        imgoperx = sim::filterGauss(imgoperx, 7, setOfScales[i] * scaleConstant, 1, true);
+        cv::normalize(imgoperx, imgoperx, 0, 255, cv::NORM_MINMAX);
+
         for (int j = 0; j < pointLocVec[i].size(); j++)
-            cv::circle(imgoperx, pointLocVec[i][j], 1, { 255,0,255 }, 1);
-        gen::imageTesting(imgoperx, "tester" + std::to_string(i) + "3");
+            cv::circle(imgoperx, pointLocVec[i][j], 1, { 0,0,0 }, 1);
+        gen::imageTesting(imgoperx, "tester" + std::to_string(i) + "3");*/
     }    
 
     cv::Mat resultMat = cv::Mat::zeros(image.rows, image.cols, CV_32FC1);
 
-    cv::Laplacian(imgOper, imgOper, CV_32F, 3);
-
     //LOG CALCULATION FOR EVERY POINT
-    for(int i = 0; i < n; i++)
+    for (int i = 1; i < n - 1; i++) {
         for (int j = 0; j < pointLocVec[i].size(); j++) {
-            float Lxx = 0;
+            float L = 0;
             float LoG[3] = { 0,0,0 };
 
             int x = pointLocVec[i][j].x;
             int y = pointLocVec[i][j].y;
 
             for (int k = -1; k < 2; k++) {
-                Lxx = 0;
+                L = 0;
 
                 if (i + k < 0)
                     k++;
@@ -633,16 +591,16 @@ cv::Mat feat::Corner::cornerDetectionHarrisLaplace(cv::Mat image, float scaleRat
                     continue;
 
                 for (int p = 0; p < 3; p++) {
-                    if (x - 1 + p < 0 || x - 1 + p >= imgOper.cols)
+                    if (x - 1 + p < 0 || x - 1 + p >= setOfDerivatives[i + k].cols)
                         continue;
                     for (int q = 0; q < 3; q++) {
                         if (y - 1 + q < 0 || y - 1 + q >= setOfDerivatives[i + k].rows)
                             continue;
-                        Lxx += setOfDerivatives[i + k].at<float>(y - 1 + p, x - 1 + q);
+                        L += setOfDerivatives[i + k].at<float>(y - 1 + q, x - 1 + p);
                     }
                 }
 
-                LoG[k + 1] = abs(pow(setOfScales[i + k], 2) * (Lxx));
+                LoG[k + 1] = abs(pow(setOfScales[i + k], 2) * L);
             }
 
             if (LoG[1] > LoG[0] && LoG[1] > LoG[2]) {
@@ -651,20 +609,36 @@ cv::Mat feat::Corner::cornerDetectionHarrisLaplace(cv::Mat image, float scaleRat
             }
 
         }
-    localMaxima(resultMat, resultMat, 7, 254);
+    }
     return resultMat;
 }
 
 cv::Mat feat::Corner::cornerDetectorHarris::cornerDetectionHarris(cv::Mat const image, feat::Corner::cornerDetectorHarris cdhOperator) {
-
+    // %80 ben -- %20 https://www.mathworks.com/matlabcentral/fileexchange/64689-harris-affine-and-harris-laplace-interest-point-detector
     cv::Mat imgOper = sim::channelCheck(image), resultOper = cv::Mat::zeros(imgOper.rows, imgOper.cols, CV_32FC1);
 
-    imgOper = sim::filterGauss(imgOper, 5, cdhOperator.sigma, 1, false);
-
+    float gauss_size = 31;
+    imgOper = sim::filterGauss(imgOper, gauss_size, cdhOperator.sigmad, 1, true);
+    cv::normalize(imgOper, imgOper, 0, 255, cv::NORM_MINMAX);
     cv::Mat derivativeX = sim::convolution2D(imgOper, cdhOperator.kernelx);
     cv::Mat derivativeY = sim::convolution2D(imgOper, cdhOperator.kernely);
 
-    float center = ceil(cdhOperator.radius / 2);
+    /*cv::Mat derivativeXX = derivativeX.clone();
+    for (int i = 0; i < derivativeX.total(); i++)
+        derivativeXX.at<float>(i) = pow(derivativeX.at<float>(i), 2);
+    derivativeXX = sim::filterGauss(derivativeXX, gauss_size, cdhOperator.sigmai, 1, true);
+
+    cv::Mat derivativeYY = derivativeY.clone();
+    for (int i = 0; i < derivativeX.total(); i++)
+        derivativeYY.at<float>(i) = pow(derivativeY.at<float>(i), 2);
+    derivativeYY = sim::filterGauss(derivativeYY, gauss_size, cdhOperator.sigmai, 1, true);
+    
+    cv::Mat derivativeXY = derivativeX.clone();
+    for (int i = 0; i < derivativeXY.total(); i++)
+        derivativeXY.at<float>(i) = derivativeX.at<float>(i) * derivativeY.at<float>(i);
+    derivativeXY = sim::filterGauss(derivativeXY, gauss_size, cdhOperator.sigmai, 1, true);*/
+    
+    float center = floor(cdhOperator.radius / 2);
 
     for (int i = center; i < imgOper.rows - center - 1; i++)
         for (int j = center; j < imgOper.cols - center - 1; j++) {
@@ -672,18 +646,17 @@ cv::Mat feat::Corner::cornerDetectorHarris::cornerDetectionHarris(cv::Mat const 
 
             for (int p = 0; p < cdhOperator.radius; p++)
                 for (int q = 0; q < cdhOperator.radius; q++) {
-                    float weightF = 1 / (2 * M_PI * pow(cdhOperator.sigma, 2)) * pow(M_E, -((pow(p, 2) + pow(q, 2)) / 2 * pow(cdhOperator.sigma, 2)));
+                    float weightF = 1 / (2 * M_PI * pow(cdhOperator.sigmai, 2)) * pow(M_E, -((pow(p, 2) + pow(q, 2)) / 2 * pow(cdhOperator.sigmai, 2)));
                     tensor.at<float>(0, 0) += weightF * pow(derivativeX.at<float>(p + i - center, q + j - center), 2);
                     tensor.at<float>(0, 1) += weightF * derivativeX.at<float>(p + i - center, q + j - center) * derivativeY.at<float>(p + i - center, q + j - center);
                     tensor.at<float>(1, 0) += weightF * derivativeX.at<float>(p + i - center, q + j - center) * derivativeY.at<float>(p + i - center, q + j - center);
                     tensor.at<float>(1, 1) += weightF * pow(derivativeY.at<float>(p + i - center, q + j - center), 2);
                 }
-            
+
             float R = cv::determinant(tensor) - cdhOperator.alpha * pow(cv::trace(tensor)[0], 2);
             resultOper.at<float>(i, j) = R;
         }
 
-    gen::imageTesting(resultOper, "tester0");
     /*for (int i = iOper; i < resultOper.rows - radius - 1; i += radius)
         for (int j = iOper; j < resultOper.cols - radius - 1; j += radius) {
             cv::Rect roi(cv::Point2f(j - iOper, i - iOper), cv::Point2f(j + iOper, i + iOper));
@@ -699,9 +672,22 @@ cv::Mat feat::Corner::cornerDetectorHarris::cornerDetectionHarris(cv::Mat const 
             resultOper.at<float>(i - iOper + max.x, j - iOper + max.y) = 255;
         }*/
 
-    cv::Mat localMaximaMat(resultOper.rows, resultOper.cols, CV_32FC1);
-    localMaxima(resultOper, localMaximaMat, cdhOperator.squareSize, cdhOperator.threshold);
+    cv::Mat sortedMat = resultOper.clone();
+    sortedMat = sortedMat.reshape(1,1);
+    cv::sort(sortedMat, sortedMat, cv::SORT_ASCENDING + cv::SORT_EVERY_ROW);
+    
+    float threshold;
+    int iter = 0;
+    for (int i = 0; i < sortedMat.total(); i++)
+        if (sortedMat.at<float>(i) > 0)
+            iter++;
+    if (iter == 0)
+        iter = 1;
 
+    threshold = sortedMat.at<float>(sortedMat.total() - iter + iter * 0.75);
+
+    cv::Mat localMaximaMat(resultOper.rows, resultOper.cols, CV_32FC1);
+    localMaxima(resultOper, localMaximaMat, cdhOperator.squareSize, threshold);
     return localMaximaMat;
 }
 
@@ -720,7 +706,7 @@ void feat::Corner::localMaxima(cv::Mat src, cv::Mat& dst, int squareSize, float 
     cv::Mat localWindowMask = cv::Mat::zeros(cv::Size(squareSize, squareSize), CV_32F);
     localWindowMask.at<float>(sqrCenter, sqrCenter) = 255;
     
-    cv::threshold(dst, m0, threshold, 1, cv::THRESH_BINARY); //REMOVE ALL EXCEPT WHITE POINTS
+    cv::threshold(dst, m0, threshold, 1, cv::THRESH_BINARY);
     dst = dst.mul(m0);
 
     for (int i = 0; i < dst.rows; i++)

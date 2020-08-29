@@ -85,20 +85,22 @@ namespace feat {
 		static cv::Mat paintPointsOverImage(cv::Mat const image, cv::Mat const pointMat, bool gray = true, float numOfPoints = 100, float radius = 2, float thickness = 2, cv::Scalar pointColor = { 255,0,255 });
 		static cv::Mat cornerDetectionHarrisLaplace(cv::Mat image, float scaleRatio = 1, float n = 3);
 		static void localMaxima(cv::Mat src, cv::Mat& dst, int squareSize, float threshold);
+
 		class cornerDetectorHarris {
 		public:
-			cornerDetectorHarris() : numOfPoints(100), radius(3), squareSize(15), threshold(254), 
-				sigma(1.4), alpha(0.04), kernelx(feat::sobelX), kernely(feat::sobelY) {}
+			cornerDetectorHarris() : radius(3), squareSize(3), threshold(254), sigmai(1.4), sigmad(0.9), 
+				alpha(0.04), kernelx(feat::prewittX), kernely(feat::prewittY) {}
+
 			static cv::Mat cornerDetectionHarris(cv::Mat const image, feat::Corner::cornerDetectorHarris cdhOperator = feat::Corner::cornerDetectorHarris());
+
 			cv::Mat const kernelx;
 			cv::Mat const kernely;
-			float numOfPoints;
 			float radius;
 			float squareSize;
 			float threshold;
-			float sigma;
+			float sigmai;
+			float sigmad;
 			float alpha;
-		private:
 		};
 	
 		

@@ -449,8 +449,6 @@ cv::Mat sim::Convolution::convolution2D(cv::Mat image, cv::Mat kernel) {
 	cv::minMaxLoc(matVec[0], 0, &sprgMAX);
 	matVec[0] = matVec[0] / sprgMAX * 255;
 
-	gen::imageTesting(img::Image(matVec[0]), "tester4");
-
 	return matVec[0];
 }
 

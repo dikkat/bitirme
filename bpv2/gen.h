@@ -12,6 +12,7 @@ namespace img {
 }
 
 namespace gen {
+	extern float counter;
 	extern std::ostringstream tout;
 	void imageTesting(img::Image srcimg, std::string filename);
 	void printTesting(std::ostringstream &osoperator);

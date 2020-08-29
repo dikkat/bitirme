@@ -72,21 +72,22 @@ int main(int argc, char *argv[])
 	std::cout << sum / timeVec.size() << std::endl;
 	*/
 	img::Image ima("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/flowergirl.jpg", cv::IMREAD_COLOR);
-	cv::imwrite("testXD.jpg", ima.getImageMat());
-	gen::imageTesting(ima.getImageMat(), "testXD");
-	cv::Mat conv = feat::Edge::edgeDetectionDeriche(ima.getImageMat(), 2);
-	gen::imageTesting(img::Image(conv), "testing");
-	cv::Mat kernely = feat::Edge::EdgeDetectorCanny::edgeDetectionCanny(ima.getImageMat());
-	gen::imageTesting(img::Image(kernely), "test");
-	kernely = feat::Edge::edgeDetectionPrewitt(ima.getImageMat());
-	gen::imageTesting(img::Image(kernely), "test4");
+	img::Image imc("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/flowergirlhand.jpg", cv::IMREAD_COLOR);
+	cv::Mat kernely;
 	/*kernely = feat::Corner::cornerDetectorHarris::cornerDetectionHarris(ima.getImageMat());
-	kernely = feat::Corner::paintPointsOverImage(ima.getImageMat(), kernely);
+	kernely = feat::Corner::paintPointsOverImage(ima.getImageMat(), kernely, true, 100000);
 	gen::imageTesting(img::Image(kernely), "test5");*/
-	kernely = feat::Corner::cornerDetectionHarrisLaplace(ima.getImageMat(), 0.5, 3);
-	gen::imageTesting(img::Image(kernely), "test6");
+	/*kernely = sim::filterGauss(ima.getImageMat(), 11, 4, 1, true);
+	cv::normalize(kernely, kernely, 0, 255, cv::NORM_MINMAX);
+	gen::imageTesting(img::Image(kernely), "test3");
+	kernely = feat::Edge::edgeDetectionSobel(kernely);
+	gen::imageTesting(img::Image(kernely), "test4");*/
+	kernely = feat::Corner::cornerDetectionHarrisLaplace(ima.getImageMat(), 0.5, 7);
 	kernely = feat::Corner::paintPointsOverImage(ima.getImageMat(), kernely, true, 100000);
 	gen::imageTesting(img::Image(kernely), "test2");
+	kernely = feat::Corner::cornerDetectionHarrisLaplace(imc.getImageMat(), 0.5, 7);
+	kernely = feat::Corner::paintPointsOverImage(imc.getImageMat(), kernely, true, 100000);
+	gen::imageTesting(img::Image(kernely), "test3");
 	kernely = feat::Edge::edgeDetectionSobel(ima.getImageMat());
 	gen::imageTesting(img::Image(kernely), "test2");
 	kernely = feat::Edge::edgeDetectionPrewitt(ima.getImageMat());

@@ -5,6 +5,7 @@
 #include <opencv2/features2d/features2d.hpp>
 #include <filesystem>
 #include <string>
+#include <ctime>
 #include "gen.h"
 #include "sim.h"
 #include "iop.h"

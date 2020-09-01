@@ -14,8 +14,8 @@ namespace img {
 	class Image {
 	public:
 		Image(std::string imgdir, int flag);
-		Image(cv::Mat sourcemat);
-		Image(cv::Mat sourcemat, std::string imgdir);
+		Image(cv::Mat sourceMat);
+		Image(cv::Mat sourceMat, std::string imgdir);
 		Image() {}
 		const std::string getImageName();
 		cv::Mat getImageMat();

@@ -8,12 +8,12 @@ img::Image::Image(std::string imgdir, int flag) {
     dir = imgdir;
 }
 
-img::Image::Image(cv::Mat sourcemat) {
-    imageMat = sourcemat.clone();
+img::Image::Image(cv::Mat sourceMat) {
+    imageMat = sourceMat.clone();
 }
 
-img::Image::Image(cv::Mat sourcemat, std::string imgdir) {
-    imageMat = sourcemat.clone();
+img::Image::Image(cv::Mat sourceMat, std::string imgdir) {
+    imageMat = sourceMat.clone();
     name = buildImageName(imgdir);
     dir = imgdir;
 }
@@ -50,7 +50,7 @@ cv::Mat img::Image::readImageFile(std::string imgdir, int flag) {
 		throw std::exception("Illegal image read flag.1");
 	cv::Mat matoperator;
 	matoperator = cv::imread(imgdir, flag);
-	if (matoperator.data == NULL)
+	if (matoperator.dims == 0)
 		throw std::exception("Can't read the file.");
 	return matoperator;
 }

@@ -1,16 +1,37 @@
 #include "dbop.h"
 
-//void dbop::initializeDatabase() {
-//    sqlite3* db;
-//    int rc;
-//
-//    rc = sqlite3_open("bitirme.db", &db);
-//
-//    if (rc) {
-//        fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
-//        throw std::exception("Can't connect to database.");
-//    }    
-//}
+void dbop::initializeDatabase() {
+    sqlite3* db;
+    int rc;
+    const char* data = "Callback function called";
+    char* zErrMsg = 0;
+
+    rc = sqlite3_open("bitirme.db", &db);
+
+    if (rc) {
+        fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
+        throw std::exception("Can't connect to database.");
+    }
+
+    char* sql;
+
+    sql = "SELECT name FROM sqlite_master WHERE type='table' and name = 'xd';";
+    char** resultp;
+    int row;
+    int col;
+    
+    rc = sqlite3_get_table(db, sql, &resultp, &row, &col, &zErrMsg);
+    //rc = sqlite3_exec(db, sql, callback, (void*)data, &zErrMsg);
+
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "SQL error: %s\n", zErrMsg);
+        sqlite3_free(zErrMsg);
+    }
+    else {
+        fprintf(stdout, "Operation done successfully\n");
+    }
+    sqlite3_close(db);
+}
 
 static int dbop::callback(void* data, int argc, char** argv, char** azColName) {
     int i;

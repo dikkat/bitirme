@@ -228,7 +228,6 @@ cv::Mat sim::vectorToMatElementsRowMajor(std::vector<T> operand, int mrows, int 
 
 template cv::Mat sim::vectorToMatElementsRowMajor<float>(std::vector<float> operand, int mrows, int mcols, int mtype);
 template cv::Mat sim::vectorToMatElementsRowMajor<cf>(std::vector<cf> operand, int mrows, int mcols, int mtype);
-//O(log2(N) * N )
 /*
 cv::Mat sim::fastFourierTransform_2D(cv::Mat const image) { //Introduction to Algorithms, 2009
 	auto zeroPadding = [](cv::Mat const operand, unsigned int noofBits) {
@@ -321,7 +320,7 @@ cv::Mat sim::fastFourierTransform_2D(cv::Mat const image) { //Introduction to Al
 	}
 	return matOper;
 }
-*/
+
 
 void sim::Convolution::fftRosetta(std::valarray<cf>& x) { //https://rosettacode.org/wiki/Fast_Fourier_transform#C.2B.2B
 	// DFT
@@ -371,7 +370,7 @@ void sim::Convolution::ifftRosetta(std::valarray<cf>& x) { //https://rosettacode
 	x /= x.size();
 }
 
-/*
+
 void sim::fft(std::vector<cf>& a, bool invert) { //https://cp-algorithms.com/algebra/fft.html
 	int n = a.size();
 	if (n == 1)
@@ -397,7 +396,7 @@ void sim::fft(std::vector<cf>& a, bool invert) { //https://cp-algorithms.com/alg
 		w *= wn;
 	}
 }
-*/
+
 
 cv::Mat sim::Convolution::convolution2D(cv::Mat image, cv::Mat kernel) {
 	Convolution convOper;
@@ -452,40 +451,6 @@ cv::Mat sim::Convolution::convolution2D(cv::Mat image, cv::Mat kernel) {
 	return matVec[0];
 }
 
-cv::Mat sim::Convolution::convolution2DopenCV(cv::Mat image, cv::Mat kernel) {
-	cv::Mat paddedImage, paddedKernel, imgOper, kerOper;
-	if (image.channels() == 3)
-		cv::cvtColor(image, imgOper, cv::COLOR_BGR2GRAY);
-	else
-		imgOper = image.clone();
-
-	kerOper = kernel;
-
-	int m = imgOper.rows + kerOper.rows - 1;
-	int n = imgOper.cols + kerOper.cols - 1;
-	cv::copyMakeBorder(imgOper, paddedImage, 0, m - imgOper.rows, 0, n - imgOper.cols, cv::BORDER_CONSTANT, cv::Scalar::all(0));
-	cv::copyMakeBorder(kerOper, paddedKernel, 0, m - kerOper.rows, 0, n - kerOper.cols, cv::BORDER_CONSTANT, cv::Scalar::all(0));
-
-	cv::Mat planesImage[] = { cv::Mat_<float>(paddedImage), cv::Mat::zeros(paddedImage.size(), CV_32F) };
-	cv::Mat cmpImgMat;
-	cv::merge(planesImage, 2, cmpImgMat);
-	cv::dft(cmpImgMat, cmpImgMat);
-
-	cv::Mat planesKernel[] = { cv::Mat_<float>(paddedKernel), cv::Mat::zeros(paddedKernel.size(), CV_32F) };
-	cv::Mat cmpKerMat;
-	cv::merge(planesKernel, 2, cmpKerMat);
-	cv::dft(cmpKerMat, cmpKerMat);
-
-	cv::Mat resultMat;
-	cv::mulSpectrums(cmpImgMat, cmpKerMat, resultMat, 0);
-
-	cv::Mat planes[2];
-	cv::idft(resultMat, resultMat);
-	cv::split(resultMat, planes);
-
-	return planes[0];
-}
-
 cv::Mat sim::Convolution::convertToComplexMat(cv::Mat imageMat) {
 	cv::Mat matOper;
 	if (imageMat.channels() == 3)
@@ -520,14 +485,14 @@ void sim::Convolution::zeroPadding(std::vector<cf>& a, int power) {
 
 
 //FAST COMPLEX MULTIPLICATION = FCM
-/*
+
 constexpr cf sim::Convolution::fcm(const cf& lh, const cf& rh) const { //https://www.embedded.com/digital-signal-processing-tricks-fast-multiplication-of-complex-numbers/
 	float a = lh.real(), b = lh.imag(), c = rh.real(), d = rh.imag();
 	float k1 = a * (c + d), k2 = d * (a + b), k3 = c * (b - a);
 	cf result(k1 - k2, k1 + k3);
 	return result;
 }
-*/
+
 
 
 std::vector<cf> sim::Convolution::signalMultiplication(std::vector<cf> lh, std::vector<cf> rh) { //IMAGE MUST ALWAYS BE LEFTHAND
@@ -576,24 +541,18 @@ void sim::Convolution::fastFourierTransform2D(std::vector<cf>& a, bool invert) {
 			x /= n;
 	}
 }
+*/
 
+cv::Mat sim::convolution2D(cv::Mat const imageMat, cv::Mat const kernel) {
+	cv::Mat oper = channelCheck(imageMat);
 
-cv::Mat sim::convolution2D(cv::Mat const image, cv::Mat const kernel) {
-	cv::Mat oper;
-	if (image.channels() == 3)
-		cv::cvtColor(image, oper, cv::COLOR_BGR2GRAY);
-	else
-		oper = image.clone();
-
-	cv::Mat resultMat;
-
-	resultMat = convolution2DHelix(oper, kernel);
+	cv::Mat resultMat = convolution2DHelix(oper, kernel);
 
 	return resultMat;
 }
 
 
-cv::Mat sim::convolution2DSeparable(cv::Mat const image, cv::Mat const kernel) {
+cv::Mat sim::convolution2DSeparable(cv::Mat const imageMat, cv::Mat const kernel) {
 	auto decompose = [](cv::Mat const M) { //https://www.mathworks.com/matlabcentral/fileexchange/28238-kernel-decomposition
 		cv::Mat S, U, VT;
 		cv::SVDecomp(M, S, U, VT, cv::SVD::FULL_UV);
@@ -614,22 +573,22 @@ cv::Mat sim::convolution2DSeparable(cv::Mat const image, cv::Mat const kernel) {
 	
 	if (kernel.rows != kernel.cols) {
 		std::cout << "Separable convolution failed.";
-		return convolution2DHelix(image, kernel);		
+		return convolution2DHelix(imageMat, kernel);		
 	}
 
 	if (rankOfMatrix(kernel) != 1) {
 		std::cout << "Separable convolution failed.";
-		return convolution2DHelix(image, kernel);
+		return convolution2DHelix(imageMat, kernel);
 	}
 
 	std::vector<cv::Mat> matVec = decompose(kernel);
 
 	cv::Mat* xkernel = &matVec[0];
 	cv::Mat* ykernel = &matVec[1];
-	cv::Mat matOperY = cv::Mat::zeros(image.rows, image.cols, CV_32FC1);
+	cv::Mat matOperY = cv::Mat::zeros(imageMat.rows, imageMat.cols, CV_32FC1);
 
 	cv::Mat imgOper;
-	image.convertTo(imgOper, CV_32FC1);
+	imageMat.convertTo(imgOper, CV_32FC1);
 
 	for (int i = 0; i < matOperY.rows; i++) {
 		for (int j = 0; j < matOperY.cols; j++) {
@@ -648,7 +607,7 @@ cv::Mat sim::convolution2DSeparable(cv::Mat const image, cv::Mat const kernel) {
 		for (int j = 0; j < matOperX.cols; j++) {
 			for (int k = 0; k < xkernel->total(); k++) { //fazlalýk deðerler daha sonra kýrpýlýr
 				int index = j - 1 + k;
-				if (index < 0 || index >= image.cols)
+				if (index < 0 || index >= imageMat.cols)
 					continue;
 				matOperX.at<float>(i, j) += matOperY.at<float>(i, index) * xkernel->at<float>(k);
 			}
@@ -694,8 +653,8 @@ cv::Mat sim::convolution2DNormal(cv::Mat const oper, cv::Mat kernel) {  // CPU I
 	return convmat;
 }
 
-cv::Mat sim::convolution2DHelix(cv::Mat const image, cv::Mat kernel) { //https://sites.ualberta.ca/~mostafan/Files/Papers/md_convolution_TLE2009.pdf
-	cv::Mat imageOper = image.clone();
+cv::Mat sim::convolution2DHelix(cv::Mat const imageMat, cv::Mat kernel) { //https://sites.ualberta.ca/~mostafan/Files/Papers/md_convolution_TLE2009.pdf
+	cv::Mat imageOper = imageMat.clone();
 	
 	float RSIZE = imageOper.rows + kernel.rows - 1;
 	float CSIZE = imageOper.cols + kernel.cols - 1;
@@ -708,7 +667,7 @@ cv::Mat sim::convolution2DHelix(cv::Mat const image, cv::Mat kernel) { //https:/
 			else if (imageOper.elemSize() == 4)
 				imOper.at<float>(i, j) = imageOper.at<float>(i, j);
 			else
-				throw std::exception("Illegal image element size.");
+				throw std::exception("Illegal imageMat element size.");
 		}
 	}
 	
@@ -762,7 +721,7 @@ cv::Mat sim::convolution2DHelix(cv::Mat const image, cv::Mat kernel) { //https:/
 		}
 	}
 
-	cv::Mat convMat(image.rows + kernel.rows - 1, image.cols + kernel.cols - 1, CV_32FC1);
+	cv::Mat convMat(imageMat.rows + kernel.rows - 1, imageMat.cols + kernel.cols - 1, CV_32FC1);
 
 	for (int i = 0; i < convMat.cols; i++) {
 		for (int j = 0; j < convMat.rows; j++) {
@@ -772,6 +731,38 @@ cv::Mat sim::convolution2DHelix(cv::Mat const image, cv::Mat kernel) { //https:/
 
 	convMat(cv::Range(ceil(kernel.rows/2), convMat.rows - ceil(kernel.rows / 2)), cv::Range(ceil(kernel.cols / 2), convMat.cols - ceil(kernel.cols / 2))).copyTo(convMat);
 	return convMat;
+}
+
+cv::Mat sim::convolution2DopenCV(cv::Mat const imageMat, cv::Mat kernel) {
+	cv::Mat paddedImage, paddedKernel, imgOper, kerOper;
+
+	imgOper = channelCheck(imageMat);
+
+	kerOper = kernel.clone();
+
+	int m = imgOper.rows + kerOper.rows - 1;
+	int n = imgOper.cols + kerOper.cols - 1;
+	cv::copyMakeBorder(imgOper, paddedImage, 0, m - imgOper.rows, 0, n - imgOper.cols, cv::BORDER_CONSTANT, cv::Scalar::all(0));
+	cv::copyMakeBorder(kerOper, paddedKernel, 0, m - kerOper.rows, 0, n - kerOper.cols, cv::BORDER_CONSTANT, cv::Scalar::all(0));
+
+	cv::Mat planesImage[] = { cv::Mat_<float>(paddedImage), cv::Mat::zeros(paddedImage.size(), CV_32F) };
+	cv::Mat cmpImgMat;
+	cv::merge(planesImage, 2, cmpImgMat);
+	cv::dft(cmpImgMat, cmpImgMat);
+
+	cv::Mat planesKernel[] = { cv::Mat_<float>(paddedKernel), cv::Mat::zeros(paddedKernel.size(), CV_32F) };
+	cv::Mat cmpKerMat;
+	cv::merge(planesKernel, 2, cmpKerMat);
+	cv::dft(cmpKerMat, cmpKerMat);
+
+	cv::Mat convMat;
+	cv::mulSpectrums(cmpImgMat, cmpKerMat, convMat, 0);
+
+	cv::Mat planes[2];
+	cv::idft(convMat, convMat);
+	cv::split(convMat, planes);
+
+	return planes[0];
 }
 
 cv::Mat sim::rotateMatrix180(cv::Mat srcmat)
@@ -799,7 +790,7 @@ cv::Mat sim::filterGauss(cv::Mat const operand, int ksize, float sigma, float mu
 	cv::Mat filterOper;
 
 	if (openCV) {
-		filterOper = sim::Convolution::convolution2DopenCV(operand, gaussmat);
+		filterOper = sim::convolution2DopenCV(operand, gaussmat);
 		filterOper(cv::Range(floor(ksize / 2), filterOper.rows - floor(ksize / 2)), cv::Range(floor(ksize / 2), filterOper.cols - floor(ksize / 2))).copyTo(filterOper);
 	}
 	else
@@ -948,12 +939,12 @@ template int sim::getI<uchar>(std::vector<uchar> operand);
 	return y;
 }*/
 
-cv::Mat sim::channelCheck(cv::Mat const image) {
+cv::Mat sim::channelCheck(cv::Mat const imageMat) {
 	cv::Mat oper;
-	if (image.channels() == 3)
-		cv::cvtColor(image, oper, cv::COLOR_BGR2GRAY);
+	if (imageMat.channels() == 3)
+		cv::cvtColor(imageMat, oper, cv::COLOR_BGR2GRAY);
 	else
-		oper = image.clone();
+		oper = imageMat.clone();
 	return oper;
 }
 

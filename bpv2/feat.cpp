@@ -7,58 +7,24 @@ cv::Mat feat::prewittY = (cv::Mat_<float>(3, 3) << 1, 1, 1, 0, 0, 0, -1, -1, -1)
 cv::Mat feat::robertX = (cv::Mat_<float>(2, 2) << 1, 0, 0, -1);
 cv::Mat feat::robertY = (cv::Mat_<float>(2, 2) << 0, 1, -1, 0);
 
-img::Image* feat::Feature::getSourceImg() {
-    return src_img;
-}
-
-cv::Mat feat::Feature::getSourceMat() {
-    return srcMat;
-}
-
-feat::Histogram::Histogram(img::Image* srimg, int fb, int sb, int tb, int flag) {
-    src_img = srimg;
-    srcMat = src_img->getImageMat();
+feat::Histogram::Histogram(cv::Mat imageMat, int fb, int sb, int tb, int flag) {
     fbin = fb;
     sbin = sb;
     tbin = tb;
     if (flag == 0) {
-        if (getSourceMat().channels() == 1)
-            histMat = histogramGRAYCalculation(getSourceMat());
-        else if (getSourceMat().channels() == 3)
-            histMat = histogramBGRCalculation(getSourceMat());
+        if (imageMat.channels() == 1)
+            histMat = histogramGRAYCalculation(imageMat);
+        else if (imageMat.channels() == 3)
+            histMat = histogramBGRCalculation(imageMat);
         else
             throw std::exception("Illegal histogram build flag.");
     }
     else if (flag == HIST_BGR)
-        histMat = histogramBGRCalculation(getSourceMat());
+        histMat = histogramBGRCalculation(imageMat);
     else if (flag == HIST_HSV)
-        histMat = histogramHSVCalculation(getSourceMat());
+        histMat = histogramHSVCalculation(imageMat);
     else if (flag == HIST_GRAY)
-        histMat = histogramGRAYCalculation(getSourceMat());
-    else
-        throw std::exception("Illegal histogram build flag.");
-    nhistMat = normalizeMat(histMat, 0, 1);
-}
-
-feat::Histogram::Histogram(cv::Mat mat, int fb, int sb, int tb, int flag) {
-    srcMat = mat;
-    fbin = fb;
-    sbin = sb;
-    tbin = tb;
-    if (flag == 0) {
-        if (getSourceMat().channels() == 1)
-            histMat = histogramGRAYCalculation(getSourceMat());
-        else if (getSourceMat().channels() == 3)
-            histMat = histogramBGRCalculation(getSourceMat());
-        else
-            throw std::exception("Illegal histogram build flag.");
-    }
-    else if (flag == HIST_BGR)
-        histMat = histogramBGRCalculation(getSourceMat());
-    else if (flag == HIST_HSV)
-        histMat = histogramHSVCalculation(getSourceMat());
-    else if (flag == HIST_GRAY)
-        histMat = histogramGRAYCalculation(getSourceMat());
+        histMat = histogramGRAYCalculation(imageMat);
     else
         throw std::exception("Illegal histogram build flag.");
     nhistMat = normalizeMat(histMat, 0, 1);
@@ -77,14 +43,9 @@ int* feat::Histogram::getBin() {
     return binval;
 }
 
-void feat::Histogram::setHistogramDisplayImage(int width, int height) {
-    histBGR = histogramBGRSeparateCalculation(getSourceMat());
-    *hist_dsp_img = createHistogramDisplayImage(histBGR, width, height);
-}
-
-cv::Mat feat::Histogram::histogramHSVCalculation(cv::Mat sourcemat) {
+cv::Mat feat::Histogram::histogramHSVCalculation(cv::Mat sourceMat) {
     cv::MatND hsvbase, histbase;
-    cv::cvtColor(sourcemat, hsvbase, cv::COLOR_BGR2HSV);
+    cv::cvtColor(sourceMat, hsvbase, cv::COLOR_BGR2HSV);
     int histSize[] = { getBin()[0], getBin()[1], getBin()[2] };
 
     float h_ranges[] = { 0, 180 };
@@ -98,7 +59,7 @@ cv::Mat feat::Histogram::histogramHSVCalculation(cv::Mat sourcemat) {
     return histbase;
 }
 
-cv::Mat feat::Histogram::histogramBGRCalculation(cv::Mat sourcemat) {
+cv::Mat feat::Histogram::histogramBGRCalculation(cv::Mat sourceMat) {
     int histSize[] = { getBin()[0], getBin()[1], getBin()[2] };
 
     float bgr_ranges[] = { 0, 256 };
@@ -108,16 +69,16 @@ cv::Mat feat::Histogram::histogramBGRCalculation(cv::Mat sourcemat) {
     int channels[] = { 0, 1, 2 };
 
     cv::MatND histbase;
-    cv::calcHist(&sourcemat, 1, channels, cv::Mat(), histbase, 3, histSize, histRange, uniform, accumulate);
+    cv::calcHist(&sourceMat, 1, channels, cv::Mat(), histbase, 3, histSize, histRange, uniform, accumulate);
     return histbase;
 }
 
-cv::Mat feat::Histogram::histogramGRAYCalculation(cv::Mat sourcemat) {
+cv::Mat feat::Histogram::histogramGRAYCalculation(cv::Mat sourceMat) {
     int histSize[] = { getBin()[0] };
 
     cv::Mat greyMat;
-    if (sourcemat.channels() == 3)
-        cv::cvtColor(sourcemat, greyMat, cv::COLOR_BGR2GRAY);
+    if (sourceMat.channels() == 3)
+        cv::cvtColor(sourceMat, greyMat, cv::COLOR_BGR2GRAY);
 
     float gray_range[] = { - pow(2,32) + 1, pow(2,32) - 1 };
     const float* histRange[] = { gray_range };
@@ -126,19 +87,19 @@ cv::Mat feat::Histogram::histogramGRAYCalculation(cv::Mat sourcemat) {
     int channels[] = { 0 };
 
     cv::MatND histbase;
-    cv::calcHist(&sourcemat, 1, channels, cv::Mat(), histbase, 1, histSize, histRange, uniform, accumulate);
+    cv::calcHist(&sourceMat, 1, channels, cv::Mat(), histbase, 1, histSize, histRange, uniform, accumulate);
     return histbase;
 }
 
-cv::Mat feat::Histogram::normalizeMat(cv::Mat sourcemat, float alpha, float beta) {
+cv::Mat feat::Histogram::normalizeMat(cv::Mat sourceMat, float alpha, float beta) {
     cv::Mat nhist;
-    normalize(sourcemat, nhist, alpha, beta, cv::NORM_MINMAX, -1, cv::Mat());
+    normalize(sourceMat, nhist, alpha, beta, cv::NORM_MINMAX, -1, cv::Mat());
     return nhist;
 }
 
-std::vector<cv::Mat> feat::Histogram::histogramBGRSeparateCalculation(cv::Mat sourcemat) {
+std::vector<cv::Mat> feat::Histogram::histogramBGRSeparateCalculation(cv::Mat sourceMat) {
     std::vector<cv::Mat> bgr_planes;
-    cv::split(sourcemat, bgr_planes);
+    cv::split(sourceMat, bgr_planes);
 
     int histSize = 256;
     float range[] = { 0, 256 };
@@ -157,37 +118,52 @@ std::vector<cv::Mat> feat::Histogram::histogramBGRSeparateCalculation(cv::Mat so
     return BGR_hist;
 }
 
-img::Image feat::Histogram::createHistogramDisplayImage(std::vector<cv::Mat> bgrhist, int hist_w, int hist_h) {
+cv::Mat feat::Histogram::createHistogramDisplayImage(std::vector<cv::Mat> bgrhist, int hist_w, int hist_h) {
     int histSize = 256;
     int bin_w = cvRound((double)hist_w / histSize);
 
-    cv::Mat histImage(hist_h, hist_w, CV_8UC3, cv::Scalar(0, 0, 0));
+    cv::Mat histImgMat(hist_h, hist_w, CV_8UC3, cv::Scalar(0, 0, 0));
 
-    cv::Mat b_hist = normalizeMat(bgrhist[0], 0, histImage.rows);
-    cv::Mat g_hist = normalizeMat(bgrhist[1], 0, histImage.rows);
-    cv::Mat r_hist = normalizeMat(bgrhist[2], 0, histImage.rows);
+    cv::Mat b_hist = normalizeMat(bgrhist[0], 0, histImgMat.rows);
+    cv::Mat g_hist = normalizeMat(bgrhist[1], 0, histImgMat.rows);
+    cv::Mat r_hist = normalizeMat(bgrhist[2], 0, histImgMat.rows);
 
     nhistBGR.push_back(b_hist);
     nhistBGR.push_back(g_hist);
     nhistBGR.push_back(r_hist);
 
     for (int i = 1; i < histSize; i++) {
-        line(histImage, cv::Point(bin_w * (i - 1), hist_h - cvRound(b_hist.at<float>(i - 1))),
+        line(histImgMat, cv::Point(bin_w * (i - 1), hist_h - cvRound(b_hist.at<float>(i - 1))),
             cv::Point(bin_w * (i), hist_h - cvRound(b_hist.at<float>(i))),
             cv::Scalar(255, 0, 0), 2, 8, 0);
-        line(histImage, cv::Point(bin_w * (i - 1), hist_h - cvRound(g_hist.at<float>(i - 1))),
+        line(histImgMat, cv::Point(bin_w * (i - 1), hist_h - cvRound(g_hist.at<float>(i - 1))),
             cv::Point(bin_w * (i), hist_h - cvRound(g_hist.at<float>(i))),
             cv::Scalar(0, 255, 0), 2, 8, 0);
-        line(histImage, cv::Point(bin_w * (i - 1), hist_h - cvRound(r_hist.at<float>(i - 1))),
+        line(histImgMat, cv::Point(bin_w * (i - 1), hist_h - cvRound(r_hist.at<float>(i - 1))),
             cv::Point(bin_w * (i), hist_h - cvRound(r_hist.at<float>(i))),
             cv::Scalar(0, 0, 255), 2, 8, 0);
     }
-    img::Image imoperator(histImage);
-    return imoperator;
+    return histImgMat;
 }
 
-feat::Edge::Edge(img::Image* srimg, int flag) {
-    src_img = srimg;
+cv::Mat feat::Edge::edgeDetection(cv::Mat imageMat, int flag, feat::Edge edgeOper) {
+    cv::Mat oper;
+    switch (flag) {
+    case EDGE_SOBEL:
+        oper = edgeOper.edgeDetectionSobel(imageMat);
+        break;
+    case EDGE_PREWT:
+        oper = edgeOper.edgeDetectionPrewitt(imageMat);
+        break;
+    case EDGE_ROBRT:
+        oper = edgeOper.edgeDetectionRobertsCross(imageMat);
+        break;
+    case EDGE_CANNY:
+        throw std::exception("Call edgeDetectionCanny directly.");
+    default:
+        throw std::exception("Illegal edge detection flag.");
+    }
+    return oper;
 }
 
 cv::Mat feat::Edge::edgeDetectionSobel(cv::Mat const imageMat) {
@@ -314,8 +290,8 @@ cv::Mat feat::Edge::commonOperationsSPR(cv::Mat const kx, cv::Mat const ky, cv::
     cv::Mat kernelx = kx;
     cv::Mat kernely = ky;
 
-    cv::Mat sprgx = sim::Convolution::convolution2DopenCV(imat, kernelx);
-    cv::Mat sprgy = sim::Convolution::convolution2DopenCV(imat, kernely);
+    cv::Mat sprgx = sim::convolution2DopenCV(imat, kernelx);
+    cv::Mat sprgy = sim::convolution2DopenCV(imat, kernely);
 
     cv::Mat sprg(sprgx.dims, sprgx.size, sprgx.type());
     for (int i = 0; i < sprg.rows; i++) {
@@ -360,15 +336,47 @@ std::vector<cv::Mat> feat::Edge::calculateEdgeGradientMagnitudeDirection(cv::Mat
     return std::vector<cv::Mat>{sprgMag, sprgDir};
 }
 
-cv::Mat feat::Edge::EdgeDetectorCanny::edgeDetectionCanny(cv::Mat const imageMat, feat::Edge::EdgeDetectorCanny edcOperator) { //Computer Vision, Mar 2000, Alg 24
-    cv::Mat cannyoper;																							 //https://towardsdatascience.com/canny-edge-detection-step-by-step-in-python-computer-vision-b49c3a2d8123
-                                                                                                                 //http://www.tomgibara.com/computer-vision/CannyEdgeDetector.java
-    if (imageMat.channels() == 3)
-        cv::cvtColor(imageMat, cannyoper, cv::COLOR_BGR2GRAY);
+void feat::Edge::EdgeDetectorCanny::setVariables(std::string varName, float fltVal, cv::Mat matVal) {
+    if (varName == "kernelx")
+        kernelx = matVal;
+    else if (varName == "kernely")
+        kernely = matVal;
+    else if (varName == "gaussKernelSize")
+        gaussKernelSize = fltVal;
+    else if (varName == "thigh")
+        thigh = fltVal;
+    else if (varName == "tlow")
+        tlow = fltVal;
+    else if (varName == "sigma")
+        sigma = fltVal;
     else
-        cannyoper = imageMat.clone();
+        throw std::exception("Illegal variable flag.");
+    setHash();
+}
 
-    cannyoper = sim::filterGauss(cannyoper, edcOperator.gaussKernelSize, edcOperator.sigma, edcOperator.mu);
+void feat::Edge::EdgeDetectorCanny::setHash() {
+    cv::Mat hashMat = cv::Mat::zeros(4 + kernelx.total() + kernely.total(), 1, CV_32FC1);
+    float gaussKernelSize;
+    float thigh;
+    float tlow;
+    float sigma;
+    cv::Mat kernelx;
+    cv::Mat kernely;
+    hashMat.at<float>(0) = gaussKernelSize;
+    hashMat.at<float>(1) = tlow;
+    hashMat.at<float>(2) = sigma;
+    for (int i = 3; i < kernelx.total() + 3; i++)
+        hashMat.at<float>(i) = kernelx.at<float>(i - 3);
+    for (int i = kernelx.total() + 3; i < kernely.total() + kernelx.total() + 3; i++)
+        hashMat.at<float>(i) = kernely.at<float>(i - kernelx.total() - 3);
+    edcHash = feat::Hash::hash_xxHash(hashMat);
+}
+
+cv::Mat feat::Edge::EdgeDetectorCanny::edgeDetectionCanny(cv::Mat const imageMat, feat::Edge::EdgeDetectorCanny edcOperator) { //Computer Vision, Mar 2000, Alg 24
+    cv::Mat cannyoper = sim::channelCheck(imageMat);																							 //https://towardsdatascience.com/canny-edge-detection-step-by-step-in-python-computer-vision-b49c3a2d8123
+                                                                                                                 //http://www.tomgibara.com/computer-vision/CannyEdgeDetector.
+
+    cannyoper = sim::filterGauss(cannyoper, edcOperator.gaussKernelSize, edcOperator.sigma);
     cv::Mat kernelx = (cv::Mat_<float>(3, 3) << -1, 0, 1, -2, 0, 2, -1, 0, 1);
     cv::Mat kernely = (cv::Mat_<float>(3, 3) << 1, 2, 1, 0, 0, 0, -1, -2, -1);
     std::vector<cv::Mat> temp = feat::Edge::calculateEdgeGradientMagnitudeDirection(kernelx, kernely, cannyoper);
@@ -383,11 +391,12 @@ cv::Mat feat::Edge::EdgeDetectorCanny::edgeDetectionCanny(cv::Mat const imageMat
     float hThreshold = max * edcOperator.thigh;
     float lThreshold = hThreshold * edcOperator.tlow;
 
+    float weakratio = 0.09; //has no effect
     cv::Mat dtMat(nonMaximaMat.rows, nonMaximaMat.cols, nonMaximaMat.type());
-    edcOperator.doubleThreshold(dtMat, nonMaximaMat, max, lThreshold, hThreshold, edcOperator.weakratio);
+    edcOperator.doubleThreshold(dtMat, nonMaximaMat, max, lThreshold, hThreshold, weakratio);
 
     float strong = max;
-    float weak = strong * edcOperator.weakratio;
+    float weak = strong * weakratio;
 
     edcOperator.performHysteresis(dtMat, weak, strong);
     return dtMat;
@@ -486,7 +495,7 @@ void feat::Edge::EdgeDetectorCanny::performHysteresis(cv::Mat& resultMat, float 
     }
 }
 
-cv::Mat feat::Corner::paintPointsOverImage(cv::Mat const image, cv::Mat const pointMat, bool gray, float numOfPoints, float radius, float thickness, cv::Scalar pointColor) {
+cv::Mat feat::Corner::paintPointsOverImage(cv::Mat const imageMat, cv::Mat const pointMat, bool gray, float numOfPoints, float radius, float thickness, cv::Scalar pointColor) {
     std::vector<cv::Point> pointVec;
 
     cv::Mat pointMatOper = pointMat.clone();
@@ -500,7 +509,7 @@ cv::Mat feat::Corner::paintPointsOverImage(cv::Mat const image, cv::Mat const po
         pointVec.push_back(pointOper);
         pointMatOper.at<float>(pointOper) = 0;
     }
-    cv::Mat imgOper = image.clone();
+    cv::Mat imgOper = imageMat.clone();
     if(imgOper.channels() == 1)
         cv::cvtColor(imgOper, imgOper, cv::COLOR_GRAY2BGR);
 
@@ -510,27 +519,45 @@ cv::Mat feat::Corner::paintPointsOverImage(cv::Mat const image, cv::Mat const po
     return imgOper;
 }
 
-cv::Mat feat::Corner::cornerDetectionHarrisLaplace(cv::Mat image, float scaleRatio, float n) {
+cv::Mat feat::Corner::cornerDetectionHarrisLaplace(cv::Mat imageMat, float n, float scaleRatio) {
     //https://www.robots.ox.ac.uk/~vgg/research/affine/det_eval_files/mikolajczyk_ijcv2004.pdf
     //%85 ben -- %15 https://www.mathworks.com/matlabcentral/fileexchange/64689-harris-affine-and-harris-laplace-interest-point-detector
     //VEEEEEEEEEEERY SLOW
+    int recommendedWidth = 375, width, height;
+    float scale;
+
+    if (scaleRatio == 0) {
+        if (imageMat.cols > recommendedWidth)
+            scale = recommendedWidth / imageMat.cols;
+        else
+            scale = 1;
+        width = imageMat.cols * scale;
+        height = imageMat.rows * scale;
+    }
+
+    else if (scaleRatio < 0)
+        throw std::exception("Illegal scale ratio.");
+
+    else {
+        width = imageMat.cols * scaleRatio;
+        height = imageMat.rows * scaleRatio;
+    }
+
+    cv::Mat imgOper = sim::channelCheck(imageMat);
+
+    cv::resize(imgOper, imgOper, cv::Size(width, height));
     std::vector<float> setOfScales;
     float ki = 1.4;
     float sigma0 = 1.0;
     for (int i = 1; i < n + 1; i++)
         setOfScales.push_back(pow(ki, i) * sigma0);
 
-    int width = image.cols * scaleRatio;
-    int height = image.rows * scaleRatio;
-
-    cv::Mat imgOper = sim::channelCheck(image);
-
-    cv::resize(imgOper, imgOper, cv::Size(width, height));
+    
+    
 
     float scaleConstant = 0.7;
 
     std::vector<cv::Mat> setOfDerivatives;
-    setOfDerivatives.resize(n);
 
     std::vector<std::vector<cv::Point>> pointLocVec;
     pointLocVec.resize(n);
@@ -540,24 +567,23 @@ cv::Mat feat::Corner::cornerDetectionHarrisLaplace(cv::Mat image, float scaleRat
         float gauss_size = 31;
 
         cv::Mat LoGDerivative = sim::filterGauss(imgOper, gauss_size, setOfScales[i], 1, true);
-        cv::Laplacian(LoGDerivative, LoGDerivative, CV_32F, 3);
-        setOfDerivatives[i] = LoGDerivative;
+        cv::Laplacian(LoGDerivative, LoGDerivative, CV_32F, 5);
+        setOfDerivatives.push_back(LoGDerivative);
 
         cornerDetectorHarris cdhOper;
-        cdhOper.sigmai = setOfScales[i];
-        cdhOper.sigmad = scaleConstant * setOfScales[i];
-        cdhOper.squareSize = 5;
+        cdhOper.setVariables("sigmai", setOfScales[i]);
+        cdhOper.setVariables("sigmad", scaleConstant * setOfScales[i]);
+        cdhOper.setVariables("squareSize", 5);
         
         cv::Mat harrisPointMat = cornerDetectorHarris::cornerDetectionHarris(imgOper, cdhOper);
-        
-        while (true) {
-            cv::Point pointOper;
-            double value;
-            cv::minMaxLoc(harrisPointMat, NULL, &value, NULL, &pointOper);
-            if (value < 1)
-                break;
-            pointLocVec[i].push_back(pointOper);
-            harrisPointMat.at<float>(pointOper) = 0;
+
+        for (int j = 0; j < harrisPointMat.rows; j++) {
+            for (int k = 0; k < harrisPointMat.cols; k++) {
+                if (harrisPointMat.at<float>(j, k) > 1) {
+                    cv::Point pointOper(k, j);
+                    pointLocVec[i].push_back(pointOper);
+                }
+            }
         }
 
         /*cv::Mat imgoperx = imgOper.clone();
@@ -570,7 +596,7 @@ cv::Mat feat::Corner::cornerDetectionHarrisLaplace(cv::Mat image, float scaleRat
         gen::imageTesting(imgoperx, "tester" + std::to_string(i) + "3");*/
     }    
 
-    cv::Mat resultMat = cv::Mat::zeros(image.rows, image.cols, CV_32FC1);
+    cv::Mat resultMat = cv::Mat::zeros(imageMat.rows, imageMat.cols, CV_32FC1);
 
     //LOG CALCULATION FOR EVERY POINT
     for (int i = 1; i < n - 1; i++) {
@@ -613,9 +639,43 @@ cv::Mat feat::Corner::cornerDetectionHarrisLaplace(cv::Mat image, float scaleRat
     return resultMat;
 }
 
-cv::Mat feat::Corner::cornerDetectorHarris::cornerDetectionHarris(cv::Mat const image, feat::Corner::cornerDetectorHarris cdhOperator) {
+void feat::Corner::cornerDetectorHarris::setVariables(std::string varName, float fltVal, cv::Mat matVal) {
+    if (varName == "kernelx")
+        kernelx = matVal;
+    else if (varName == "kernely")
+        kernely = matVal;
+    else if (varName == "radius")
+        radius = fltVal;
+    else if (varName == "squareSize")
+        squareSize = fltVal;
+    else if (varName == "sigmai")
+        sigmai = fltVal;
+    else if (varName == "sigmad")
+        sigmad = fltVal;
+    else if (varName == "alpha")
+        alpha = fltVal;
+    else
+        throw std::exception("Illegal variable flag.");
+    setHash();
+}
+
+void feat::Corner::cornerDetectorHarris::setHash() {
+    cv::Mat hashMat = cv::Mat::zeros(5 + kernelx.total() + kernely.total(), 1, CV_32FC1);
+    hashMat.at<float>(0) = radius;
+    hashMat.at<float>(1) = squareSize;
+    hashMat.at<float>(2) = sigmai;
+    hashMat.at<float>(3) = sigmad;
+    hashMat.at<float>(4) = alpha;
+    for (int i = 5; i < kernelx.total() + 5; i++)
+        hashMat.at<float>(i) = kernelx.at<float>(i - 5);
+    for (int i = kernelx.total() + 5; i < kernely.total() + kernelx.total() + 5; i++)
+        hashMat.at<float>(i) = kernely.at<float>(i - kernelx.total() - 5);
+    cdhHash = feat::Hash::hash_xxHash(hashMat);
+}
+
+cv::Mat feat::Corner::cornerDetectorHarris::cornerDetectionHarris(cv::Mat const imageMat, feat::Corner::cornerDetectorHarris cdhOperator) {
     // %80 ben -- %20 https://www.mathworks.com/matlabcentral/fileexchange/64689-harris-affine-and-harris-laplace-interest-point-detector
-    cv::Mat imgOper = sim::channelCheck(image), resultOper = cv::Mat::zeros(imgOper.rows, imgOper.cols, CV_32FC1);
+    cv::Mat imgOper = sim::channelCheck(imageMat), resultOper = cv::Mat::zeros(imgOper.rows, imgOper.cols, CV_32FC1);
 
     float gauss_size = 31;
     imgOper = sim::filterGauss(imgOper, gauss_size, cdhOperator.sigmad, 1, true);
@@ -623,7 +683,7 @@ cv::Mat feat::Corner::cornerDetectorHarris::cornerDetectionHarris(cv::Mat const 
     cv::Mat derivativeX = sim::convolution2D(imgOper, cdhOperator.kernelx);
     cv::Mat derivativeY = sim::convolution2D(imgOper, cdhOperator.kernely);
 
-    /*cv::Mat derivativeXX = derivativeX.clone();
+    cv::Mat derivativeXX = derivativeX.clone();
     for (int i = 0; i < derivativeX.total(); i++)
         derivativeXX.at<float>(i) = pow(derivativeX.at<float>(i), 2);
     derivativeXX = sim::filterGauss(derivativeXX, gauss_size, cdhOperator.sigmai, 1, true);
@@ -636,14 +696,19 @@ cv::Mat feat::Corner::cornerDetectorHarris::cornerDetectionHarris(cv::Mat const 
     cv::Mat derivativeXY = derivativeX.clone();
     for (int i = 0; i < derivativeXY.total(); i++)
         derivativeXY.at<float>(i) = derivativeX.at<float>(i) * derivativeY.at<float>(i);
-    derivativeXY = sim::filterGauss(derivativeXY, gauss_size, cdhOperator.sigmai, 1, true);*/
+    derivativeXY = sim::filterGauss(derivativeXY, gauss_size, cdhOperator.sigmai, 1, true);
     
     float center = floor(cdhOperator.radius / 2);
 
     for (int i = center; i < imgOper.rows - center - 1; i++)
         for (int j = center; j < imgOper.cols - center - 1; j++) {
             cv::Mat tensor = cv::Mat::zeros(2, 2, CV_32FC1);
-
+            /*float weightF = pow(cdhOperator.sigmad, 2);
+            tensor.at<float>(0, 0) = weightF * derivativeXX.at<float>(i, j);
+            tensor.at<float>(0, 1) = weightF * derivativeXY.at<float>(i, j);
+            tensor.at<float>(1, 0) = weightF * derivativeXY.at<float>(i, j);
+            tensor.at<float>(1, 1) = weightF * derivativeYY.at<float>(i, j);*/
+            
             for (int p = 0; p < cdhOperator.radius; p++)
                 for (int q = 0; q < cdhOperator.radius; q++) {
                     float weightF = 1 / (2 * M_PI * pow(cdhOperator.sigmai, 2)) * pow(M_E, -((pow(p, 2) + pow(q, 2)) / 2 * pow(cdhOperator.sigmai, 2)));
@@ -656,22 +721,7 @@ cv::Mat feat::Corner::cornerDetectorHarris::cornerDetectionHarris(cv::Mat const 
             float R = cv::determinant(tensor) - cdhOperator.alpha * pow(cv::trace(tensor)[0], 2);
             resultOper.at<float>(i, j) = R;
         }
-
-    /*for (int i = iOper; i < resultOper.rows - radius - 1; i += radius)
-        for (int j = iOper; j < resultOper.cols - radius - 1; j += radius) {
-            cv::Rect roi(cv::Point2f(j - iOper, i - iOper), cv::Point2f(j + iOper, i + iOper));
-            cv::Mat image_roi = resultOper(roi);
-
-            cv::Point max;
-            cv::minMaxLoc(image_roi, NULL, NULL, NULL, &max);
-
-            for (int k = 0; k < radius; k++)
-                for (int l = 0; l < radius; l++) {
-                    resultOper.at<float>(i - iOper + k, j - iOper + l) = 0;
-                }
-            resultOper.at<float>(i - iOper + max.x, j - iOper + max.y) = 255;
-        }*/
-
+    
     cv::Mat sortedMat = resultOper.clone();
     sortedMat = sortedMat.reshape(1,1);
     cv::sort(sortedMat, sortedMat, cv::SORT_ASCENDING + cv::SORT_EVERY_ROW);
@@ -685,7 +735,8 @@ cv::Mat feat::Corner::cornerDetectorHarris::cornerDetectionHarris(cv::Mat const 
         iter = 1;
 
     threshold = sortedMat.at<float>(sortedMat.total() - iter + iter * 0.75);
-
+    if(threshold < 254)
+        threshold = 254;
     cv::Mat localMaximaMat(resultOper.rows, resultOper.cols, CV_32FC1);
     localMaxima(resultOper, localMaximaMat, cdhOperator.squareSize, threshold);
     return localMaximaMat;
@@ -730,4 +781,76 @@ void feat::Corner::localMaxima(cv::Mat src, cv::Mat& dst, int squareSize, float 
             else
                 m0.at<float>(sqrCenter, sqrCenter) = 0;
         }
+}
+
+std::bitset<64> feat::Hash::imageHashing_dHash(cv::Mat const imageMat) {
+    cv::Mat imgOper = sim::channelCheck(imageMat);
+
+    if (imgOper.type() != CV_8UC4 && imgOper.type() != CV_8UC3 && imgOper.type() != CV_8UC1)
+        throw std::exception("Image has to be unmodified by this program.");
+
+    cv::resize(imgOper, imgOper, cv::Size(9, 8), 0, 0, cv::INTER_LINEAR_EXACT);
+
+    std::bitset<64> bits;
+    for(int i = 0; i < imgOper.rows; i++)
+        for (int j = 0; j < imgOper.cols - 1; j++) {
+            bits[i * imgOper.rows + j] = imgOper.at<uchar>(i, j) > imgOper.at<uchar>(i, j + 1) ? 1 : 0;
+        }
+
+    return bits;
+}
+
+//https://github.com/opencv/opencv_contrib/blob/master/modules/img_hash/src/phash.cpp
+std::bitset<64> feat::Hash::imageHashing_pHash(cv::Mat const imageMat) {
+    cv::Mat imgOper = sim::channelCheck(imageMat);
+
+    if (imgOper.type() != CV_8UC4 && imgOper.type() != CV_8UC3 && imgOper.type() != CV_8UC1)
+        throw std::exception("Image has to be unmodified by this program.");
+
+    cv::resize(imgOper, imgOper, cv::Size(32, 32), 0, 0, cv::INTER_LINEAR_EXACT);
+    imgOper.convertTo(imgOper, CV_32F);
+    cv::dct(imgOper, imgOper);
+    cv::Mat topLeftDCT;
+    imgOper(cv::Rect(0, 0, 8, 8)).copyTo(topLeftDCT);
+    topLeftDCT.at<float>(0, 0) = 0;
+    float const imgMean = static_cast<float>(cv::mean(topLeftDCT)[0]);
+    cv::Mat bitsImg;
+    cv::compare(topLeftDCT, imgMean, bitsImg, cv::CMP_GT);
+    bitsImg /= 255;
+    uchar const* bits_ptr = bitsImg.ptr<uchar>(0);
+    std::bitset<64> bits;
+    for (size_t i = 0; i < bitsImg.total(); i++) {
+        bits[i] = bits_ptr[i] != 0;
+    }
+    return bits;
+}
+
+//Uses hamming distance
+int feat::Hash::compareImageHash(cv::Mat const lefthand, cv::Mat const righthand) {
+    std::bitset<64> lhand_dhash = imageHashing_dHash(lefthand);
+    std::bitset<64> rhand_dhash = imageHashing_dHash(righthand);
+
+    int diff = 0;
+    for (int i = 0; i < 64; i++) {
+        if (lhand_dhash[i] != rhand_dhash[i])
+            diff++;
+    }
+
+    if (diff < 10) {
+        std::bitset<64> lhand_phash = imageHashing_pHash(lefthand);
+        std::bitset<64> rhand_phash = imageHashing_pHash(righthand);
+        diff = 0;
+        for (int i = 0; i < 64; i++) {
+            if (lhand_phash[i] != rhand_phash[i])
+                diff++;
+        }
+    }
+
+    return diff;
+}
+
+XXH64_hash_t feat::Hash::hash_xxHash(cv::Mat const inputMat) {
+    cv::Mat matOper = inputMat.clone();
+    XXH64_hash_t hash = XXH64(matOper.ptr<float>(0), matOper.total(), NULL);
+    return hash;
 }

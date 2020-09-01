@@ -13,8 +13,8 @@
 	MOVE EDGE DETECTION METHODS TO FEAT.H -- DONE
 	ADD THE LAST EDGE OPERATOR FORGOT ITS NAME -- SKIPPED
 	ADD CORNER DETECTION -- SKIP NO TIME
-	ADD KEYPOINT DETECTION  
-	ASK STACKOVERFLOW QUESTION ABOUT FFT OUTPUT BEING USELESS
+	ADD KEYPOINT DETECTION -- SKIPPED 
+	ASK STACKOVERFLOW QUESTION ABOUT FFT OUTPUT BEING USELESS -- EZ SOLVED
 	ADD HASHING
 	BUILD THE DATABASE DETAILS WILL FOLLOW
 	BUILD GUI DETAILS WILL FOLLOW
@@ -71,27 +71,10 @@ int main(int argc, char *argv[])
 		sum += timeVec[i];
 	std::cout << sum / timeVec.size() << std::endl;
 	*/
-	img::Image ima("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/flowergirl.jpg", cv::IMREAD_COLOR);
-	img::Image imc("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/flowergirlhand.jpg", cv::IMREAD_COLOR);
+	img::Image ima("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench00140.jpg", cv::IMREAD_COLOR);
+	img::Image imc("C:/desired/path/to/Images/static_outdoor_il_giocco_lucca_italy/IMG_9129.jpg", cv::IMREAD_COLOR);
 	cv::Mat kernely;
-	/*kernely = feat::Corner::cornerDetectorHarris::cornerDetectionHarris(ima.getImageMat());
-	kernely = feat::Corner::paintPointsOverImage(ima.getImageMat(), kernely, true, 100000);
-	gen::imageTesting(img::Image(kernely), "test5");*/
-	/*kernely = sim::filterGauss(ima.getImageMat(), 11, 4, 1, true);
-	cv::normalize(kernely, kernely, 0, 255, cv::NORM_MINMAX);
-	gen::imageTesting(img::Image(kernely), "test3");
-	kernely = feat::Edge::edgeDetectionSobel(kernely);
-	gen::imageTesting(img::Image(kernely), "test4");*/
-	kernely = feat::Corner::cornerDetectionHarrisLaplace(ima.getImageMat(), 0.5, 7);
-	kernely = feat::Corner::paintPointsOverImage(ima.getImageMat(), kernely, true, 100000);
-	gen::imageTesting(img::Image(kernely), "test2");
-	kernely = feat::Corner::cornerDetectionHarrisLaplace(imc.getImageMat(), 0.5, 7);
-	kernely = feat::Corner::paintPointsOverImage(imc.getImageMat(), kernely, true, 100000);
-	gen::imageTesting(img::Image(kernely), "test3");
-	kernely = feat::Edge::edgeDetectionSobel(ima.getImageMat());
-	gen::imageTesting(img::Image(kernely), "test2");
-	kernely = feat::Edge::edgeDetectionPrewitt(ima.getImageMat());
-	gen::imageTesting(img::Image(kernely), "test3");
+	dbop::initializeDatabase();
 	
 	std::vector<img::Image> asd = img::readImageFolder("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench/full/", 
 		cv::IMREAD_COLOR, false, 25);

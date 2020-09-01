@@ -1,39 +1,187 @@
 #include "dbop.h"
 
-void dbop::initializeDatabase() {
-    sqlite3* db;
-    int rc;
-    const char* data = "Callback function called";
-    char* zErrMsg = 0;
+extern dbop::Database dbObj = dbop::Database("bitirme.db");
 
-    rc = sqlite3_open("bitirme.db", &db);
-
-    if (rc) {
-        fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
-        throw std::exception("Can't connect to database.");
-    }
-
-    char* sql;
-
-    sql = "SELECT name FROM sqlite_master WHERE type='table' and name = 'xd';";
-    char** resultp;
-    int row;
-    int col;
-    
-    rc = sqlite3_get_table(db, sql, &resultp, &row, &col, &zErrMsg);
-    //rc = sqlite3_exec(db, sql, callback, (void*)data, &zErrMsg);
-
-    if (rc != SQLITE_OK) {
-        fprintf(stderr, "SQL error: %s\n", zErrMsg);
-        sqlite3_free(zErrMsg);
-    }
-    else {
-        fprintf(stdout, "Operation done successfully\n");
-    }
-    sqlite3_close(db);
+dbop::Database::Database(std::string dbName) {
+    initializeDatabase(dbName);
 }
 
-static int dbop::callback(void* data, int argc, char** argv, char** azColName) {
+void dbop::Database::initializeDatabase(std::string dbName) {
+    sqlite3* db;
+    int rc;
+
+    rc = sqlite3_open(dbName.c_str(), &db);
+
+    if (rc) {
+        throw std::exception(("Can't open database: %s\n", sqlite3_errmsg(db)));
+    }
+
+    dbPtr = db;
+
+    initializeTables();
+}
+
+void dbop::Database::errorCheck(int rc, char* zErrMsg) {
+    if (rc != SQLITE_OK) {
+        throw std::exception(("SQL error: %s\n", zErrMsg));
+        sqlite3_free(zErrMsg);
+    }
+}
+
+void dbop::Database::initializeTables() {
+    sqlite3* db = dbPtr;
+    char** resultp;
+    int row, col, rc;
+
+    sql = "PRAGMA foreign_keys = ON;";
+
+    sql = "SELECT name FROM sqlite_master WHERE type='table' and name = 'Image';";
+    rc = sqlite3_get_table(db, sql, &resultp, &row, &col, &zErrMsg);
+    errorCheck(rc,zErrMsg);
+    if (row == 0) {
+        sql = "CREATE TABLE Image(" \
+            "imHash TEXT PRIMARY KEY NOT NULL," \
+            "name TEXT NOT NULL," \
+            "dir TEXT NOT NULL);";
+        rc = sqlite3_exec(db, sql, callback, 0, &zErrMsg);
+        errorCheck(rc, zErrMsg);
+    }
+
+    sql = "SELECT name FROM sqlite_master WHERE type='table' and name = 'Histogram';";
+    rc = sqlite3_get_table(db, sql, &resultp, &row, &col, &zErrMsg);
+    errorCheck(rc,zErrMsg);
+    if (row == 0) {
+        sql = "CREATE TABLE Histogram(" \
+            "histHash TEXT PRIMARY KEY NOT NULL," \
+            "fbin INT NOT NULL," \
+            "sbin INT NOT NULL," \
+            "tbin INT NOT NULL," \
+            "flag INT NOT NULL);";
+        rc = sqlite3_exec(db, sql, callback, 0, &zErrMsg);
+        errorCheck(rc, zErrMsg);
+    }
+
+    sql = "SELECT name FROM sqlite_master WHERE type='table' and name = 'EdgeCanny';";
+    rc = sqlite3_get_table(db, sql, &resultp, &row, &col, &zErrMsg);
+    errorCheck(rc,zErrMsg);
+    if (row == 0) {
+        sql = "CREATE TABLE EdgeCanny(" \
+            "edcHash TEXT PRIMARY KEY NOT NULL," \
+            "gaussKernelSize INT NOT NULL," \
+            "sigma REAL NOT NULL," \
+            "thigh REAL NOT NULL," \
+            "tlow REAL NOT NULL," \
+            "kernelx BLOB NOT NULL," \
+            "kernely BLOB NOT NULL);";
+        rc = sqlite3_exec(db, sql, callback, 0, &zErrMsg);
+        errorCheck(rc, zErrMsg);
+    }
+
+    sql = "SELECT name FROM sqlite_master WHERE type='table' and name = 'Edge';";
+    rc = sqlite3_get_table(db, sql, &resultp, &row, &col, &zErrMsg);
+    errorCheck(rc,zErrMsg);
+    if (row == 0) {
+        sql = "CREATE TABLE Edge(" \
+            "edgeHash TEXT PRIMARY KEY NOT NULL," \
+            "flag INT NOT NULL," \
+            "edcHash TEXT," \
+            "FOREIGN KEY (edcHash)" \
+            "REFERENCES EdgeCanny(edcHash)" \
+            "ON DELETE CASCADE);";
+        rc = sqlite3_exec(db, sql, callback, 0, &zErrMsg);
+        errorCheck(rc, zErrMsg);
+    }
+
+    sql = "SELECT name FROM sqlite_master WHERE type='table' and name = 'CornerHarris';";
+    rc = sqlite3_get_table(db, sql, &resultp, &row, &col, &zErrMsg);
+    errorCheck(rc,zErrMsg);
+    if (row == 0) {
+        sql = "CREATE TABLE CornerHarris(" \
+            "cdhHash TEXT PRIMARY KEY NOT NULL," \
+            "radius INT NOT NULL," \
+            "squareSize INT NOT NULL," \
+            "sigmai REAL NOT NULL," \
+            "sigmad REAL NOT NULL," \
+            "alpha REAL NOT NULL," \
+            "kernelx BLOB NOT NULL," \
+            "kernely BLOB NOT NULL);";
+        rc = sqlite3_exec(db, sql, callback, 0, &zErrMsg);
+        errorCheck(rc, zErrMsg);
+    }
+
+    sql = "SELECT name FROM sqlite_master WHERE type='table' and name = 'Corner';";
+    rc = sqlite3_get_table(db, sql, &resultp, &row, &col, &zErrMsg);
+    errorCheck(rc,zErrMsg);
+    if (row == 0) {
+        sql = "CREATE TABLE Corner(" \
+            "cornerHash TEXT PRIMARY KEY NOT NULL," \
+            "flag INT NOT NULL," \
+            "cdhHash TEXT," \
+            "numberOfScales INT NOT NULL," \
+            "scaleRatio REAL," \
+            "FOREIGN KEY (cdhHash)" \
+            "REFERENCES EdgeCanny(cdhHash)" \
+            "ON DELETE CASCADE);";
+        rc = sqlite3_exec(db, sql, callback, 0, &zErrMsg);
+        errorCheck(rc, zErrMsg);
+    }
+
+    sql = "SELECT name FROM sqlite_master WHERE type='table' and name = 'ImageHistogram';";
+    rc = sqlite3_get_table(db, sql, &resultp, &row, &col, &zErrMsg);
+    errorCheck(rc,zErrMsg);
+    if (row == 0) {
+        sql = "CREATE TABLE ImageHistogram(" \
+            "imHash TEXT NOT NULL," \
+            "histHash TEXT NOT NULL," \
+            "FOREIGN KEY (imHash)" \
+            "REFERENCES Image(imHash)" \
+            "ON DELETE CASCADE," \
+            "FOREIGN KEY (histHash)" \
+            "REFERENCES Histogram(histHash)" \
+            "ON DELETE CASCADE," \
+            "PRIMARY KEY (imHash, histHash));";
+        rc = sqlite3_exec(db, sql, callback, 0, &zErrMsg);
+        errorCheck(rc, zErrMsg);
+    }
+
+    sql = "SELECT name FROM sqlite_master WHERE type='table' and name = 'ImageEdge';";
+    rc = sqlite3_get_table(db, sql, &resultp, &row, &col, &zErrMsg);
+    errorCheck(rc,zErrMsg);
+    if (row == 0) {
+        sql = "CREATE TABLE ImageEdge(" \
+            "imHash TEXT NOT NULL," \
+            "edgeHash TEXT NOT NULL," \
+            "FOREIGN KEY (imHash)" \
+            "REFERENCES Image(imHash)" \
+            "ON DELETE CASCADE," \
+            "FOREIGN KEY (edgeHash)" \
+            "REFERENCES Edge(edgeHash)" \
+            "ON DELETE CASCADE," \
+            "PRIMARY KEY (imHash, edgeHash));";
+        rc = sqlite3_exec(db, sql, callback, 0, &zErrMsg);
+        errorCheck(rc, zErrMsg);
+    }    
+
+    sql = "SELECT name FROM sqlite_master WHERE type='table' and name = 'ImageCorner';";
+    rc = sqlite3_get_table(db, sql, &resultp, &row, &col, &zErrMsg);
+    errorCheck(rc,zErrMsg);
+    if (row == 0) {
+        sql = "CREATE TABLE ImageCorner(" \
+            "imHash TEXT NOT NULL," \
+            "cornerHash TEXT NOT NULL," \
+            "FOREIGN KEY (imHash)" \
+            "REFERENCES Image(imHash)" \
+            "ON DELETE CASCADE," \
+            "FOREIGN KEY (cornerHash)" \
+            "REFERENCES Edge(cornerHash)" \
+            "ON DELETE CASCADE," \
+            "PRIMARY KEY (imHash, cornerHash));";
+        rc = sqlite3_exec(db, sql, callback, 0, &zErrMsg);
+        errorCheck(rc, zErrMsg);
+    }
+}
+
+int dbop::Database::callback(void* data, int argc, char** argv, char** azColName) {
     int i;
     fprintf(stderr, "%s: ", (const char*)data);
 
@@ -45,6 +193,12 @@ static int dbop::callback(void* data, int argc, char** argv, char** azColName) {
     return 0;
 }
 
+
+void dbop::Database::insert_Image(XXH64_hash_t imHash, std::string name, std::string dir) {
+    std::string imHash_str = std::to_string(imHash);
+    char* sql = "INSERT INTO Image"  \
+        "VALUES ('%s', '%s', '%s');", imHash_str, name, dir;
+}
 std::string dbop::serializeMat(cv::Mat operand) {
     std::ostringstream srlzstrstream;
     uchar* pixelPtr = (uchar*)operand.data;

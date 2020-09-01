@@ -4,8 +4,8 @@
 
 namespace lnkr {
 	void destroyImageHist();
-	static void setImageHist(img::Image* image, int fb, int sb, int tb, int flag);
+	static void setImageHist(img::Image* imageMat, int fb, int sb, int tb, int flag);
 	void setImageDirectory(std::string imgdir);
-	feat::Histogram* getImageHist(img::Image* image);
+	feat::Histogram* getImageHist(img::Image* imageMat);
 	void setImageHist(int fb, int sb, int tb, int flag);
 }

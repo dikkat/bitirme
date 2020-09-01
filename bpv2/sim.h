@@ -15,13 +15,13 @@
 using cf = std::complex<float>;
 
 namespace sim {
-	
+	/*
 	class Convolution {
 	public:
 		void sim::Convolution::fftRosetta(std::valarray<cf>& x);
 		void sim::Convolution::ifftRosetta(std::valarray<cf>& x);
 		static cv::Mat convolution2D(cv::Mat image, cv::Mat kernel);
-		static cv::Mat Convolution::convolution2DopenCV(cv::Mat image, cv::Mat kernel);
+		
 		cv::Mat convertToComplexMat(cv::Mat imageMat);	
 		//constexpr cf operator()(const cf& Left, const cf& Right) const { //COPIED OPERATOR FROM STD::MULTIPLIES CLASS
 		//	return fcm(Left, Right);
@@ -34,7 +34,7 @@ namespace sim {
 		//void fft(std::vector<cf>& a, bool invert);
 		//constexpr cf fcm(const cf& lh, const cf& rh) const;
 	};
-
+	*/
 	template<typename T>
 	bool vectorSizeEqualityCheck(std::vector<T> lefthand, std::vector<T> righthand);
 
@@ -56,10 +56,11 @@ namespace sim {
 	template <typename T>
 	cv::Mat vectorToMatElementsRowMajor(std::vector<T> operand, int mrows, int mcols, int mtype);
 
-	cv::Mat convolution2D(cv::Mat const image, cv::Mat kernel);
-	cv::Mat convolution2DSeparable(cv::Mat const image, cv::Mat kernel);
-	cv::Mat convolution2DNormal(cv::Mat const image, cv::Mat kernel);
-	cv::Mat convolution2DHelix(cv::Mat const image, cv::Mat kernel);
+	cv::Mat convolution2D(cv::Mat const imageMat, cv::Mat kernel);
+	cv::Mat convolution2DSeparable(cv::Mat const imageMat, cv::Mat kernel);
+	cv::Mat convolution2DNormal(cv::Mat const imageMat, cv::Mat kernel);
+	cv::Mat convolution2DHelix(cv::Mat const imageMat, cv::Mat kernel);
+	cv::Mat convolution2DopenCV(cv::Mat const imageMat, cv::Mat kernel);
 
 	cv::Mat rotateMatrix180(cv::Mat srcmat);
 	cv::Mat filterGauss(cv::Mat const operand, int k = 5, float sigma = 1.4, float mu = 1, bool openCV = true);
@@ -69,7 +70,7 @@ namespace sim {
 	int rankOfMatrix(cv::Mat mat);
 	template <typename T>
 	int getI(std::vector<T> operand);
-	cv::Mat channelCheck(cv::Mat const image);
+	cv::Mat channelCheck(cv::Mat const imageMat);
 }
 
 template <typename T>

@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <functional>
 #include "image.h"
+#include <boost/filesystem/operations.hpp>
 
 namespace img {
 	class Image;
@@ -12,17 +13,8 @@ namespace img {
 }
 
 namespace gen {
-	extern float counter;
 	extern std::ostringstream tout;
 	void imageTesting(img::Image srcimg, std::string filename);
 	void printTesting(std::ostringstream &osoperator);
-	class CompareTest{
-	public: 
-		CompareTest(img::Image* lh, img::Image* rh, float sv);
-		img::Image* imglh;
-		img::Image* imgrh;
-		float simval;
-	};
-	bool compareBySimilarityValue(const CompareTest& a, const CompareTest& b);
 }
 

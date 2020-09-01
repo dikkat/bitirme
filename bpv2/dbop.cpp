@@ -3,34 +3,175 @@
 void dbop::initializeDatabase() {
     sqlite3* db;
     int rc;
-    const char* data = "Callback function called";
-    char* zErrMsg = 0;
 
     rc = sqlite3_open("bitirme.db", &db);
 
     if (rc) {
-        fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
-        throw std::exception("Can't connect to database.");
+        throw std::exception(("Can't open database: %s\n", sqlite3_errmsg(db)));
     }
 
-    char* sql;
+    initializeTables(db);
+}
 
-    sql = "SELECT name FROM sqlite_master WHERE type='table' and name = 'xd';";
-    char** resultp;
-    int row;
-    int col;
-    
-    rc = sqlite3_get_table(db, sql, &resultp, &row, &col, &zErrMsg);
-    //rc = sqlite3_exec(db, sql, callback, (void*)data, &zErrMsg);
-
+void dbop::errorCheck(int rc, char* zErrMsg) {
     if (rc != SQLITE_OK) {
-        fprintf(stderr, "SQL error: %s\n", zErrMsg);
+        throw std::exception(("SQL error: %s\n", zErrMsg));
         sqlite3_free(zErrMsg);
     }
-    else {
-        fprintf(stdout, "Operation done successfully\n");
+}
+
+void dbop::initializeTables(sqlite3* db) {
+    const char* data = "Callback function called";
+    char* zErrMsg = 0;
+    char* sql;
+    char** resultp;
+    int row, col, rc;
+
+    sql = "PRAGMA foreign_keys = ON;";
+
+    sql = "SELECT name FROM sqlite_master WHERE type='table' and name = 'Image';";
+    rc = sqlite3_get_table(db, sql, &resultp, &row, &col, &zErrMsg);
+    errorCheck(rc,zErrMsg);
+    if (row == 0) {
+        sql = "CREATE TABLE Image(" \
+            "imHash TEXT PRIMARY KEY NOT NULL," \
+            "name TEXT NOT NULL," \
+            "dir TEXT NOT NULL);";
+        rc = sqlite3_exec(db, sql, callback, 0, &zErrMsg);
     }
-    sqlite3_close(db);
+    errorCheck(rc,zErrMsg);
+
+    sql = "SELECT name FROM sqlite_master WHERE type='table' and name = 'Histogram';";
+    rc = sqlite3_get_table(db, sql, &resultp, &row, &col, &zErrMsg);
+    errorCheck(rc,zErrMsg);
+    if (row == 0) {
+        sql = "CREATE TABLE Histogram(" \
+            "histHash TEXT PRIMARY KEY NOT NULL," \
+            "fbin INT NOT NULL," \
+            "sbin INT NOT NULL," \
+            "tbin INT NOT NULL," \
+            "flag INT NOT NULL);";
+        rc = sqlite3_exec(db, sql, callback, 0, &zErrMsg);
+    }
+    errorCheck(rc, zErrMsg);
+
+    sql = "SELECT name FROM sqlite_master WHERE type='table' and name = 'EdgeCanny';";
+    rc = sqlite3_get_table(db, sql, &resultp, &row, &col, &zErrMsg);
+    errorCheck(rc,zErrMsg);
+    if (row == 0) {
+        sql = "CREATE TABLE EdgeCanny(" \
+            "edcHash TEXT PRIMARY KEY NOT NULL," \
+            "gaussKernelSize INT NOT NULL," \
+            "sigma INT NOT NULL," \
+            "thigh INT NOT NULL," \
+            "tlow INT NOT NULL," \
+            "kernelx BLOB NOT NULL," \
+            "kernely BLOB NOT NULL);";
+        rc = sqlite3_exec(db, sql, callback, 0, &zErrMsg);
+    }
+    errorCheck(rc,zErrMsg);
+
+    sql = "SELECT name FROM sqlite_master WHERE type='table' and name = 'Edge';";
+    rc = sqlite3_get_table(db, sql, &resultp, &row, &col, &zErrMsg);
+    errorCheck(rc,zErrMsg);
+    if (row == 0) {
+        sql = "CREATE TABLE Edge(" \
+            "edgeHash TEXT PRIMARY KEY NOT NULL," \
+            "flag INT NOT NULL," \
+            "edcHash TEXT," \
+            "FOREIGN KEY (edcHash) REFERENCES EdgeCanny(edcHash)" \
+            "ON DELETE CASCADE);";
+        rc = sqlite3_exec(db, sql, callback, 0, &zErrMsg);
+    }
+    errorCheck(rc,zErrMsg);
+
+    sql = "SELECT name FROM sqlite_master WHERE type='table' and name = 'CornerHarris';";
+    rc = sqlite3_get_table(db, sql, &resultp, &row, &col, &zErrMsg);
+    errorCheck(rc,zErrMsg);
+    if (row == 0) {
+        sql = "CREATE TABLE CornerHarris(" \
+            "cdhHash TEXT PRIMARY KEY NOT NULL," \
+            "radius INT NOT NULL," \
+            "squareSize INT NOT NULL," \
+            "sigmai INT NOT NULL," \
+            "sigmad INT NOT NULL," \
+            "alpha INT NOT NULL," \
+            "kernelx BLOB NOT NULL," \
+            "kernely BLOB NOT NULL);";
+        rc = sqlite3_exec(db, sql, callback, 0, &zErrMsg);
+    }
+    errorCheck(rc,zErrMsg);
+
+    sql = "SELECT name FROM sqlite_master WHERE type='table' and name = 'Corner';";
+    rc = sqlite3_get_table(db, sql, &resultp, &row, &col, &zErrMsg);
+    errorCheck(rc,zErrMsg);
+    if (row == 0) {
+        sql = "CREATE TABLE Corner(" \
+            "cornerHash TEXT PRIMARY KEY NOT NULL," \
+            "flag INT NOT NULL," \
+            "cdhHash TEXT," \
+            "numberOfScales INT NOT NULL," \
+            "scaleRatio INT," \
+            "FOREIGN KEY (cdhHash)" \
+            "REFERENCES EdgeCanny(cdhHash)" \
+            "ON DELETE CASCADE);";
+        rc = sqlite3_exec(db, sql, callback, 0, &zErrMsg);
+    }
+    errorCheck(rc,zErrMsg);
+
+    sql = "SELECT name FROM sqlite_master WHERE type='table' and name = 'ImageHistogram';";
+    rc = sqlite3_get_table(db, sql, &resultp, &row, &col, &zErrMsg);
+    errorCheck(rc,zErrMsg);
+    if (row == 0) {
+        sql = "CREATE TABLE ImageHistogram(" \
+            "imHash TEXT NOT NULL," \
+            "histHash TEXT NOT NULL," \
+            "FOREIGN KEY (imHash)" \
+            "REFERENCES Image(imHash)" \
+            "ON DELETE CASCADE," \
+            "FOREIGN KEY (histHash)" \
+            "REFERENCES Histogram(histHash)" \
+            "ON DELETE CASCADE," \
+            "PRIMARY KEY (imHash, histHash));";
+        rc = sqlite3_exec(db, sql, callback, 0, &zErrMsg);
+    }
+    errorCheck(rc,zErrMsg);
+
+    sql = "SELECT name FROM sqlite_master WHERE type='table' and name = 'ImageEdge';";
+    rc = sqlite3_get_table(db, sql, &resultp, &row, &col, &zErrMsg);
+    errorCheck(rc,zErrMsg);
+    if (row == 0) {
+        sql = "CREATE TABLE ImageEdge(" \
+            "imHash TEXT NOT NULL," \
+            "edgeHash TEXT NOT NULL," \
+            "FOREIGN KEY (imHash)" \
+            "REFERENCES Image(imHash)" \
+            "ON DELETE CASCADE," \
+            "FOREIGN KEY (edgeHash)" \
+            "REFERENCES Edge(edgeHash)" \
+            "ON DELETE CASCADE," \
+            "PRIMARY KEY (imHash, edgeHash));";
+        rc = sqlite3_exec(db, sql, callback, 0, &zErrMsg);
+    }
+    errorCheck(rc,zErrMsg);
+
+    sql = "SELECT name FROM sqlite_master WHERE type='table' and name = 'ImageCorner';";
+    rc = sqlite3_get_table(db, sql, &resultp, &row, &col, &zErrMsg);
+    errorCheck(rc,zErrMsg);
+    if (row == 0) {
+        sql = "CREATE TABLE ImageCorner(" \
+            "imHash TEXT NOT NULL," \
+            "cornerHash TEXT NOT NULL," \
+            "FOREIGN KEY (imHash)" \
+            "REFERENCES Image(imHash)" \
+            "ON DELETE CASCADE," \
+            "FOREIGN KEY (cornerHash)" \
+            "REFERENCES Edge(cornerHash)" \
+            "ON DELETE CASCADE," \
+            "PRIMARY KEY (imHash, cornerHash));";
+        rc = sqlite3_exec(db, sql, callback, 0, &zErrMsg);
+    }
+    errorCheck(rc,zErrMsg);
 }
 
 static int dbop::callback(void* data, int argc, char** argv, char** azColName) {

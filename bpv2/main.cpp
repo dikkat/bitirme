@@ -74,7 +74,8 @@ int main(int argc, char *argv[])
 	img::Image ima("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench00140.jpg", cv::IMREAD_COLOR);
 	img::Image imc("C:/desired/path/to/Images/static_outdoor_il_giocco_lucca_italy/IMG_9129.jpg", cv::IMREAD_COLOR);
 	cv::Mat kernely;
-	dbop::initializeDatabase();
+	feat::Corner::cornerDetectorHarris cdh();
+	dbop::dbObj.insert_CornerHarris(); //ADD GETVAR FUNCTIONS TO FEAT CLASSES THEN TEST INSERT FUNCTION
 	
 	std::vector<img::Image> asd = img::readImageFolder("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench/full/", 
 		cv::IMREAD_COLOR, false, 25);

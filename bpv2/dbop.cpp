@@ -1,29 +1,35 @@
 #include "dbop.h"
 
-void dbop::initializeDatabase() {
+extern dbop::Database dbObj = dbop::Database("bitirme.db");
+
+dbop::Database::Database(std::string dbName) {
+    initializeDatabase(dbName);
+}
+
+void dbop::Database::initializeDatabase(std::string dbName) {
     sqlite3* db;
     int rc;
 
-    rc = sqlite3_open("bitirme.db", &db);
+    rc = sqlite3_open(dbName.c_str(), &db);
 
     if (rc) {
         throw std::exception(("Can't open database: %s\n", sqlite3_errmsg(db)));
     }
 
-    initializeTables(db);
+    dbPtr = db;
+
+    initializeTables();
 }
 
-void dbop::errorCheck(int rc, char* zErrMsg) {
+void dbop::Database::errorCheck(int rc, char* zErrMsg) {
     if (rc != SQLITE_OK) {
         throw std::exception(("SQL error: %s\n", zErrMsg));
         sqlite3_free(zErrMsg);
     }
 }
 
-void dbop::initializeTables(sqlite3* db) {
-    const char* data = "Callback function called";
-    char* zErrMsg = 0;
-    char* sql;
+void dbop::Database::initializeTables() {
+    sqlite3* db = dbPtr;
     char** resultp;
     int row, col, rc;
 
@@ -38,8 +44,8 @@ void dbop::initializeTables(sqlite3* db) {
             "name TEXT NOT NULL," \
             "dir TEXT NOT NULL);";
         rc = sqlite3_exec(db, sql, callback, 0, &zErrMsg);
+        errorCheck(rc, zErrMsg);
     }
-    errorCheck(rc,zErrMsg);
 
     sql = "SELECT name FROM sqlite_master WHERE type='table' and name = 'Histogram';";
     rc = sqlite3_get_table(db, sql, &resultp, &row, &col, &zErrMsg);
@@ -52,8 +58,8 @@ void dbop::initializeTables(sqlite3* db) {
             "tbin INT NOT NULL," \
             "flag INT NOT NULL);";
         rc = sqlite3_exec(db, sql, callback, 0, &zErrMsg);
+        errorCheck(rc, zErrMsg);
     }
-    errorCheck(rc, zErrMsg);
 
     sql = "SELECT name FROM sqlite_master WHERE type='table' and name = 'EdgeCanny';";
     rc = sqlite3_get_table(db, sql, &resultp, &row, &col, &zErrMsg);
@@ -62,14 +68,14 @@ void dbop::initializeTables(sqlite3* db) {
         sql = "CREATE TABLE EdgeCanny(" \
             "edcHash TEXT PRIMARY KEY NOT NULL," \
             "gaussKernelSize INT NOT NULL," \
-            "sigma INT NOT NULL," \
-            "thigh INT NOT NULL," \
-            "tlow INT NOT NULL," \
+            "sigma REAL NOT NULL," \
+            "thigh REAL NOT NULL," \
+            "tlow REAL NOT NULL," \
             "kernelx BLOB NOT NULL," \
             "kernely BLOB NOT NULL);";
         rc = sqlite3_exec(db, sql, callback, 0, &zErrMsg);
+        errorCheck(rc, zErrMsg);
     }
-    errorCheck(rc,zErrMsg);
 
     sql = "SELECT name FROM sqlite_master WHERE type='table' and name = 'Edge';";
     rc = sqlite3_get_table(db, sql, &resultp, &row, &col, &zErrMsg);
@@ -79,11 +85,12 @@ void dbop::initializeTables(sqlite3* db) {
             "edgeHash TEXT PRIMARY KEY NOT NULL," \
             "flag INT NOT NULL," \
             "edcHash TEXT," \
-            "FOREIGN KEY (edcHash) REFERENCES EdgeCanny(edcHash)" \
+            "FOREIGN KEY (edcHash)" \
+            "REFERENCES EdgeCanny(edcHash)" \
             "ON DELETE CASCADE);";
         rc = sqlite3_exec(db, sql, callback, 0, &zErrMsg);
+        errorCheck(rc, zErrMsg);
     }
-    errorCheck(rc,zErrMsg);
 
     sql = "SELECT name FROM sqlite_master WHERE type='table' and name = 'CornerHarris';";
     rc = sqlite3_get_table(db, sql, &resultp, &row, &col, &zErrMsg);
@@ -93,14 +100,14 @@ void dbop::initializeTables(sqlite3* db) {
             "cdhHash TEXT PRIMARY KEY NOT NULL," \
             "radius INT NOT NULL," \
             "squareSize INT NOT NULL," \
-            "sigmai INT NOT NULL," \
-            "sigmad INT NOT NULL," \
-            "alpha INT NOT NULL," \
+            "sigmai REAL NOT NULL," \
+            "sigmad REAL NOT NULL," \
+            "alpha REAL NOT NULL," \
             "kernelx BLOB NOT NULL," \
             "kernely BLOB NOT NULL);";
         rc = sqlite3_exec(db, sql, callback, 0, &zErrMsg);
+        errorCheck(rc, zErrMsg);
     }
-    errorCheck(rc,zErrMsg);
 
     sql = "SELECT name FROM sqlite_master WHERE type='table' and name = 'Corner';";
     rc = sqlite3_get_table(db, sql, &resultp, &row, &col, &zErrMsg);
@@ -111,13 +118,13 @@ void dbop::initializeTables(sqlite3* db) {
             "flag INT NOT NULL," \
             "cdhHash TEXT," \
             "numberOfScales INT NOT NULL," \
-            "scaleRatio INT," \
+            "scaleRatio REAL," \
             "FOREIGN KEY (cdhHash)" \
             "REFERENCES EdgeCanny(cdhHash)" \
             "ON DELETE CASCADE);";
         rc = sqlite3_exec(db, sql, callback, 0, &zErrMsg);
+        errorCheck(rc, zErrMsg);
     }
-    errorCheck(rc,zErrMsg);
 
     sql = "SELECT name FROM sqlite_master WHERE type='table' and name = 'ImageHistogram';";
     rc = sqlite3_get_table(db, sql, &resultp, &row, &col, &zErrMsg);
@@ -134,8 +141,8 @@ void dbop::initializeTables(sqlite3* db) {
             "ON DELETE CASCADE," \
             "PRIMARY KEY (imHash, histHash));";
         rc = sqlite3_exec(db, sql, callback, 0, &zErrMsg);
+        errorCheck(rc, zErrMsg);
     }
-    errorCheck(rc,zErrMsg);
 
     sql = "SELECT name FROM sqlite_master WHERE type='table' and name = 'ImageEdge';";
     rc = sqlite3_get_table(db, sql, &resultp, &row, &col, &zErrMsg);
@@ -152,8 +159,8 @@ void dbop::initializeTables(sqlite3* db) {
             "ON DELETE CASCADE," \
             "PRIMARY KEY (imHash, edgeHash));";
         rc = sqlite3_exec(db, sql, callback, 0, &zErrMsg);
-    }
-    errorCheck(rc,zErrMsg);
+        errorCheck(rc, zErrMsg);
+    }    
 
     sql = "SELECT name FROM sqlite_master WHERE type='table' and name = 'ImageCorner';";
     rc = sqlite3_get_table(db, sql, &resultp, &row, &col, &zErrMsg);
@@ -170,11 +177,11 @@ void dbop::initializeTables(sqlite3* db) {
             "ON DELETE CASCADE," \
             "PRIMARY KEY (imHash, cornerHash));";
         rc = sqlite3_exec(db, sql, callback, 0, &zErrMsg);
+        errorCheck(rc, zErrMsg);
     }
-    errorCheck(rc,zErrMsg);
 }
 
-static int dbop::callback(void* data, int argc, char** argv, char** azColName) {
+int dbop::Database::callback(void* data, int argc, char** argv, char** azColName) {
     int i;
     fprintf(stderr, "%s: ", (const char*)data);
 
@@ -186,6 +193,12 @@ static int dbop::callback(void* data, int argc, char** argv, char** azColName) {
     return 0;
 }
 
+
+void dbop::Database::insert_Image(XXH64_hash_t imHash, std::string name, std::string dir) {
+    std::string imHash_str = std::to_string(imHash);
+    char* sql = "INSERT INTO Image"  \
+        "VALUES ('%s', '%s', '%s');", imHash_str, name, dir;
+}
 std::string dbop::serializeMat(cv::Mat operand) {
     std::ostringstream srlzstrstream;
     uchar* pixelPtr = (uchar*)operand.data;

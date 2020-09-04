@@ -11,6 +11,7 @@ feat::Histogram::Histogram(cv::Mat imageMat, int fb, int sb, int tb, int flag) {
     fbin = fb;
     sbin = sb;
     tbin = tb;
+
     if (flag == 0) {
         if (imageMat.channels() == 1)
             histMat = histogramGRAYCalculation(imageMat);
@@ -19,6 +20,7 @@ feat::Histogram::Histogram(cv::Mat imageMat, int fb, int sb, int tb, int flag) {
         else
             throw std::exception("Illegal histogram build flag.");
     }
+
     else if (flag == HIST_BGR)
         histMat = histogramBGRCalculation(imageMat);
     else if (flag == HIST_HSV)
@@ -27,7 +29,12 @@ feat::Histogram::Histogram(cv::Mat imageMat, int fb, int sb, int tb, int flag) {
         histMat = histogramGRAYCalculation(imageMat);
     else
         throw std::exception("Illegal histogram build flag.");
+
     nhistMat = normalizeMat(histMat, 0, 1);
+    histFlag = flag;
+    sourceMat = imageMat;
+    histHash = feat::Hash::setHash(nullptr, &std::vector<float>{static_cast<float>(flag), static_cast<float>(fb),
+        static_cast<float>(sb), static_cast<float>(tb)});
 }
 
 cv::Mat feat::Histogram::getHistogramMat() {
@@ -41,6 +48,15 @@ cv::Mat feat::Histogram::getNormalizedHistogramMat() {
 int* feat::Histogram::getBin() {
     int binval[] = { fbin, sbin , tbin };
     return binval;
+}
+
+std::vector<float> feat::Histogram::getVariablesFloat() {
+    return std::vector<float>{static_cast<float>(histFlag), static_cast<float>(fbin),
+        static_cast<float>(sbin), static_cast<float>(tbin)};
+}
+
+XXH64_hash_t feat::Histogram::getHash() {
+    return histHash;
 }
 
 cv::Mat feat::Histogram::histogramHSVCalculation(cv::Mat sourceMat) {
@@ -146,24 +162,44 @@ cv::Mat feat::Histogram::createHistogramDisplayImage(std::vector<cv::Mat> bgrhis
     return histImgMat;
 }
 
-cv::Mat feat::Edge::edgeDetection(cv::Mat imageMat, int flag, feat::Edge edgeOper) {
+feat::Edge::Edge(cv::Mat imageMat, int flag, feat::Edge::Canny* edc) {
     cv::Mat oper;
     switch (flag) {
     case EDGE_SOBEL:
-        oper = edgeOper.edgeDetectionSobel(imageMat);
+        oper = edgeDetectionSobel(imageMat);
         break;
     case EDGE_PREWT:
-        oper = edgeOper.edgeDetectionPrewitt(imageMat);
+        oper = edgeDetectionPrewitt(imageMat);
         break;
     case EDGE_ROBRT:
-        oper = edgeOper.edgeDetectionRobertsCross(imageMat);
+        oper = edgeDetectionRobertsCross(imageMat);
         break;
     case EDGE_CANNY:
-        throw std::exception("Call edgeDetectionCanny directly.");
+        if (edc == nullptr)
+            throw std::exception("Initialize Canny class first.");
+        else {
+            child = edc;
+            edc->parent = this;
+            oper = edc->edgeDetectionCanny(imageMat);
+        }
+        break;
     default:
         throw std::exception("Illegal edge detection flag.");
     }
-    return oper;
+    edgeFlag = flag;
+    sourceMat = oper;
+}
+
+int feat::Edge::getEdgeFlag() { 
+    return edgeFlag; 
+}
+
+std::vector<XXH64_hash_t> feat::Edge::getHashVariables() {
+    return std::vector<XXH64_hash_t>{edgeHash, *edcHash};
+}
+
+feat::Edge::Canny* feat::Edge::getCannyPtr() {
+    return child;
 }
 
 cv::Mat feat::Edge::edgeDetectionSobel(cv::Mat const imageMat) {
@@ -336,74 +372,83 @@ std::vector<cv::Mat> feat::Edge::calculateEdgeGradientMagnitudeDirection(cv::Mat
     return std::vector<cv::Mat>{sprgMag, sprgDir};
 }
 
-void feat::Edge::EdgeDetectorCanny::setVariables(std::string varName, float fltVal, cv::Mat matVal) {
-    if (varName == "kernelx")
-        kernelx = matVal;
-    else if (varName == "kernely")
-        kernely = matVal;
-    else if (varName == "gaussKernelSize")
-        gaussKernelSize = fltVal;
-    else if (varName == "thigh")
-        thigh = fltVal;
-    else if (varName == "tlow")
-        tlow = fltVal;
-    else if (varName == "sigma")
-        sigma = fltVal;
+cv::Mat feat::Edge::Canny::edgeDetectionCanny(cv::Mat const imageMat) {
+    if (sourceMat.data == NULL) {
+        parent->edcHash = &Hash;
+        sourceMat = calculate(imageMat);
+        return sourceMat;
+    }
     else
-        throw std::exception("Illegal variable flag.");
-    setHash();
+        return sourceMat;
 }
 
-void feat::Edge::EdgeDetectorCanny::setHash() {
-    cv::Mat hashMat = cv::Mat::zeros(4 + kernelx.total() + kernely.total(), 1, CV_32FC1);
-    float gaussKernelSize;
-    float thigh;
-    float tlow;
-    float sigma;
-    cv::Mat kernelx;
-    cv::Mat kernely;
-    hashMat.at<float>(0) = gaussKernelSize;
-    hashMat.at<float>(1) = tlow;
-    hashMat.at<float>(2) = sigma;
-    for (int i = 3; i < kernelx.total() + 3; i++)
-        hashMat.at<float>(i) = kernelx.at<float>(i - 3);
-    for (int i = kernelx.total() + 3; i < kernely.total() + kernelx.total() + 3; i++)
-        hashMat.at<float>(i) = kernely.at<float>(i - kernelx.total() - 3);
-    edcHash = feat::Hash::hash_xxHash(hashMat);
+////kernelx, kernely, gaussKernelSize, thigh, tlow, sigma
+//void feat::Edge::Canny::setVariables(std::string varName, float fltVal, cv::Mat matVal) {
+//    if (varName == "kernelx")
+//        kernelx = matVal;
+//    else if (varName == "kernely")
+//        kernely = matVal;
+//    else if (varName == "gaussKernelSize")
+//        gaussKernelSize = fltVal;
+//    else if (varName == "thigh")
+//        thigh = fltVal;
+//    else if (varName == "tlow")
+//        tlow = fltVal;
+//    else if (varName == "sigma")
+//        sigma = fltVal;
+//    else
+//        throw std::exception("Illegal variable flag.");
+//    setHash();
+//}
+
+std::vector<float> feat::Edge::Canny::getVariablesFloat() {
+    return std::vector<float>{gaussKernelSize, thigh, tlow, sigma};
 }
 
-cv::Mat feat::Edge::EdgeDetectorCanny::edgeDetectionCanny(cv::Mat const imageMat, feat::Edge::EdgeDetectorCanny edcOperator) { //Computer Vision, Mar 2000, Alg 24
+std::vector<cv::Mat> feat::Edge::Canny::getVariablesMat() {
+    return std::vector<cv::Mat>{kernelx, kernely};
+}
+
+XXH64_hash_t feat::Edge::Canny::getHash() {
+    return Hash;
+}
+
+void feat::Edge::Canny::setHash() {
+    Hash = feat::Hash::setHash(&getVariablesMat(), &getVariablesFloat());
+}
+
+cv::Mat feat::Edge::Canny::calculate(cv::Mat const imageMat) { //Computer Vision, Mar 2000, Alg 24
+    //http://www.tomgibara.com/computer-vision/CannyEdgeDetector
     cv::Mat cannyoper = sim::channelCheck(imageMat);																							 //https://towardsdatascience.com/canny-edge-detection-step-by-step-in-python-computer-vision-b49c3a2d8123
-                                                                                                                 //http://www.tomgibara.com/computer-vision/CannyEdgeDetector.
 
-    cannyoper = sim::filterGauss(cannyoper, edcOperator.gaussKernelSize, edcOperator.sigma);
+    cannyoper = sim::filterGauss(cannyoper, gaussKernelSize, sigma);
     cv::Mat kernelx = (cv::Mat_<float>(3, 3) << -1, 0, 1, -2, 0, 2, -1, 0, 1);
     cv::Mat kernely = (cv::Mat_<float>(3, 3) << 1, 2, 1, 0, 0, 0, -1, -2, -1);
     std::vector<cv::Mat> temp = feat::Edge::calculateEdgeGradientMagnitudeDirection(kernelx, kernely, cannyoper);
     cv::Mat magMat = std::ref(temp[0]);
     cv::Mat dirMat = std::ref(temp[1]);
 
-    cv::Mat nonMaximaMat = edcOperator.nonMaximumSuppression(dirMat, magMat);
+    cv::Mat nonMaximaMat = nonMaximumSuppression(dirMat, magMat);
 
     double max;
     cv::minMaxLoc(nonMaximaMat, 0, &max);
 
-    float hThreshold = max * edcOperator.thigh;
-    float lThreshold = hThreshold * edcOperator.tlow;
+    float hThreshold = max * thigh;
+    float lThreshold = hThreshold * tlow;
 
     float weakratio = 0.09; //has no effect
     cv::Mat dtMat(nonMaximaMat.rows, nonMaximaMat.cols, nonMaximaMat.type());
-    edcOperator.doubleThreshold(dtMat, nonMaximaMat, max, lThreshold, hThreshold, weakratio);
+    doubleThreshold(dtMat, nonMaximaMat, max, lThreshold, hThreshold, weakratio);
 
     float strong = max;
     float weak = strong * weakratio;
 
-    edcOperator.performHysteresis(dtMat, weak, strong);
+    performHysteresis(dtMat, weak, strong);
     return dtMat;
 }
 
 
-cv::Mat feat::Edge::EdgeDetectorCanny::nonMaximumSuppression(cv::Mat& dirMat, cv::Mat& magMat) {
+cv::Mat feat::Edge::Canny::nonMaximumSuppression(cv::Mat& dirMat, cv::Mat& magMat) {
     cv::Mat resultMat = cv::Mat::zeros(magMat.rows, magMat.cols, magMat.type());
     cv::Mat angleMat = cv::Mat::zeros(dirMat.rows, dirMat.cols, dirMat.type());
 
@@ -456,7 +501,7 @@ cv::Mat feat::Edge::EdgeDetectorCanny::nonMaximumSuppression(cv::Mat& dirMat, cv
     return resultMat;
 }
 
-void feat::Edge::EdgeDetectorCanny::doubleThreshold(cv::Mat& resultMat, cv::Mat const nonMaximaMat, float max, float lThreshold, float hThreshold, float weakratio) { //https://towardsdatascience.com/canny-edge-detection-step-by-step-in-python-computer-vision-b49c3a2d8123
+void feat::Edge::Canny::doubleThreshold(cv::Mat& resultMat, cv::Mat const nonMaximaMat, float max, float lThreshold, float hThreshold, float weakratio) { //https://towardsdatascience.com/canny-edge-detection-step-by-step-in-python-computer-vision-b49c3a2d8123
     float strong = max;
     float weak = strong * weakratio;
 
@@ -471,7 +516,7 @@ void feat::Edge::EdgeDetectorCanny::doubleThreshold(cv::Mat& resultMat, cv::Mat 
     }
 }
 
-void feat::Edge::EdgeDetectorCanny::performHysteresis(cv::Mat& resultMat, float weak, float strong) {
+void feat::Edge::Canny::performHysteresis(cv::Mat& resultMat, float weak, float strong) {
     for (int i = 0; i < resultMat.rows; i++) {
         for (int j = 0; j < resultMat.cols; j++) {
             if (resultMat.at<float>(i, j) == weak) {
@@ -493,6 +538,28 @@ void feat::Edge::EdgeDetectorCanny::performHysteresis(cv::Mat& resultMat, float 
             }
         }
     }
+}
+
+feat::Corner::Corner(cv::Mat imageMat, int flag, int numofScales, float scaleRat, feat::Corner::Harris* cdh) {
+    cv::Mat oper;
+    switch (flag) {
+    case CORNER_HARLAP:
+        oper = cornerDetectionHarrisLaplace(imageMat, numofScales, scaleRat);
+        break;
+    case CORNER_HARRIS:
+        if (cdh == nullptr)
+            throw std::exception("Initialize Harris class first.");
+        else {
+            child = cdh;
+            cdh->parent = this;
+            oper = cdh->cornerDetectionHarris(imageMat);
+        }
+        break;
+    default:
+        throw std::exception("Illegal edge detection flag.");
+    }
+    edgeFlag = flag;
+    sourceMat = oper;
 }
 
 cv::Mat feat::Corner::paintPointsOverImage(cv::Mat const imageMat, cv::Mat const pointMat, bool gray, float numOfPoints, float radius, float thickness, cv::Scalar pointColor) {
@@ -552,9 +619,6 @@ cv::Mat feat::Corner::cornerDetectionHarrisLaplace(cv::Mat imageMat, float n, fl
     for (int i = 1; i < n + 1; i++)
         setOfScales.push_back(pow(ki, i) * sigma0);
 
-    
-    
-
     float scaleConstant = 0.7;
 
     std::vector<cv::Mat> setOfDerivatives;
@@ -570,12 +634,12 @@ cv::Mat feat::Corner::cornerDetectionHarrisLaplace(cv::Mat imageMat, float n, fl
         cv::Laplacian(LoGDerivative, LoGDerivative, CV_32F, 5);
         setOfDerivatives.push_back(LoGDerivative);
 
-        cornerDetectorHarris cdhOper;
+        Harris cdhOper;
         cdhOper.setVariables("sigmai", setOfScales[i]);
         cdhOper.setVariables("sigmad", scaleConstant * setOfScales[i]);
         cdhOper.setVariables("squareSize", 5);
         
-        cv::Mat harrisPointMat = cornerDetectorHarris::cornerDetectionHarris(imgOper, cdhOper);
+        cv::Mat harrisPointMat = cdhOper.cornerDetectionHarris(imgOper);
 
         for (int j = 0; j < harrisPointMat.rows; j++) {
             for (int k = 0; k < harrisPointMat.cols; k++) {
@@ -639,11 +703,11 @@ cv::Mat feat::Corner::cornerDetectionHarrisLaplace(cv::Mat imageMat, float n, fl
     return resultMat;
 }
 
-void feat::Corner::cornerDetectorHarris::setVariables(std::string varName, float fltVal, cv::Mat matVal) {
+void feat::Corner::Harris::setVariables(std::string varName, float fltVal, cv::Mat* matVal) {
     if (varName == "kernelx")
-        kernelx = matVal;
+        kernelx = *matVal;
     else if (varName == "kernely")
-        kernely = matVal;
+        kernely = *matVal;
     else if (varName == "radius")
         radius = fltVal;
     else if (varName == "squareSize")
@@ -656,69 +720,81 @@ void feat::Corner::cornerDetectorHarris::setVariables(std::string varName, float
         alpha = fltVal;
     else
         throw std::exception("Illegal variable flag.");
-    setHash();
+    //setHash();
 }
 
-void feat::Corner::cornerDetectorHarris::setHash() {
-    cv::Mat hashMat = cv::Mat::zeros(5 + kernelx.total() + kernely.total(), 1, CV_32FC1);
-    hashMat.at<float>(0) = radius;
-    hashMat.at<float>(1) = squareSize;
-    hashMat.at<float>(2) = sigmai;
-    hashMat.at<float>(3) = sigmad;
-    hashMat.at<float>(4) = alpha;
-    for (int i = 5; i < kernelx.total() + 5; i++)
-        hashMat.at<float>(i) = kernelx.at<float>(i - 5);
-    for (int i = kernelx.total() + 5; i < kernely.total() + kernelx.total() + 5; i++)
-        hashMat.at<float>(i) = kernely.at<float>(i - kernelx.total() - 5);
-    cdhHash = feat::Hash::hash_xxHash(hashMat);
+std::vector<float> feat::Corner::Harris::getVariablesFloat() {
+    return std::vector<float>{radius, squareSize, sigmai, sigmad, alpha};
 }
 
-cv::Mat feat::Corner::cornerDetectorHarris::cornerDetectionHarris(cv::Mat const imageMat, feat::Corner::cornerDetectorHarris cdhOperator) {
+std::vector<cv::Mat> feat::Corner::Harris::getVariablesMat() {
+    return std::vector<cv::Mat>{kernelx, kernely };
+}
+
+XXH64_hash_t feat::Corner::Harris::getVariableHash() {
+    return hash;
+}
+
+cv::Mat feat::Corner::Harris::cornerDetectionHarris(cv::Mat const imageMat) {
+    if (sourceMat.data == NULL) {
+        parent->cdhHash = &hash;
+        sourceMat = calculate(imageMat);
+        return sourceMat;
+    }
+    else
+        return sourceMat;
+}
+
+void feat::Corner::Harris::setHash() {
+    hash = feat::Hash::setHash(&getVariablesMat(), &getVariablesFloat());
+}
+
+cv::Mat feat::Corner::Harris::calculate(cv::Mat const imageMat) {
     // %80 ben -- %20 https://www.mathworks.com/matlabcentral/fileexchange/64689-harris-affine-and-harris-laplace-interest-point-detector
     cv::Mat imgOper = sim::channelCheck(imageMat), resultOper = cv::Mat::zeros(imgOper.rows, imgOper.cols, CV_32FC1);
 
     float gauss_size = 31;
-    imgOper = sim::filterGauss(imgOper, gauss_size, cdhOperator.sigmad, 1, true);
+    imgOper = sim::filterGauss(imgOper, gauss_size, sigmad, 1, true);
     cv::normalize(imgOper, imgOper, 0, 255, cv::NORM_MINMAX);
-    cv::Mat derivativeX = sim::convolution2D(imgOper, cdhOperator.kernelx);
-    cv::Mat derivativeY = sim::convolution2D(imgOper, cdhOperator.kernely);
+    cv::Mat derivativeX = sim::convolution2D(imgOper, kernelx);
+    cv::Mat derivativeY = sim::convolution2D(imgOper, kernely);
 
     cv::Mat derivativeXX = derivativeX.clone();
     for (int i = 0; i < derivativeX.total(); i++)
         derivativeXX.at<float>(i) = pow(derivativeX.at<float>(i), 2);
-    derivativeXX = sim::filterGauss(derivativeXX, gauss_size, cdhOperator.sigmai, 1, true);
+    derivativeXX = sim::filterGauss(derivativeXX, gauss_size, sigmai, 1, true);
 
     cv::Mat derivativeYY = derivativeY.clone();
     for (int i = 0; i < derivativeX.total(); i++)
         derivativeYY.at<float>(i) = pow(derivativeY.at<float>(i), 2);
-    derivativeYY = sim::filterGauss(derivativeYY, gauss_size, cdhOperator.sigmai, 1, true);
+    derivativeYY = sim::filterGauss(derivativeYY, gauss_size, sigmai, 1, true);
     
     cv::Mat derivativeXY = derivativeX.clone();
     for (int i = 0; i < derivativeXY.total(); i++)
         derivativeXY.at<float>(i) = derivativeX.at<float>(i) * derivativeY.at<float>(i);
-    derivativeXY = sim::filterGauss(derivativeXY, gauss_size, cdhOperator.sigmai, 1, true);
+    derivativeXY = sim::filterGauss(derivativeXY, gauss_size, sigmai, 1, true);
     
-    float center = floor(cdhOperator.radius / 2);
+    float center = floor(radius / 2);
 
     for (int i = center; i < imgOper.rows - center - 1; i++)
         for (int j = center; j < imgOper.cols - center - 1; j++) {
             cv::Mat tensor = cv::Mat::zeros(2, 2, CV_32FC1);
-            /*float weightF = pow(cdhOperator.sigmad, 2);
+            /*float weightF = pow(sigmad, 2);
             tensor.at<float>(0, 0) = weightF * derivativeXX.at<float>(i, j);
             tensor.at<float>(0, 1) = weightF * derivativeXY.at<float>(i, j);
             tensor.at<float>(1, 0) = weightF * derivativeXY.at<float>(i, j);
             tensor.at<float>(1, 1) = weightF * derivativeYY.at<float>(i, j);*/
             
-            for (int p = 0; p < cdhOperator.radius; p++)
-                for (int q = 0; q < cdhOperator.radius; q++) {
-                    float weightF = 1 / (2 * M_PI * pow(cdhOperator.sigmai, 2)) * pow(M_E, -((pow(p, 2) + pow(q, 2)) / 2 * pow(cdhOperator.sigmai, 2)));
+            for (int p = 0; p < radius; p++)
+                for (int q = 0; q < radius; q++) {
+                    float weightF = 1 / (2 * M_PI * pow(sigmai, 2)) * pow(M_E, -((pow(p, 2) + pow(q, 2)) / 2 * pow(sigmai, 2)));
                     tensor.at<float>(0, 0) += weightF * pow(derivativeX.at<float>(p + i - center, q + j - center), 2);
                     tensor.at<float>(0, 1) += weightF * derivativeX.at<float>(p + i - center, q + j - center) * derivativeY.at<float>(p + i - center, q + j - center);
                     tensor.at<float>(1, 0) += weightF * derivativeX.at<float>(p + i - center, q + j - center) * derivativeY.at<float>(p + i - center, q + j - center);
                     tensor.at<float>(1, 1) += weightF * pow(derivativeY.at<float>(p + i - center, q + j - center), 2);
                 }
 
-            float R = cv::determinant(tensor) - cdhOperator.alpha * pow(cv::trace(tensor)[0], 2);
+            float R = cv::determinant(tensor) - alpha * pow(cv::trace(tensor)[0], 2);
             resultOper.at<float>(i, j) = R;
         }
     
@@ -738,7 +814,7 @@ cv::Mat feat::Corner::cornerDetectorHarris::cornerDetectionHarris(cv::Mat const 
     if(threshold < 254)
         threshold = 254;
     cv::Mat localMaximaMat(resultOper.rows, resultOper.cols, CV_32FC1);
-    localMaxima(resultOper, localMaximaMat, cdhOperator.squareSize, threshold);
+    localMaxima(resultOper, localMaximaMat, squareSize, threshold);
     return localMaximaMat;
 }
 
@@ -853,4 +929,27 @@ XXH64_hash_t feat::Hash::hash_xxHash(cv::Mat const inputMat) {
     cv::Mat matOper = inputMat.clone();
     XXH64_hash_t hash = XXH64(matOper.ptr<float>(0), matOper.total(), NULL);
     return hash;
+}
+
+XXH64_hash_t feat::Hash::setHash(std::vector<cv::Mat>* matVec, std::vector<float>* floatVec) {
+    cv::Mat1f hashMat;
+    if(matVec->size() != 0)
+        for (cv::Mat iter : *matVec) {
+            iter = iter.reshape(1, iter.total());
+            hashMat.push_back(iter);
+        }
+
+    if(floatVec->size() != 0)
+        for (float iter : *floatVec) {
+            hashMat.push_back(iter);
+        }
+
+    if (!hashMat.isContinuous())
+        hashMat = hashMat.clone();
+
+    return feat::Hash::hash_xxHash(hashMat);
+}
+
+XXH64_hash_t feat::Hash::setHash(std::vector<std::string> strVec) {
+    return XXH64(&strVec, strVec.size(), NULL);
 }

@@ -1,1 +1,1 @@
-flowergirl.jpg	cossim	eucdist	mandist	minkdist	csqdist	jacsim	histintr	crocor	CVcsqdist
+ukbench00140.jpg	cossim	eucdist	mandist	minkdist	csqdist	jacsim	histintr	crocor	CVcsqdist

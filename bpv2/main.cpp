@@ -11,11 +11,12 @@
 /*
 	---------ROADMAP FOR THE PROJECT-------------
 	MOVE EDGE DETECTION METHODS TO FEAT.H -- DONE
-	ADD THE LAST EDGE OPERATOR FORGOT ITS NAME -- SKIPPED
+	ADD THE LAST EDGE OPERATOR DERICHE FORGOT ITS NAME -- SKIPPED BUT COME BACK
 	ADD CORNER DETECTION -- SKIP NO TIME
 	ADD KEYPOINT DETECTION -- SKIPPED 
 	ASK STACKOVERFLOW QUESTION ABOUT FFT OUTPUT BEING USELESS -- EZ SOLVED
-	ADD HASHING
+	ADD HASHING -- EZ DONE BUT IS USELESS
+	BUILD MACHINE LEARNING -- COME BACK TO IT
 	BUILD THE DATABASE DETAILS WILL FOLLOW
 	BUILD GUI DETAILS WILL FOLLOW
 	FINISH UNIVERSITY
@@ -71,11 +72,22 @@ int main(int argc, char *argv[])
 		sum += timeVec[i];
 	std::cout << sum / timeVec.size() << std::endl;
 	*/
+	dbop::Database db("bitirme.db");
 	img::Image ima("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench00140.jpg", cv::IMREAD_COLOR);
 	img::Image imc("C:/desired/path/to/Images/static_outdoor_il_giocco_lucca_italy/IMG_9129.jpg", cv::IMREAD_COLOR);
 	cv::Mat kernely;
-	feat::Corner::cornerDetectorHarris cdh();
-	dbop::dbObj.insert_CornerHarris(); //ADD GETVAR FUNCTIONS TO FEAT CLASSES THEN TEST INSERT FUNCTION
+	feat::Corner::Harris cdh;
+	std::vector<float> xdddddd;
+	for (auto a : xdddddd)
+		a++;
+	for(int i = 0; i < 100; i++)
+	try {
+		db.insert_Image("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench00140.jpg");
+	}
+	catch(...) {
+		continue;
+	}
+	//ADD GETVAR FUNCTIONS TO FEAT CLASSES THEN TEST INSERT FUNCTION
 	
 	std::vector<img::Image> asd = img::readImageFolder("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench/full/", 
 		cv::IMREAD_COLOR, false, 25);

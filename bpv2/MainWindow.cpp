@@ -10,7 +10,7 @@ img::Image QImageToimgImage(const QImage& operand) {
 	cv::Mat result = cv::Mat(mat.rows, mat.cols, CV_8UC3);
 	int from_to[] = { 0,0,  1,1,  2,2 };
 	cv::mixChannels(&mat, 1, &result, 1, from_to, 3);
-	img::Image imoperator(result);
+	img::Image imoperator;
 	return imoperator;
 }
 

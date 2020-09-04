@@ -9,7 +9,7 @@ void gen::printTesting(std::ostringstream &osoperator) {
 	testfile.close();
 }
 
-void gen::imageTesting(img::Image srcimg, std::string filename) {
+void gen::imageTesting(cv::Mat imageMat, std::string filename) {
 	time_t now = time(0);
 	tm* ltm = localtime(&now);
 
@@ -19,5 +19,5 @@ void gen::imageTesting(img::Image srcimg, std::string filename) {
 		+ std::to_string(1 + ltm->tm_mon) + "-" + std::to_string(ltm->tm_mday) + "/"  + std::to_string(ltm->tm_hour) + "-"
 		+ std::to_string(ltm->tm_min) + "-" + std::to_string(1 + ltm->tm_sec) + "--" 
 		+ filename + ".jpg";	
-	cv::imwrite(stroper, srcimg.getImageMat());
+	cv::imwrite(stroper, imageMat);
 }

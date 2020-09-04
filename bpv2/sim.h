@@ -9,7 +9,8 @@
 #include <valarray>
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
-#include <opencv2/gapi.hpp>
+#include <opencv2/imgproc/imgproc.hpp>
+#include <opencv2/features2d/features2d.hpp>
 #include "gen.h"
 
 using cf = std::complex<float>;

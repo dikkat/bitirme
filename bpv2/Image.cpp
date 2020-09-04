@@ -6,29 +6,26 @@ img::Image::Image(std::string imgdir, int flag) {
 	imageMat = readImageFile(imgdir, flag);
     name = buildImageName(imgdir);
     dir = imgdir;
+    hash = feat::Hash::setHash(std::vector<std::string>{dir});
 }
-
-img::Image::Image(cv::Mat sourceMat) {
-    imageMat = sourceMat.clone();
-}
-
-img::Image::Image(cv::Mat sourceMat, std::string imgdir) {
-    imageMat = sourceMat.clone();
-    name = buildImageName(imgdir);
-    dir = imgdir;
-}
-
-
 
 const std::string img::Image::getImageName() {
     return name;
 }
 
 cv::Mat img::Image::getImageMat() {
-    return this->imageMat;
+    return imageMat;
 }
 
-std::string img::Image::buildImageName(std::string imgdir) {
+std::vector<std::string> img::Image::getVariablesString() {
+    return std::vector<std::string>{name, dir};
+}
+
+XXH64_hash_t img::Image::getHash() {
+    return hash;
+}
+
+std::string img::buildImageName(std::string imgdir) {
     int j = 0;
     for (int i = 0; i < imgdir.size(); i++) {
         if (imgdir[i] == '/') {

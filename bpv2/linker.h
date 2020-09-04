@@ -1,5 +1,7 @@
 #pragma once
 #include "feat.h"
+#include "image.h"
+#include "dbop.h"
 #include <algorithm>
 
 namespace lnkr {

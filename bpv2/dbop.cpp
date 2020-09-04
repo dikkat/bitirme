@@ -53,10 +53,10 @@ void dbop::Database::initializeTables() {
     if (row == 0) {
         sql = "CREATE TABLE Histogram(" \
             "histHash TEXT PRIMARY KEY NOT NULL," \
+            "flag INT NOT NULL," \
             "fbin INT NOT NULL," \
             "sbin INT NOT NULL," \
-            "tbin INT NOT NULL," \
-            "flag INT NOT NULL);";
+            "tbin INT NOT NULL);";
         rc = sqlite3_exec(db, sql, callback, 0, &zErrMsg);
         errorCheck(rc, zErrMsg);
     }
@@ -194,11 +194,69 @@ int dbop::Database::callback(void* data, int argc, char** argv, char** azColName
 }
 
 
-void dbop::Database::insert_Image(XXH64_hash_t imHash, std::string name, std::string dir) {
-    std::string imHash_str = std::to_string(imHash);
-    char* sql = "INSERT INTO Image"  \
-        "VALUES ('%s', '%s', '%s');", imHash_str, name, dir;
+void dbop::Database::insert_Image(std::string dir) {
+    XXH64_hash_t hash = feat::Hash::setHash(std::vector<std::string>{dir});
+    std::string hash_str = std::to_string(hash);
+    std::string name = img::buildImageName(dir);
+
+    char sqlel[160];
+    sprintf(sqlel, "INSERT INTO Image " \
+        "VALUES ('%s', '%s', '%s');", hash_str.c_str(), name.c_str(), dir.c_str());
+    int rc = sqlite3_exec(dbPtr, sqlel, callback, 0, &zErrMsg);
+    errorCheck(rc, zErrMsg);
 }
+
+void dbop::Database::insert_Image(img::Image image) {
+    std::vector<std::string> vecOper = image.getVariablesString();
+
+    sprintf(sql, "INSERT INTO Image" \
+        "VALUES ('%s', '%s', '%s');", std::to_string(image.getHash()).c_str(), vecOper[0].c_str(), vecOper[1].c_str());
+    int rc = sqlite3_exec(dbPtr, sql, callback, 0, &zErrMsg);
+    errorCheck(rc, zErrMsg);
+}
+
+void dbop::Database::insert_Histogram(int flag, int fb, int sb, int tb) {
+    XXH64_hash_t hash = feat::Hash::setHash(nullptr, &std::vector<float>{static_cast<float>(flag), static_cast<float>(fb),
+        static_cast<float>(sb), static_cast<float>(tb)});
+    std::string hash_str = std::to_string(hash);
+
+    sprintf(sql, "INSERT INTO Histogram" \
+        "VALUES ('%s', %d, %d, %d, %d);", hash_str.c_str(), flag, fb, sb, tb);
+    int rc = sqlite3_exec(dbPtr, sql, callback, 0, &zErrMsg);
+    errorCheck(rc, zErrMsg);
+}
+
+void dbop::Database::insert_Histogram(feat::Histogram hist) {
+    std::vector<float> vecOper = hist.getVariablesFloat();
+
+    sprintf(sql, "INSERT INTO Histogram" \
+        "VALUES ('%s', %d, %d, %d, %d);", std::to_string(hist.getHash()).c_str(), vecOper[0], vecOper[1], vecOper[2], vecOper[3]);
+    int rc = sqlite3_exec(dbPtr, sql, callback, 0, &zErrMsg);
+    errorCheck(rc, zErrMsg);
+}
+
+void dbop::Database::insert_Edge(int flag, feat::Edge::Canny* edcOper) {
+    XXH64_hash_t hash = feat::Hash::setHash(nullptr, &std::vector<float>{static_cast<float>(flag)});
+    std::string hash_str = std::to_string(hash);
+
+    if (edcOper != nullptr) {
+        std::string edcHash;
+        std::vector<std::string> hashVec;
+        hashVec.push_back(std::to_string(hash));
+        hashVec.push_back(std::to_string(edcOper->getHash()));
+        edcHash = std::to_string(feat::Hash::setHash(hashVec));
+        
+        sprintf(sql, "INSERT INTO Edge" \
+            "VALUES ('%s', %d, '%s');", hash_str.c_str(), flag, edcHash.c_str());
+    }
+
+    else
+        sprintf(sql, "INSERT INTO Edge" \
+            "VALUES ('%s', %d, %s);", hash_str.c_str(), flag, "NULL");
+    int rc = sqlite3_exec(dbPtr, sql, callback, 0, &zErrMsg);
+    errorCheck(rc, zErrMsg);
+}
+
 std::string dbop::serializeMat(cv::Mat operand) {
     std::ostringstream srlzstrstream;
     uchar* pixelPtr = (uchar*)operand.data;

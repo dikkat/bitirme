@@ -4,17 +4,15 @@
 #include <sstream>
 #include <algorithm>
 #include <functional>
-#include "image.h"
+#include <opencv2/core/core.hpp>
+#include <opencv2/highgui/highgui.hpp>
+#include <opencv2/gapi.hpp>
 #include <boost/filesystem/operations.hpp>
 
-namespace img {
-	class Image;
-	class Histogram;
-}
 
 namespace gen {
 	extern std::ostringstream tout;
-	void imageTesting(img::Image srcimg, std::string filename);
+	void imageTesting(cv::Mat imageMat, std::string filename);
 	void printTesting(std::ostringstream &osoperator);
 }
 

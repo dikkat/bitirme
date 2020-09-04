@@ -6,27 +6,30 @@
 #include <filesystem>
 #include <string>
 #include <ctime>
-#include "gen.h"
-#include "sim.h"
-#include "iop.h"
+#include "xxhash.h"
+#include "feat.h"
+
+namespace feat {
+	class Hash;
+}
 
 namespace img {
 	class Image {
 	public:
 		Image(std::string imgdir, int flag);
-		Image(cv::Mat sourceMat);
-		Image(cv::Mat sourceMat, std::string imgdir);
 		Image() {}
 		const std::string getImageName();
 		cv::Mat getImageMat();
+		std::vector<std::string> getVariablesString();
+		XXH64_hash_t getHash();
 	private:
+		XXH64_hash_t hash;
 		cv::Mat imageMat;
 		std::string name, dir;
-		std::string buildImageName(std::string imgdir);
 		void setImageDirectory(std::string imgdir);
 		cv::Mat readImageFile(std::string imgdir, int flag);
 	};
-
+	std::string buildImageName(std::string imgdir);
 	std::vector<Image> readImageFolder(std::string imagefoldername, int flag, bool all, int number);
 	std::string typeToString(int type);
 	void displayImage(cv::Mat imgmat);

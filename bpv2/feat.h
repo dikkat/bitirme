@@ -30,7 +30,7 @@ namespace feat {
 
 	class Histogram {
 	public:
-		Histogram(cv::Mat imageMat, int fb = 10, int sb = 4, int tb = 4, int flag = 0);
+		Histogram(cv::Mat imageMat, int fb = 10, int sb = 4, int tb = 4, int flag = -1);
 		cv::Mat getHistogramMat();
 		cv::Mat getNormalizedHistogramMat();
 		int* getBin();

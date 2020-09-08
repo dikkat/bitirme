@@ -7,40 +7,37 @@
 #include <QDebug>
 #include <boost/thread.hpp>
 #include <chrono>
+#include "imgui.h"
 
 /*
 	---------ROADMAP FOR THE PROJECT-------------
 	MOVE EDGE DETECTION METHODS TO FEAT.H -- DONE
-	ADD THE LAST EDGE OPERATOR DERICHE FORGOT ITS NAME -- SKIPPED BUT COME BACK
+	ADD THE LAST EDGE OPERATOR -DERICHE- FORGOT ITS NAME -- SKIPPED BUT COME BACK
 	ADD CORNER DETECTION -- SKIP NO TIME
-	ADD KEYPOINT DETECTION -- SKIPPED 
+	ADD KEYPOINT DETECTION -- SKIPPED BUT DO COME BACK
 	ASK STACKOVERFLOW QUESTION ABOUT FFT OUTPUT BEING USELESS -- EZ SOLVED
 	ADD HASHING -- EZ DONE BUT IS USELESS
 	BUILD MACHINE LEARNING -- COME BACK TO IT
-	BUILD THE DATABASE DETAILS WILL FOLLOW
-	BUILD GUI DETAILS WILL FOLLOW
+	ASK SO ABOUT XXHASH VALUES BEING DIFFERENT -- NVM FIXED
+	BUILD THE DATABASE DETAILS WILL FOLLOW -- BUILD IN COOP WITH GUI
+	BUILD GUI DETAILS WILL FOLLOW -- HERE ARE THE DETAILS
+	VISUALISE THE GUI - BY GRAPHITE PENCIL(OR WHATEVER KURÞUN KALEM IN ENG IS) IF YOU HAVE TO
+	PLACE ALL THE BUTTONS AND TABS
+	ADD FUNCTIONS TO THOSE OBJECTS
+	CHANGE RESIZE PARAMETERS AT DBOP::INSERT_IMAGE FUNCTION
+
 	FINISH UNIVERSITY
 	GET A 15K DOLLAR PER MONTH JOB
 	FINISH LIFE
 */
 
 
-int main(int argc, char *argv[])
+int main(int argc, char* argv[])
 {
 	AllocConsole();
 	freopen("conin$", "r", stdin);
 	freopen("conout$", "w", stdout);  //DELETE IN FINAL BUILD THIS WHOLE SEGMENT
 	freopen("conout$", "w", stderr);
-
-	const char* gszFile = "C:/Users/ASUS/source/repos/bpv2/bpv2/Database.db";
-
-	/*
-	for (int i = 0; i < xde.total(); i++) {
-		float f1 = (float)ima.getImageMat().data[i];
-		float f2 = (float)xde.data[i];
-		std::cout << xdeaf[i+4] << "\t" << ima.getImageHist()->getNormalizedHistogramMat().at<float>(i,i,i)<< "\t" << xde.at<float>(i, i, i)<< "\t" << f1 << "\t" << f2 << " " << std::endl;
-	}
-	*/
 
 	/*
 	std::vector<float> timeVec;
@@ -55,7 +52,7 @@ int main(int argc, char *argv[])
 	}
 	float sum = 0;
 	for (int i = 0; i < timeVec.size(); i++)
-		sum += timeVec[i];	
+		sum += timeVec[i];
 	std::cout << sum / timeVec.size() << std::endl;
 
 	for (int i = 0; i < 100; i++) {
@@ -72,7 +69,9 @@ int main(int argc, char *argv[])
 		sum += timeVec[i];
 	std::cout << sum / timeVec.size() << std::endl;
 	*/
+
 	dbop::Database db("bitirme.db");
+	/*
 	img::Image ima("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench00140.jpg", cv::IMREAD_COLOR);
 	img::Image imc("C:/desired/path/to/Images/static_outdoor_il_giocco_lucca_italy/IMG_9129.jpg", cv::IMREAD_COLOR);
 	cv::Mat kernely;
@@ -82,15 +81,30 @@ int main(int argc, char *argv[])
 		a++;
 	for(int i = 0; i < 100; i++)
 	try {
-		db.insert_Image("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench00140.jpg");
+		feat::Histogram xd(ima.getImageMat(), 122, 115, 123, HIST_BGR);
+		db.insert_Histogram(0,122,115,123);
+		db.insert_Histogram(xd);
 	}
 	catch(...) {
 		continue;
 	}
 	//ADD GETVAR FUNCTIONS TO FEAT CLASSES THEN TEST INSERT FUNCTION
-	
-	std::vector<img::Image> asd = img::readImageFolder("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench/full/", 
+	*/
+
+	std::vector<img::Image> asd = img::readImageFolder("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench/full/",
 		cv::IMREAD_COLOR, false, 25);
+
+	for (img::Image i : asd) {
+		try {
+			db.insert_Image(i);
+		}
+		catch (std::exception e) {
+			std::cout << e.what() << std::endl;
+			continue;
+		}
+	}
+
+	/*
 	img::Image imb("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench/full/ukbench00088.jpg", cv::IMREAD_COLOR);
 	asd.push_back(imb);
 	gen::tout << ima.getImageName() << "\t" << "cossim" 
@@ -105,7 +119,7 @@ int main(int argc, char *argv[])
 		<< std::endl;
 	std::vector<float> xdg;
 	for (int i = 0; i < asd.size(); i++) {
-		/*xdg.push_back(iop::calculateHistogramSimilarity(asd[i], ima, 4, 4, 4, HIST_HSV, SIM_COSSIM));
+		xdg.push_back(iop::calculateHistogramSimilarity(asd[i], ima, 4, 4, 4, HIST_HSV, SIM_COSSIM));
 		xdg.push_back(iop::calculateHistogramSimilarity(asd[i], ima, 4, 4, 4, HIST_HSV, SIM_EUCDIST));
 		xdg.push_back(iop::calculateHistogramSimilarity(asd[i], ima, 4, 4, 4, HIST_HSV, SIM_MANDIST));
 		iop::setMinkowskiOrder(5);
@@ -113,8 +127,8 @@ int main(int argc, char *argv[])
 		xdg.push_back(iop::calculateHistogramSimilarity(asd[i], ima, 4, 4, 4, HIST_HSV, SIM_CSQDIST));
 		xdg.push_back(iop::calculateHistogramSimilarity(asd[i], ima, 4, 4, 4, HIST_HSV, SIM_JACSIM));
 		xdg.push_back(iop::calculateHistogramSimilarity(asd[i], ima, 4, 4, 4, HIST_HSV, SIM_HISINTR));
-		xdg.push_back(iop::calculateHistogramSimilarity(asd[i], ima, 4, 4, 4, HIST_HSV, SIM_CROCOR));*/
-		/*asd[i].setImageHist(4, 4, 4, HIST_HSV);
+		xdg.push_back(iop::calculateHistogramSimilarity(asd[i], ima, 4, 4, 4, HIST_HSV, SIM_CROCOR));
+		asd[i].setImageHist(4, 4, 4, HIST_HSV);
 		ima.setImageHist(4, 4, 4, HIST_HSV);
 		xdg.push_back(cv::compareHist(ima.getImageHist()->getNormalizedHistogramMat(), asd[i].getImageHist()->getNormalizedHistogramMat(), cv::HISTCMP_CHISQR));
 		asd[i].destroyImageHist();
@@ -129,16 +143,17 @@ int main(int argc, char *argv[])
 			<< "\t" << xdg[i * j + 6]
 			<< "\t" << xdg[i * j + 7]
 			<< "\t" << xdg[i * j + 8]
-			<< std::endl;*/
-	}
+			<< std::endl;
+	}*/
 	//bune amk	-Enes kardeþ	
+
+
 	/*for (int i = 0; i < xdc.size(); i++) {
 		gen::tout << xdc[i].imgrh->getImageName() << "\t" << xdc[i].simval << "\t" << xde[i].simval << "\t" << xdc[i].simval - xde[i].simval << std::endl;
 	}*/
 	
 
 	
-
 	gen::printTesting(gen::tout);
 	QApplication a(argc, argv);
 	MainWindow w;

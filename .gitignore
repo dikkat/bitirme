@@ -5,3 +5,4 @@ bpv2/Resources/
 bpv2/Resources/ukbench/
 bpv2/Resources/imageclef/
 *.txt
+*.db

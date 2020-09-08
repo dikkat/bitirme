@@ -15,6 +15,7 @@ namespace dbop {
 		void insert_Histogram(int flag, int fb, int sb, int tb);
 		void insert_Histogram(feat::Histogram hist);
 		void insert_Edge(int flag, feat::Edge::Canny* edcOper = nullptr);
+		void insert_Edge(feat::Edge edge);
 		void insert_Corner(XXH64_hash_t cornerHash, int flag, int numberOfScales, float scaleRatio, XXH64_hash_t cdhHash);
 		void insert_CornerHarris(XXH64_hash_t cdhHash, int radius, int squareSize, float sigmai, float sigmad, float alpha,
 			cv::Mat kernelx, cv::Mat kernely);
@@ -28,7 +29,6 @@ namespace dbop {
 		static int callbackSELECT(void* data, int argc, char** argv, char** azColName);
 		void initializeTables();
 		sqlite3* dbPtr;
-		char* sql;
 		char* zErrMsg = 0;
 	};
 

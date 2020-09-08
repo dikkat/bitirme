@@ -1,44 +1,62 @@
 #include "MainWindow.h"
-#include <QFile>
-#include <QTextStream>
-#include <QMessageBox>
 
+int row = 0;
 
+QSqlError qtdbop::initDb() {
+	QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE");
+	db.setDatabaseName("C:/Users/ASUS/source/repos/bpv2/bpv2/bitirme.db");
 
-img::Image QImageToimgImage(const QImage& operand) {
+	if (!db.open())
+		return db.lastError();
+
+	QSqlQuery q;
+	if (!q.exec(IMAGE_SQL))
+		return q.lastError();
+	if (!q.exec(HISTOGRAM_SQL))
+		return q.lastError();
+	if (!q.exec(EDGECANNY_SQL))
+		return q.lastError();
+	if (!q.exec(EDGE_SQL))
+		return q.lastError();
+	if (!q.exec(CORNERHARRIS_SQL))
+		return q.lastError();
+	if (!q.exec(CORNER_SQL))
+		return q.lastError();
+	if (!q.exec(IMAGEHISTOGRAM_SQL))
+		return q.lastError();
+	if (!q.exec(IMAGEEDGE_SQL))
+		return q.lastError();
+	if (!q.exec(IMAGECORNER_SQL))
+		return q.lastError();
+	return QSqlError();
+}
+
+cv::Mat QImageToCvMat(const QImage& operand) {
 	cv::Mat mat = cv::Mat(operand.height(), operand.width(), CV_8UC4, (uchar*)operand.bits(), operand.bytesPerLine());
 	cv::Mat result = cv::Mat(mat.rows, mat.cols, CV_8UC3);
 	int from_to[] = { 0,0,  1,1,  2,2 };
 	cv::mixChannels(&mat, 1, &result, 1, from_to, 3);
-	img::Image imoperator;
-	return imoperator;
+	return result;
 }
 
-QImage imgImageToQImage(img::Image& operand) {
-	QImage imgIn = QImage((uchar*)operand.getImageMat().data, operand.getImageMat().cols, operand.getImageMat().rows, operand.getImageMat().step, QImage::Format_BGR888);
+QImage cvMatToQImage(cv::Mat& operand) {
+	QImage imgIn = QImage((uchar*)operand.data, operand.cols, operand.rows, operand.step, QImage::Format_BGR888);
 	return imgIn;
 }
 
-TableModel::TableModel(QObject* parent)
-	: QAbstractTableModel(parent)
-{
-}
+TableModel::TableModel(QObject* parent)	: QSqlRelationalTableModel(parent) {}
 
-int TableModel::rowCount(const QModelIndex& /*parent*/) const
-{
-	return ROWS;
-}
-
-int TableModel::columnCount(const QModelIndex& /*parent*/) const
-{
-	return COLS;
-}
-
-QVariant TableModel::data(const QModelIndex& index, int role) const
-{
-	int row = index.row();
-	int col = index.column();
-	
+QVariant TableModel::data(const QModelIndex& index, int role) const {
+	if (index.column() == this->fieldIndex("iconmat")) {
+		if (role == Qt::DecorationRole) {
+			std::string data = QSqlRelationalTableModel::data(index, Qt::DisplayRole).toString().toStdString();
+			cv::Mat dataMat = dbop::deserializeMat(data);
+			
+			return QIcon(QPixmap::fromImage(cvMatToQImage(dataMat)));
+		}
+	}
+	else
+		return QSqlRelationalTableModel::data(index, role);
 	// generate a log message when this method gets called
 	/*if (role == Qt::DisplayRole) {
 		if (row == 0) {
@@ -50,34 +68,60 @@ QVariant TableModel::data(const QModelIndex& index, int role) const
 	return QVariant();
 }
 
-QVariant TableModel::headerData(int section, Qt::Orientation orientation, int role) const
-{
-	if (role == Qt::DisplayRole && orientation == Qt::Horizontal) {
-		switch (section) {
-		case 0:
-			return QString("first");
-		case 1:
-			return QString("second");
-		case 2:
-			return QString("third");
-		}
-	}
-	return QVariant(); 
-}
-
-void TableModel::populateData(std::vector<img::Image> data) {
-	modelData.clear();
-	for (int i = 0; i < data.size(); i++) {
-		modelData.push_back(&data[i]);
-		std::cout << modelData[i]->getImageMat().data;
-	}
-	return;
-}
+//void TableModel::populateData(std::vector<img::Image> data) {
+//	columnImage.clear();
+//	for (int i = 0; i < data.size(); i++) {
+//		//columnImage.push_back(data[i]);
+//		//std::cout << modelData[i]->getImageMat().data;
+//	}
+//	return;
+//}
+//
+//void TableModel::insertImage(img::Image* data) {
+//	columnName.push_back(QString(data->getImageName().c_str()));
+//	columnSimilarity.push_back("N/A");
+//}
 
 MainWindow::MainWindow(QWidget *parent)	: QMainWindow(parent)
 {
 	ui.setupUi(this);
 
+	if (!QSqlDatabase::drivers().contains("QSQLITE"))
+		QMessageBox::critical(this, "Unable to load database", "This program needs the SQLITE driver");
+
+	QSqlError err = qtdbop::initDb();
+	if (err.type() != QSqlError::NoError) {
+		showError(err);
+	}
+
+	TableModel* model = new TableModel(ui.mainTableView);
+
+	model->setEditStrategy(QSqlTableModel::OnManualSubmit);
+	model->setTable("image");
+	model->setHeaderData(model->fieldIndex("iconmat"), Qt::Horizontal, tr("Thumbnail"), Qt::DecorationRole);
+	model->setHeaderData(model->fieldIndex("name"),	Qt::Horizontal, tr("Name"));
+	model->setHeaderData(simValIdx, Qt::Horizontal, tr("Similarity"));
+	model->setHeaderData(model->fieldIndex("dir"), Qt::Horizontal, tr("Directory"));
+	ui.mainTableView->verticalHeader()->setSectionResizeMode(QHeaderView::Fixed);
+	ui.mainTableView->verticalHeader()->setDefaultSectionSize(100);
+	if (!model->select()) {
+		showError(model->lastError());
+	}
+
+	int rows = model->rowCount();
+	for (int i = 0; i < rows; i++) {
+		QModelIndex index = model->index(i, model->fieldIndex("iconmat"));
+		model->data(index, Qt::DecorationRole);
+		model->setData(index, "125", Qt::EditRole);
+	}
+
+
+
+	if (!model->select()) {
+		showError(model->lastError());
+	}
+	ui.mainTableView->setModel(model);
+	ui.mainTableView->setColumnHidden(model->fieldIndex("id"), true);
 	
 
 	ui.imageLabel->setBackgroundRole(QPalette::Base);
@@ -85,29 +129,27 @@ MainWindow::MainWindow(QWidget *parent)	: QMainWindow(parent)
 
 	resize(QGuiApplication::primaryScreen()->availableSize() * 3 / 5);
 
-	printToScreen("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/testbridge.txt", true);
+	/*printToScreen("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/testbridge.txt", true);
 
 	img::Image imb("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/testImage.jpg", cv::IMREAD_COLOR);
-	setImage(ui.imageLabel, imgImageToQImage(imb));
+	setImage(ui.imageLabel, cvMatToQImage(imb.getImageMat()));
 	
 	std::vector<img::Image> xd;
 	for (int i = 0; i < 6; i++) {
 		img::Image ima("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench/full/ukbench0000" + std::to_string(i) + ".jpg", cv::IMREAD_COLOR);
 		xd.push_back(ima);
-		addToList(ui.listWidget, imgImageToQImage(xd[i]));
-	}
+		addToMainTable(&xd[i]);
+	}*/
 
-	
-	TableModel* myModel = new TableModel(this);
-	myModel->populateData(xd);
-	ui.tableView->setModel(myModel);
-	ui.tableView->show();
-	ui.tableView->setEditTriggers(QAbstractItemView::NoEditTriggers);
-	
 	QObject MWObject;
 	MWObject.connect(ui.openButton, SIGNAL(clicked()), this, SLOT(openList()));
 	MWObject.connect(ui.consoleButton, SIGNAL(clicked()), this, SLOT(hideConsole()));
 	MWObject.connect(ui.imageLabelButton_2, SIGNAL(clicked()), this, SLOT(openImageLabel()));
+}
+
+void MainWindow::showError(const QSqlError& err) {
+	QMessageBox::critical(this, "Unable to initialize Database",
+		"Error initializing database: " + err.text());
 }
 
 void MainWindow::printToScreen(QString fileName, bool filecheck) {
@@ -127,21 +169,22 @@ void MainWindow::printToScreen(QString text) {
 }
 
 bool MainWindow::loadFiles(const QStringList& fileNames) {
-	std::vector<QImage> imoperator;
+	std::vector<img::Image> imgVec;
 	for (int i = 0; i < fileNames.size(); i++) {
 		QImageReader reader(fileNames[i]);
 		reader.setAutoTransform(true);
-		const QImage newImage = reader.read();
-		if (newImage.isNull()) {
+		const QImage buffer = reader.read();
+		img::Image newImage(QDir::toNativeSeparators(fileNames[i]).toStdString(),cv::IMREAD_COLOR);
+		if (buffer.isNull()) {
 			QMessageBox::information(this, QGuiApplication::applicationDisplayName(),
 				tr("Cannot load %1: %2")
 				.arg(QDir::toNativeSeparators(fileNames[i]), reader.errorString()));
 			continue;
 		}
-		imoperator.push_back(newImage);
+		imgVec.push_back(newImage);
 	}
-	for (auto a : imoperator)
-		addToList(ui.listWidget, a);
+	for (img::Image iter : imgVec)
+		addToMainTable(&iter);
 	return true;
 }
 
@@ -231,11 +274,10 @@ void MainWindow::setImage(QLabel* imlabel, const QImage& newImage) {
 	imlabel ->setPixmap(QPixmap::fromImage(image));
 }
 
-void MainWindow::addToList(QListWidget* list, const QImage& image) { 
-	QListWidgetItem* xd = new QListWidgetItem;
-	xd->setIcon(QIcon(QPixmap::fromImage(image)));
-	list->addItem(xd);
+void MainWindow::addToMainTable(img::Image* image) {
 }
+
+
 
 void MainWindow::createActions()
 //! [17] //! [18]

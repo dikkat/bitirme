@@ -12,7 +12,7 @@ feat::Histogram::Histogram(cv::Mat imageMat, int fb, int sb, int tb, int flag) {
     sbin = sb;
     tbin = tb;
 
-    if (flag == 0) {
+    if (flag == -1) {
         if (imageMat.channels() == 1)
             histMat = histogramGRAYCalculation(imageMat);
         else if (imageMat.channels() == 3)
@@ -195,7 +195,10 @@ int feat::Edge::getEdgeFlag() {
 }
 
 std::vector<XXH64_hash_t> feat::Edge::getHashVariables() {
-    return std::vector<XXH64_hash_t>{edgeHash, *edcHash};
+    if(edcHash != nullptr)
+        return std::vector<XXH64_hash_t>{edgeHash};
+    else
+        return std::vector<XXH64_hash_t>{edgeHash, *edcHash};
 }
 
 feat::Edge::Canny* feat::Edge::getCannyPtr() {
@@ -933,13 +936,13 @@ XXH64_hash_t feat::Hash::hash_xxHash(cv::Mat const inputMat) {
 
 XXH64_hash_t feat::Hash::setHash(std::vector<cv::Mat>* matVec, std::vector<float>* floatVec) {
     cv::Mat1f hashMat;
-    if(matVec->size() != 0)
+    if(matVec != nullptr)
         for (cv::Mat iter : *matVec) {
             iter = iter.reshape(1, iter.total());
             hashMat.push_back(iter);
         }
 
-    if(floatVec->size() != 0)
+    if(floatVec != nullptr)
         for (float iter : *floatVec) {
             hashMat.push_back(iter);
         }
@@ -951,5 +954,8 @@ XXH64_hash_t feat::Hash::setHash(std::vector<cv::Mat>* matVec, std::vector<float
 }
 
 XXH64_hash_t feat::Hash::setHash(std::vector<std::string> strVec) {
-    return XXH64(&strVec, strVec.size(), NULL);
+    std::string combined = "";
+    for (std::string i : strVec)
+        combined.append(i);
+    return XXH64(&combined, combined.size(), NULL);
 }

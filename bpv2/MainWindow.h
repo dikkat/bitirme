@@ -1,5 +1,8 @@
 #pragma once
 
+#include <QFile>
+#include <QTextStream>
+#include <QMessageBox>
 #include <QMainWindow>
 #include <QDir>
 #include <QTableView>
@@ -18,51 +21,78 @@
 #include <QStatusBar>
 #include <QDebug>
 #include <QAbstractTableModel>
+#include <QFileSystemModel.h>
+#include <QtSql/qsqlrelationaltablemodel.h>
+#include <QtSql/qsqlerror.h>
+#include <QtSql/qsqlquery.h>
 
 #include "ui_MainWindow.h"
-#include "ImageOperations.h"
+#include "iop.h"
+#include "dbop.h"
+#include "linker.h"
+
+namespace qtdbop {
+
+	const auto INSERT_IMAGE_SQL = QLatin1String(R"(
+    insert into image values(?, ?, ?, ?)
+    )");
+
+	const auto INSERT_HISTOGRAM_SQL = QLatin1String(R"(
+    insert into histogram values(?, ?, ?, ?, ?)
+    )");
+
+	const auto INSERT_EDGE_SQL = QLatin1String(R"(
+    insert into edge values(?, ?, ?)
+    )");
+
+}
+
+extern QSqlDatabase qDB;
 
 class TextEdit;
 
-const int COLS = 3;
-const int ROWS = 2;
+extern int row;
 
-QImage imgImageToQImage(img::Image& operand, int format);
-img::Image QImageToimgImage(const QImage& operand);
+QImage cvMatToQImage(cv::Mat& operand);
+cv::Mat QImageToCvMat(const QImage& operand);
 
-class TableModel : public QAbstractTableModel
-{
+class TableModel : public QSqlRelationalTableModel {
 	Q_OBJECT
 public:
 	TableModel(QObject* parent = nullptr);
-	int rowCount(const QModelIndex& parent = QModelIndex()) const override;
-	int columnCount(const QModelIndex& parent = QModelIndex()) const override;
 	QVariant data(const QModelIndex& index, int role = Qt::DisplayRole) const override;
-	QVariant headerData(int section, Qt::Orientation orientation, int role) const override;
-	void populateData(std::vector<img::Image> data);
-private:
-	QList<img::Image*> modelData;  //holds text entered into QTableView
 };
 
-class MainWindow : public QMainWindow , public QObject
-{
-	Q_OBJECT
+static dbop::Database* mw_dbPtr;
 
+class MainWindow : public QMainWindow , public QObject {
+	Q_OBJECT
 public:
-	MainWindow(QWidget *parent = Q_NULLPTR);
+	MainWindow(dbop::Database dbObj, QWidget *parent = Q_NULLPTR);
+	void showError(QString err);
+	void showError(const QSqlError& err);
+	Ui::MainWindow getUI();
 private slots:
 	void openImageLabel();
 	void hideConsole();
 	void openList();
+	void displayHash(img::Image* dest_img = nullptr);
+	void displayFeature();
 private:
 	Ui::MainWindow ui;
+	QSqlRelationalTableModel* model;
+	int iconIdx, simValIdx = 2;
+	QList<int> prepareHistogram();
+	QList<float> prepareEdge();
+	QList<float> prepareCorner();
+	QImage calculateFeature(int index);
 	void createActions();
 	bool loadFiles(const QStringList& fileNames);
 	bool loadFile(const QString& fileName);
 	void printToScreen(QString fileName, bool file);
 	void printToScreen(QString text);
 	void setImage(QLabel* imlabel, const QImage& newImage);
-	void addToList(QListWidget* list, const QImage& image);
-
+	void addToMainTable(img::Image* image);
 	QImage image;
+	img::Image* srcImg = nullptr;
 };

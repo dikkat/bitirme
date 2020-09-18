@@ -1,113 +1,246 @@
 #include "MainWindow.h"
-#include <QFile>
-#include <QTextStream>
-#include <QMessageBox>
 
+int row = 0;
 
+QSqlDatabase qDB = QSqlDatabase();
 
-img::Image QImageToimgImage(const QImage& operand) {
+cv::Mat QImageToCvMat(const QImage& operand) {
 	cv::Mat mat = cv::Mat(operand.height(), operand.width(), CV_8UC4, (uchar*)operand.bits(), operand.bytesPerLine());
 	cv::Mat result = cv::Mat(mat.rows, mat.cols, CV_8UC3);
 	int from_to[] = { 0,0,  1,1,  2,2 };
 	cv::mixChannels(&mat, 1, &result, 1, from_to, 3);
-	img::Image imoperator(result);
-	return imoperator;
+	return result;
 }
 
-QImage imgImageToQImage(img::Image& operand) {
-	QImage imgIn = QImage((uchar*)operand.getImageMat().data, operand.getImageMat().cols, operand.getImageMat().rows, operand.getImageMat().step, QImage::Format_BGR888);
+QImage cvMatToQImage(cv::Mat& operand) {
+	QImage imgIn = QImage((uchar*)operand.data, operand.cols, operand.rows, operand.step, QImage::Format_BGR888);
 	return imgIn;
 }
 
-TableModel::TableModel(QObject* parent)
-	: QAbstractTableModel(parent)
-{
-}
+TableModel::TableModel(QObject* parent)	: QSqlRelationalTableModel(parent) {}
 
-int TableModel::rowCount(const QModelIndex& /*parent*/) const
-{
-	return ROWS;
-}
-
-int TableModel::columnCount(const QModelIndex& /*parent*/) const
-{
-	return COLS;
-}
-
-QVariant TableModel::data(const QModelIndex& index, int role) const
-{
-	int row = index.row();
+QVariant TableModel::data(const QModelIndex& index, int role) const {
 	int col = index.column();
-	
-	// generate a log message when this method gets called
-	/*if (role == Qt::DisplayRole) {
-		if (row == 0) {
-			std::cout << col << modelData.size() << modelData[col]->getImageMat().data << imageList[0].getImageMat().data;
-			img::Image xd = *modelData[col];
-			return QIcon(QPixmap::fromImage(imgImageToQImage(xd)));
+	if (col == 0) {
+		if (role == Qt::DecorationRole) {
+			QString imhash = QSqlRelationalTableModel::data(index.sibling(index.row(), fieldIndex("hash"))).toString();
+			std::string condition = "imhash='" + imhash.toStdString() + "'";
+
+			std::vector<std::vector<std::string>> hashVec = mw_dbPtr->select_GENERAL(
+				std::vector<std::vector<std::string>>{ {"iconhash"}, { "imageicon" }, { condition }});
+
+			bool check = true;		
+			if (hashVec[0].size() == 0) {
+				check = false;
+			}
+			else if (hashVec[0].size() == 1) {
+				std::string condition = "hash='" + hashVec[0][0] + "'";
+
+				std::vector<std::vector<std::string>> hashVec_inner = mw_dbPtr->select_GENERAL(
+					std::vector<std::vector<std::string>>{ {"mat"}, { "icon" }, { condition }});
+				if (hashVec_inner.size() == 0) {
+					check = false;
+				}
+				else if (hashVec_inner[0].size() == 1) {
+					img::Icon imgIcon(dbop::deserializeMat(hashVec_inner[0][0]));
+					return QIcon(QPixmap::fromImage(cvMatToQImage(imgIcon.getIconMat())));
+				}
+			}
+			if (!check) {
+				QString imgdir = QSqlRelationalTableModel::data(index.sibling(index.row(), fieldIndex("dir"))).toString();
+				img::Icon imgIcon(cv::imread(imgdir.toStdString(), cv::IMREAD_COLOR));
+				return QIcon(QPixmap::fromImage(cvMatToQImage(imgIcon.getIconMat())));
+			}
 		}
-	}*/
+	}
+	else if (col == 1) {
+		return QSqlRelationalTableModel::data(index.sibling(index.row(), fieldIndex("name")), role);
+	}
+	else if (col == 2) {
+		QString srchash = QSqlRelationalTableModel::data(index.sibling(index.row(), fieldIndex("hash"))).toString();
+		
+		std::string condition = "srchash='" + srchash.toStdString() + "'";
+
+		std::vector<std::vector<std::string>> hashVec = mw_dbPtr->select_GENERAL(
+			std::vector<std::vector<std::string>>{ {"desthash"}, { "similarity" }, { condition }});
+
+		if (hashVec[0].size() == 0) {
+			return QVariant(QString("N/A"));
+		}
+		else {
+			return QString(hashVec[0][0].c_str());
+		}
+	}
+	else
+		return QSqlRelationalTableModel::data(index, role);
 	return QVariant();
 }
 
-QVariant TableModel::headerData(int section, Qt::Orientation orientation, int role) const
-{
-	if (role == Qt::DisplayRole && orientation == Qt::Horizontal) {
-		switch (section) {
-		case 0:
-			return QString("first");
-		case 1:
-			return QString("second");
-		case 2:
-			return QString("third");
-		}
-	}
-	return QVariant(); 
-}
+//void TableModel::populateData(std::vector<img::Image> data) {
+//	columnImage.clear();
+//	for (int i = 0; i < data.size(); i++) {
+//		//columnImage.push_back(data[i]);
+//		//std::cout << modelData[i]->getImageMat().data;
+//	}
+//	return;
+//}
+//
+//void TableModel::insertImage(img::Image* data) {
+//	columnName.push_back(QString(data->getImageName().c_str()));
+//	columnSimilarity.push_back("N/A");
+//}
 
-void TableModel::populateData(std::vector<img::Image> data) {
-	modelData.clear();
-	for (int i = 0; i < data.size(); i++) {
-		modelData.push_back(&data[i]);
-		std::cout << modelData[i]->getImageMat().data;
-	}
-	return;
-}
-
-MainWindow::MainWindow(QWidget *parent)	: QMainWindow(parent)
-{
+MainWindow::MainWindow(dbop::Database dbObj, QWidget *parent)	: QMainWindow(parent) {
 	ui.setupUi(this);
 
+	mw_dbPtr = &dbObj;
+
+	qDB = QSqlDatabase::addDatabase("QSQLITE");
+	qDB.setDatabaseName("C:/Users/ASUS/source/repos/bpv2/bpv2/bitirme.db");
+
+	if (!qDB.open())
+		showError(qDB.lastError());
+
+	TableModel* model = new TableModel(ui.mainTableView);
+
+	model->setEditStrategy(QSqlTableModel::OnManualSubmit);
+	model->setTable("image");
+	model->setHeaderData(0, Qt::Horizontal, tr("Thumbnail"), Qt::DecorationRole);
+	model->setHeaderData(1, Qt::Horizontal, tr("Name"), Qt::DisplayRole);
+	model->setHeaderData(2, Qt::Horizontal, tr("Similarity"), Qt::DisplayRole);
+	
+	ui.mainTableView->verticalHeader()->setSectionResizeMode(QHeaderView::Fixed);
+	ui.mainTableView->verticalHeader()->setDefaultSectionSize(100);
+	ui.mainTableView->verticalHeader()->setVisible(false);
+
+	ui.mainTableView->setModel(model);
+	ui.mainTableView->horizontalHeader()->setModel(model);
+	ui.mainTableView->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+	ui.mainTableView->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
+	ui.mainTableView->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+
+	ui.label_imgSrc->setBackgroundRole(QPalette::Base);
+	ui.label_imgSrc->setScaledContents(true);
+
+	ui.textEdit->hide();
 	
 
-	ui.imageLabel->setBackgroundRole(QPalette::Base);
-	ui.imageLabel->setScaledContents(true);
+	QRegExpValidator* validator = new QRegExpValidator(QRegExp("[0-9]"), this);
+	ui.lineEdit_alpha->setValidator(validator);
+	ui.lineEdit_gauss->setValidator(validator);
+	ui.lineEdit_radius->setValidator(validator);
+	ui.lineEdit_sigma->setValidator(validator);
+	ui.lineEdit_sigmad->setValidator(validator);
+	ui.lineEdit_sigmai->setValidator(validator);
+	ui.lineEdit_squareSize->setValidator(validator);
+	ui.lineEdit_thigh->setValidator(validator);
+	ui.lineEdit_tlow->setValidator(validator);
 
-	resize(QGuiApplication::primaryScreen()->availableSize() * 3 / 5);
-
-	printToScreen("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/testbridge.txt", true);
+	/*printToScreen("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/testbridge.txt", true);
 
 	img::Image imb("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/testImage.jpg", cv::IMREAD_COLOR);
-	setImage(ui.imageLabel, imgImageToQImage(imb));
+	setImage(ui.imageLabel, cvMatToQImage(imb.getImageMat()));
 	
 	std::vector<img::Image> xd;
 	for (int i = 0; i < 6; i++) {
 		img::Image ima("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench/full/ukbench0000" + std::to_string(i) + ".jpg", cv::IMREAD_COLOR);
 		xd.push_back(ima);
-		addToList(ui.listWidget, imgImageToQImage(xd[i]));
-	}
+		addToMainTable(&xd[i]);
+	}*/
 
-	
-	TableModel* myModel = new TableModel(this);
-	myModel->populateData(xd);
-	ui.tableView->setModel(myModel);
-	ui.tableView->show();
-	ui.tableView->setEditTriggers(QAbstractItemView::NoEditTriggers);
-	
 	QObject MWObject;
-	MWObject.connect(ui.openButton, SIGNAL(clicked()), this, SLOT(openList()));
+	MWObject.connect(ui.pushButton_srcImgLabel, SIGNAL(clicked()), this, SLOT(openImageLabel()));
 	MWObject.connect(ui.consoleButton, SIGNAL(clicked()), this, SLOT(hideConsole()));
 	MWObject.connect(ui.imageLabelButton_2, SIGNAL(clicked()), this, SLOT(openImageLabel()));
+	MWObject.connect(ui.pushButton_disp, SIGNAL(clicked()), this, SLOT(displayFeature()));
+}
+
+void MainWindow::showError(const QSqlError& err) {
+	QMessageBox::critical(this, "Unable to initialize Database",
+		"Error initializing database: " + err.text());
+}
+
+void MainWindow::showError(QString err) {
+	QMessageBox::critical(this, "ERROR or as we intellectuals call it, EXCEPTION", "Error! \n" + err);
+}
+
+Ui::MainWindow MainWindow::getUI() {
+	return ui;
+}
+
+void MainWindow::displayHash(img::Image* dest_img) {
+	if (srcImg == nullptr) {
+		throw std::exception("Unable to locate source image. Load image to source first.");
+	}
+	if(dest_img != nullptr)
+		ui.label_imHash->setText(std::to_string(srcImg->getHash()).c_str());
+	else
+		ui.label_destHash->setText(std::to_string(dest_img->getHash()).c_str());
+}
+
+void MainWindow::displayFeature() {
+	QImage feat_img = calculateFeature(ui.tabWidget_comparison->currentIndex());
+	ui.label_imgDest->setPixmap(QPixmap::fromImage(feat_img));
+}
+
+//fbin, sbin, tbin, flag
+QList<int> MainWindow::prepareHistogram() {
+	QList<int> histVals;
+
+	histVals.push_back(ui.comboBox_histFlag->currentIndex());
+	histVals.push_back(ui.horizontalSlider_fbin->value());
+	histVals.push_back(ui.horizontalSlider_sbin->value());
+	histVals.push_back(ui.horizontalSlider_tbin->value());
+	
+	//if it is not gray hist and any of the sliders are zero OR if it is gray and first slider is zero ERROR
+	if ((histVals[3] != 0 && (histVals[0] == 0 || histVals[1] == 0 || histVals[2] == 0)) || (histVals[3] == 0 && histVals[0] == 0))
+		throw std::exception("Zero value sliders. Sliders can't be zero, pick a value.");
+
+	return histVals;
+}
+
+//flag, gauss, tlow, thigh, sigma
+QList<float> MainWindow::prepareEdge() {
+	QList<float> edgeVals;
+
+	edgeVals.push_back(ui.comboBox_edgeFlag->currentIndex());
+
+	if (ui.comboBox_edgeFlag->currentIndex() == EDGE_CANNY) {
+		edgeVals.push_back(ui.lineEdit_gauss->text().toFloat());
+		edgeVals.push_back(ui.lineEdit_tlow->text().toFloat());
+		edgeVals.push_back(ui.lineEdit_thigh->text().toFloat());
+		edgeVals.push_back(ui.lineEdit_sigma->text().toFloat());
+	}
+
+	if (edgeVals[0] == EDGE_CANNY && (edgeVals[1] == 0 || edgeVals[2] == 0 || edgeVals[3] == 0))
+		throw std::exception("Zero value boxes. Canny values can't be zero, pick a value.");
+
+	return edgeVals;
+}
+
+//cornerFlag, radius, squareSize, alpha, sigmai, sigmad
+QList<float> MainWindow::prepareCorner() {
+	QList<float> cornerVals;
+
+	cornerVals.push_back(ui.comboBox_cornerFlag->currentIndex());
+	cornerVals.push_back(ui.lineEdit_radius->text().toFloat());
+	cornerVals.push_back(ui.lineEdit_squareSize->text().toFloat());
+	cornerVals.push_back(ui.lineEdit_alpha->text().toFloat());
+	cornerVals.push_back(ui.lineEdit_sigmai->text().toFloat());
+	cornerVals.push_back(ui.lineEdit_sigmad->text().toFloat());
+
+	if (cornerVals[1] == 0 || cornerVals[2] == 0 || cornerVals[3] == 0 || cornerVals[4] == 0 || cornerVals[5] == 0)
+		throw std::exception("Zero value boxes. Harris values can't be zero, pick a value.");
+
+	return cornerVals;
+}
+
+QImage MainWindow::calculateFeature(int index) {
+	if (index == 0) { 
+		feat::Histogram srcImg_hist(QImageToCvMat(ui.label_imgSrc->pixmap()->toImage()), ui.comboBox_histFlag->currentIndex());
+		gen::imageTesting(srcImg_hist.createHistogramDisplayImage(300, 300), "tester1");
+		return cvMatToQImage(srcImg_hist.createHistogramDisplayImage(300, 300));
+	}
 }
 
 void MainWindow::printToScreen(QString fileName, bool filecheck) {
@@ -127,21 +260,22 @@ void MainWindow::printToScreen(QString text) {
 }
 
 bool MainWindow::loadFiles(const QStringList& fileNames) {
-	std::vector<QImage> imoperator;
+	std::vector<img::Image> imgVec;
 	for (int i = 0; i < fileNames.size(); i++) {
 		QImageReader reader(fileNames[i]);
 		reader.setAutoTransform(true);
-		const QImage newImage = reader.read();
-		if (newImage.isNull()) {
+		const QImage buffer = reader.read();
+		img::Image newImage(QDir::toNativeSeparators(fileNames[i]).toStdString(),cv::IMREAD_COLOR);
+		if (buffer.isNull()) {
 			QMessageBox::information(this, QGuiApplication::applicationDisplayName(),
 				tr("Cannot load %1: %2")
 				.arg(QDir::toNativeSeparators(fileNames[i]), reader.errorString()));
 			continue;
 		}
-		imoperator.push_back(newImage);
+		imgVec.push_back(newImage);
 	}
-	for (auto a : imoperator)
-		addToList(ui.listWidget, a);
+	for (img::Image iter : imgVec)
+		addToMainTable(&iter);
 	return true;
 }
 
@@ -157,13 +291,15 @@ bool MainWindow::loadFile(const QString& fileName)
 		return false;
 	}
 
-	setImage(ui.imageLabel_4, newImage);
-	imageList[0].setImageDirectory(fileName.toStdString());
+	setImage(ui.label_imgSrc, newImage);
+	//imageList[0].setImageDirectory(fileName.toStdString());
 	setWindowFilePath(fileName);
+	srcImg = &lnkr::createImage(QDir::cleanPath(fileName).toStdString(), cv::IMREAD_COLOR);
 
 	const QString message = tr("Opened \"%1\", %2x%3, Depth: %4")
 		.arg(QDir::toNativeSeparators(fileName)).arg(image.width()).arg(image.height()).arg(image.depth());
 	statusBar()->showMessage(message);
+	
 	return true;
 }
 
@@ -231,11 +367,10 @@ void MainWindow::setImage(QLabel* imlabel, const QImage& newImage) {
 	imlabel ->setPixmap(QPixmap::fromImage(image));
 }
 
-void MainWindow::addToList(QListWidget* list, const QImage& image) { 
-	QListWidgetItem* xd = new QListWidgetItem;
-	xd->setIcon(QIcon(QPixmap::fromImage(image)));
-	list->addItem(xd);
+void MainWindow::addToMainTable(img::Image* image) {
 }
+
+
 
 void MainWindow::createActions()
 //! [17] //! [18]

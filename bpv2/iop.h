@@ -1,16 +1,11 @@
 #pragma once
-#include "Image.h"
-#include "SimilarityMeasures.h"
+#include "image.h"
+#include "sim.h"
+#include "feat.h"
+#include "dbop.h"
 #include <QList>
 
-#define SIM_COSSIM 1
-#define SIM_MANDIST 2
-#define SIM_EUCDIST 3
-#define SIM_MINKDIST 4
-#define SIM_JACSIM 5
-#define SIM_HISINTR 6
-#define SIM_CROCOR 7
-#define SIM_CSQDIST 8
+enum hist_cmpr_flag { SIM_COSSIM, SIM_MANDIST, SIM_EUCDIST, SIM_MINKDIST, SIM_JACSIM, SIM_HISINTR, SIM_CROCOR, SIM_CSQDIST };
 
 
 namespace img {
@@ -19,8 +14,11 @@ namespace img {
 
 static QList<img::Image> imageList;
 
+static dbop::Database* iop_dbPtr;
+
 namespace iop {
-	bool histogramEqualityCheck(img::Image operand, int fb, int sb, int tb);
+	void setDatabaseClass(dbop::Database dbObj);
+	bool histogramEqualityCheck(feat::Histogram operand, int fb, int sb, int tb);
 	float calculateHistogramSimilarity(img::Image& lefthand, img::Image& righthand, int fb, int sb, int tb, int flaghist, int flagsim);
 	cv::Mat calculateEdge(img::Image& lefthand, int flag);
 	int getMinkowskiOrder();

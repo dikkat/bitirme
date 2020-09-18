@@ -21,10 +21,17 @@
 	ASK SO ABOUT XXHASH VALUES BEING DIFFERENT -- NVM FIXED
 	BUILD THE DATABASE DETAILS WILL FOLLOW -- BUILD IN COOP WITH GUI
 	BUILD GUI DETAILS WILL FOLLOW -- HERE ARE THE DETAILS
-	VISUALISE THE GUI - BY GRAPHITE PENCIL(OR WHATEVER KURÞUN KALEM IN ENG IS) IF YOU HAVE TO
-	PLACE ALL THE BUTTONS AND TABS
-	ADD FUNCTIONS TO THOSE OBJECTS
-	CHANGE RESIZE PARAMETERS AT DBOP::INSERT_IMAGE FUNCTION
+		VISUALISE THE GUI - BY GRAPHITE PENCIL(OR WHATEVER KURÞUN KALEM IN ENG IS) IF YOU HAVE TO -- DONE I SUPPOSE
+		PLACE ALL THE BUTTONS AND TABS
+		ADD FUNCTIONS TO THOSE OBJECTS
+		ASK SOME QUESTIONS ON SO
+			WHY IS TABLEVIEW SHOWING A BOX INSTEAD OF STRING
+			WHY IS TABLEVIEW HEADER STRING FAULTY
+			WHY IS TABLEVIEW LAGGY
+		GO BACK TO LINKER.CPP LINE 29 AND INSERT TO ICONIMAGE
+	ADD UHMMMMM WHAT WAS IT YES EDGE COMPARISON METHODS AND MAYBE CORNER ASWELL
+	CHANGE RESIZE PARAMETERS AT DBOP::INSERT_IMAGE FUNCTION -- DONE
+	LETS NOT FORGET MULTI THREADING
 
 	FINISH UNIVERSITY
 	GET A 15K DOLLAR PER MONTH JOB
@@ -67,10 +74,11 @@ int main(int argc, char* argv[])
 	sum = 0;
 	for (int i = 0; i < timeVec.size(); i++)
 		sum += timeVec[i];
-	std::cout << sum / timeVec.size() << std::endl;
+	 << sum / timeVec.size() << std::endl;
 	*/
-
 	dbop::Database db("bitirme.db");
+	iop::setDatabaseClass(db);
+	lnkr::setDatabaseClass(db);
 	/*
 	img::Image ima("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench00140.jpg", cv::IMREAD_COLOR);
 	img::Image imc("C:/desired/path/to/Images/static_outdoor_il_giocco_lucca_italy/IMG_9129.jpg", cv::IMREAD_COLOR);
@@ -151,12 +159,14 @@ int main(int argc, char* argv[])
 	/*for (int i = 0; i < xdc.size(); i++) {
 		gen::tout << xdc[i].imgrh->getImageName() << "\t" << xdc[i].simval << "\t" << xde[i].simval << "\t" << xdc[i].simval - xde[i].simval << std::endl;
 	}*/
-	
-
-	
-	gen::printTesting(gen::tout);
 	QApplication a(argc, argv);
-	MainWindow w;
-	w.show();
-	return a.exec();
+	MainWindow w = MainWindow(db);
+	while (true) {
+		
+
+			gen::printTesting(gen::tout);
+			w.show();
+			return a.exec();
+		
+	}
 }

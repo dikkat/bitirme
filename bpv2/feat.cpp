@@ -7,7 +7,7 @@ cv::Mat feat::prewittY = (cv::Mat_<float>(3, 3) << 1, 1, 1, 0, 0, 0, -1, -1, -1)
 cv::Mat feat::robertX = (cv::Mat_<float>(2, 2) << 1, 0, 0, -1);
 cv::Mat feat::robertY = (cv::Mat_<float>(2, 2) << 0, 1, -1, 0);
 
-feat::Histogram::Histogram(cv::Mat imageMat, int fb, int sb, int tb, int flag) {
+feat::Histogram::Histogram(cv::Mat imageMat, int flag, int fb, int sb, int tb) {
     fbin = fb;
     sbin = sb;
     tbin = tb;
@@ -18,7 +18,7 @@ feat::Histogram::Histogram(cv::Mat imageMat, int fb, int sb, int tb, int flag) {
         else if (imageMat.channels() == 3)
             histMat = histogramBGRCalculation(imageMat);
         else
-            throw std::exception("Illegal histogram build flag.");
+            throw std::exception("Illegal number of channels for histogram.");
     }
 
     else if (flag == HIST_BGR)
@@ -33,7 +33,7 @@ feat::Histogram::Histogram(cv::Mat imageMat, int fb, int sb, int tb, int flag) {
     nhistMat = normalizeMat(histMat, 0, 1);
     histFlag = flag;
     sourceMat = imageMat;
-    histHash = feat::Hash::setHash(nullptr, &std::vector<float>{static_cast<float>(flag), static_cast<float>(fb),
+    hash = feat::Hash::setHash(nullptr, &std::vector<float>{static_cast<float>(flag), static_cast<float>(fb),
         static_cast<float>(sb), static_cast<float>(tb)});
 }
 
@@ -56,7 +56,7 @@ std::vector<float> feat::Histogram::getVariablesFloat() {
 }
 
 XXH64_hash_t feat::Histogram::getHash() {
-    return histHash;
+    return hash;
 }
 
 cv::Mat feat::Histogram::histogramHSVCalculation(cv::Mat sourceMat) {
@@ -162,6 +162,13 @@ cv::Mat feat::Histogram::createHistogramDisplayImage(std::vector<cv::Mat> bgrhis
     return histImgMat;
 }
 
+cv::Mat feat::Histogram::createHistogramDisplayImage(int hist_w, int hist_h) { //https://stackoverflow.com/a/46202761/9304781
+    cv::Mat oper = histMat.clone();
+    oper.convertTo(oper, CV_64F);
+    cv::Mat resultMat;
+    return resultMat;
+}
+
 feat::Edge::Edge(cv::Mat imageMat, int flag, feat::Edge::Canny* edc) {
     cv::Mat oper;
     switch (flag) {
@@ -178,7 +185,7 @@ feat::Edge::Edge(cv::Mat imageMat, int flag, feat::Edge::Canny* edc) {
         if (edc == nullptr)
             throw std::exception("Initialize Canny class first.");
         else {
-            child = edc;
+            child_edc = edc;
             edc->parent = this;
             oper = edc->edgeDetectionCanny(imageMat);
         }
@@ -188,6 +195,14 @@ feat::Edge::Edge(cv::Mat imageMat, int flag, feat::Edge::Canny* edc) {
     }
     edgeFlag = flag;
     sourceMat = oper;
+
+    hash = feat::Hash::setHash(nullptr, &std::vector<float>{static_cast<float>(flag)});
+    if (child_edc != nullptr) {
+        std::vector<std::string> hashVec;
+        hashVec.push_back(std::to_string(hash));
+        hashVec.push_back(std::to_string(child_edc->getHash()));
+        hash = feat::Hash::setHash(hashVec);
+    }
 }
 
 int feat::Edge::getEdgeFlag() { 
@@ -196,13 +211,13 @@ int feat::Edge::getEdgeFlag() {
 
 std::vector<XXH64_hash_t> feat::Edge::getHashVariables() {
     if(edcHash != nullptr)
-        return std::vector<XXH64_hash_t>{edgeHash};
+        return std::vector<XXH64_hash_t>{hash};
     else
-        return std::vector<XXH64_hash_t>{edgeHash, *edcHash};
+        return std::vector<XXH64_hash_t>{hash, *edcHash};
 }
 
 feat::Edge::Canny* feat::Edge::getCannyPtr() {
-    return child;
+    return child_edc;
 }
 
 cv::Mat feat::Edge::edgeDetectionSobel(cv::Mat const imageMat) {
@@ -377,7 +392,7 @@ std::vector<cv::Mat> feat::Edge::calculateEdgeGradientMagnitudeDirection(cv::Mat
 
 cv::Mat feat::Edge::Canny::edgeDetectionCanny(cv::Mat const imageMat) {
     if (sourceMat.data == NULL) {
-        parent->edcHash = &Hash;
+        parent->edcHash = &hash;
         sourceMat = calculate(imageMat);
         return sourceMat;
     }
@@ -413,11 +428,11 @@ std::vector<cv::Mat> feat::Edge::Canny::getVariablesMat() {
 }
 
 XXH64_hash_t feat::Edge::Canny::getHash() {
-    return Hash;
+    return hash;
 }
 
 void feat::Edge::Canny::setHash() {
-    Hash = feat::Hash::setHash(&getVariablesMat(), &getVariablesFloat());
+    hash = feat::Hash::setHash(&getVariablesMat(), &getVariablesFloat());
 }
 
 cv::Mat feat::Edge::Canny::calculate(cv::Mat const imageMat) { //Computer Vision, Mar 2000, Alg 24
@@ -561,7 +576,7 @@ feat::Corner::Corner(cv::Mat imageMat, int flag, int numofScales, float scaleRat
     default:
         throw std::exception("Illegal edge detection flag.");
     }
-    edgeFlag = flag;
+    cornerFlag = flag;
     sourceMat = oper;
 }
 
@@ -957,5 +972,5 @@ XXH64_hash_t feat::Hash::setHash(std::vector<std::string> strVec) {
     std::string combined = "";
     for (std::string i : strVec)
         combined.append(i);
-    return XXH64(&combined, combined.size(), NULL);
+    return XXH64(combined.c_str(), combined.size(), NULL);
 }

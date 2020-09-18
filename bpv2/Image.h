@@ -21,7 +21,7 @@ namespace img {
 		const std::string getImageName();
 		cv::Mat getImageMat();
 		std::vector<std::string> getVariablesString();
-		XXH64_hash_t getHash();
+		XXH64_hash_t getHash();		
 	private:
 		XXH64_hash_t hash;
 		cv::Mat imageMat;
@@ -29,6 +29,17 @@ namespace img {
 		void setImageDirectory(std::string imgdir);
 		cv::Mat readImageFile(std::string imgdir, int flag);
 	};
+
+	class Icon {
+	public:
+		Icon(cv::Mat iconMat_src);
+		cv::Mat getIconMat();
+		XXH64_hash_t getHash();
+	private:
+		XXH64_hash_t hash;
+		cv::Mat iconMat;
+	};
+
 	std::string buildImageName(std::string imgdir);
 	std::vector<Image> readImageFolder(std::string imagefoldername, int flag, bool all, int number);
 	std::string typeToString(int type);

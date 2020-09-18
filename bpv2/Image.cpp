@@ -1,7 +1,5 @@
 #include "image.h"
 
-
-
 img::Image::Image(std::string imgdir, int flag) {
 	imageMat = readImageFile(imgdir, flag);
     name = buildImageName(imgdir);
@@ -52,8 +50,24 @@ cv::Mat img::Image::readImageFile(std::string imgdir, int flag) {
 	return matoperator;
 }
 
+img::Icon::Icon(cv::Mat iconMat_src) {
+    cv::Mat iconMatOper = iconMat_src.clone();
 
+    int maximumWidth = 100;
+    int maximumHeight = MIN(maximumWidth * iconMatOper.rows / iconMatOper.cols, maximumWidth);
+    cv::resize(iconMatOper, iconMatOper, cv::Size(maximumWidth, maximumHeight));
 
+    hash = feat::Hash::setHash(&std::vector<cv::Mat>{iconMatOper}, nullptr);
+    iconMat = iconMatOper;
+}
+
+cv::Mat img::Icon::getIconMat() {
+    return iconMat;
+}
+
+XXH64_hash_t img::Icon::getHash() {
+    return hash;
+}
 
 std::vector<img::Image> img::readImageFolder(std::string imagefolderdirectory, int flag, bool all, int number) {
     if (imagefolderdirectory.find(".") != std::string::npos)

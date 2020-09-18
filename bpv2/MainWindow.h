@@ -29,57 +29,9 @@
 #include "ui_MainWindow.h"
 #include "iop.h"
 #include "dbop.h"
+#include "linker.h"
 
 namespace qtdbop {
-
-	const auto IMAGE_SQL = QLatin1String(R"(
-    create table image(hash text primary key not null, iconmat blob not null, name text not null, dir text not null)
-    )");
-
-	const auto HISTOGRAM_SQL = QLatin1String(R"(
-    create table histogram(hash primary key not null, flag int not null, fbin int not null, sbin int, tbin int)
-    )");
-
-	const auto EDGECANNY_SQL = QLatin1String(R"(
-    create table edgecanny(hash text primary key not null, gausskernelsize int not null, sigma real not null, thigh real not null,
-	tlow real not null, kernelx blob not null, kernely blob not null)
-    )");
-
-	const auto EDGE_SQL = QLatin1String(R"(
-	create table edge(hash text primary key not null, flag int not null, edc_hash text, foreign key(edc_hash) references 
-	edgecanny(hash) on delete cascade)
-	)");
-
-	const auto CORNERHARRIS_SQL = QLatin1String(R"(
-    create table cornerharris(hash text primary key not null, radius int not null, squaresize int not null, sigmai real not null,
-	sigmad real not null, alpha real not null, kernelx blob not null, kernely blob not null)
-    )");
-
-	const auto CORNER_SQL = QLatin1String(R"(
-	create table corner(hash text primary key not null, flag int not null, cdh_hash text, numberofscales int not null,
-	scaleratio real, foreign key(cdh_hash) references cornerharris(hash) on delete cascade)
-	)");
-
-	const auto IMAGEHISTOGRAM_SQL = QLatin1String(R"(
-	create table image_histogram(img_hash text not null, hist_hash text not null, 
-	foreign key(img_hash) references image(hash) on delete cascade,
-	foreign key(hist_hash) references histogram(hash) on delete cascade,
-	primary key(img_hash,hist_hash))
-	)");
-
-	const auto IMAGEEDGE_SQL = QLatin1String(R"(
-	create table image_edge(img_hash text not null, edge_hash text not null, 
-	foreign key(img_hash) references image(hash) on delete cascade,
-	foreign key(edge_hash) references edge(hash) on delete cascade,
-	primary key(img_hash,edge_hash))
-	)");
-
-	const auto IMAGECORNER_SQL = QLatin1String(R"(
-	create table image_corner(img_hash text not null, corner_hash text not null, 
-	foreign key(img_hash) references image(hash) on delete cascade,
-	foreign key(corner_hash) references corner(hash) on delete cascade,
-	primary key(img_hash,corner_hash))
-	)");
 
 	const auto INSERT_IMAGE_SQL = QLatin1String(R"(
     insert into image values(?, ?, ?, ?)
@@ -93,8 +45,9 @@ namespace qtdbop {
     insert into edge values(?, ?, ?)
     )");
 
-	QSqlError initDb();
 }
+
+extern QSqlDatabase qDB;
 
 class TextEdit;
 
@@ -110,20 +63,29 @@ public:
 	QVariant data(const QModelIndex& index, int role = Qt::DisplayRole) const override;
 };
 
+static dbop::Database* mw_dbPtr;
+
 class MainWindow : public QMainWindow , public QObject {
 	Q_OBJECT
 public:
-	MainWindow(QWidget *parent = Q_NULLPTR);
+	MainWindow(dbop::Database dbObj, QWidget *parent = Q_NULLPTR);
+	void showError(QString err);
+	void showError(const QSqlError& err);
+	Ui::MainWindow getUI();
 private slots:
 	void openImageLabel();
 	void hideConsole();
 	void openList();
+	void displayHash(img::Image* dest_img = nullptr);
+	void displayFeature();
 private:
 	Ui::MainWindow ui;
 	QSqlRelationalTableModel* model;
-	int iconIdx, simValIdx;
-	void showError(const QSqlError& err);
-	void createMenuBar();
+	int iconIdx, simValIdx = 2;
+	QList<int> prepareHistogram();
+	QList<float> prepareEdge();
+	QList<float> prepareCorner();
+	QImage calculateFeature(int index);
 	void createActions();
 	bool loadFiles(const QStringList& fileNames);
 	bool loadFile(const QString& fileName);
@@ -131,6 +93,6 @@ private:
 	void printToScreen(QString text);
 	void setImage(QLabel* imlabel, const QImage& newImage);
 	void addToMainTable(img::Image* image);
-
 	QImage image;
+	img::Image* srcImg = nullptr;
 };

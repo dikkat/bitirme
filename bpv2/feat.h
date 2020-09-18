@@ -4,7 +4,10 @@
 #include "xxhash.h"
 #include "sim.h"
 
-enum hist_flag { HIST_BGR, HIST_HSV, HIST_GRAY };
+#define WITHOUT_NUMPY
+#include "matplotlibcpp.h"
+
+enum hist_flag { HIST_GRAY, HIST_BGR, HIST_HSV };
 enum edge_flag { EDGE_SOBEL, EDGE_PREWT, EDGE_ROBRT, EDGE_CANNY, EDGE_DRCHE };
 enum corner_flag { CORNER_HARRIS, CORNER_HARLAP };
 
@@ -30,14 +33,16 @@ namespace feat {
 
 	class Histogram {
 	public:
-		Histogram(cv::Mat imageMat, int fb = 10, int sb = 4, int tb = 4, int flag = -1);
+		Histogram(cv::Mat imageMat, int flag = -1, int fb = 10, int sb = 4, int tb = 4);
 		cv::Mat getHistogramMat();
 		cv::Mat getNormalizedHistogramMat();
 		int* getBin();
 		std::vector<float> getVariablesFloat();
 		XXH64_hash_t getHash();
+		cv::Mat createHistogramDisplayImage(std::vector<cv::Mat> bgrhist, int hist_w, int hist_h);
+		cv::Mat createHistogramDisplayImage(int hist_w, int hist_h);
 	private:
-		XXH64_hash_t histHash;
+		XXH64_hash_t hash;
 		cv::Mat sourceMat;
 		cv::Mat histMat, nhistMat;
 		int fbin, sbin, tbin, histFlag;
@@ -48,7 +53,6 @@ namespace feat {
 		cv::Mat histogramGRAYCalculation(cv::Mat sourceMat);
 		cv::Mat normalizeMat(cv::Mat sourceMat, float alpha, float beta);
 		std::vector<cv::Mat> histogramBGRSeparateCalculation(cv::Mat sourceMat);
-		cv::Mat createHistogramDisplayImage(std::vector<cv::Mat> bgrhist, int hist_w, int hist_h);
 	};
 
 	class Edge {
@@ -67,7 +71,7 @@ namespace feat {
 			XXH64_hash_t getHash();
 		private:
 			friend class Edge;
-			XXH64_hash_t Hash;
+			XXH64_hash_t hash;
 			Edge* parent;
 			cv::Mat sourceMat;
 			float gaussKernelSize;
@@ -87,9 +91,9 @@ namespace feat {
 		std::vector<XXH64_hash_t> getHashVariables();
 		static std::vector<cv::Mat> calculateEdgeGradientMagnitudeDirection(cv::Mat const kx, cv::Mat const ky, cv::Mat const imat);
 	private:
-		XXH64_hash_t edgeHash;
+		XXH64_hash_t hash;
 		XXH64_hash_t* edcHash = nullptr;
-		Canny* child = nullptr;
+		Canny* child_edc = nullptr;
 		int edgeFlag;
 		cv::Mat sourceMat;
 		Canny* getCannyPtr();
@@ -134,10 +138,10 @@ namespace feat {
 		static cv::Mat cornerDetectionHarrisLaplace(cv::Mat imageMat, float n = 3, float scaleRatio = 0);
 		static void localMaxima(cv::Mat src, cv::Mat& dst, int squareSize, float threshold);
 	private:
-		XXH64_hash_t cornerHash;
+		XXH64_hash_t hash;
 		XXH64_hash_t* cdhHash = nullptr;
 		Harris* child = nullptr;
-		int edgeFlag;
+		int cornerFlag;
 		cv::Mat sourceMat;
 	};	
 }

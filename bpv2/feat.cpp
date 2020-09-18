@@ -166,11 +166,6 @@ cv::Mat feat::Histogram::createHistogramDisplayImage(int hist_w, int hist_h) { /
     cv::Mat oper = histMat.clone();
     oper.convertTo(oper, CV_64F);
     cv::Mat resultMat;
-    matplotlibcpp::figure_size(300, 300);
-    matplotlibcpp::plot(oper);
-    matplotlibcpp::xlim(0, 255);
-    matplotlibcpp::title("Sample figure");    
-    matplotlibcpp::save("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/test/tester5.jpg");
     return resultMat;
 }
 

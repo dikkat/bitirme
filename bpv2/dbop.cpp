@@ -20,9 +20,11 @@ void dbop::Database::initializeDatabase(std::string dbName) {
 }
 
 void dbop::Database::errorCheck(int rc, char* zErrMsg) {
-    if (rc != SQLITE_OK) {
-        throw std::exception(("SQL error: %s\n", zErrMsg));
-        sqlite3_free(zErrMsg);
+    if (rc != SQLITE_OK && rc != SQLITE_DONE) {
+        std::string errMsg = zErrMsg;
+        if (errMsg.find("UNIQUE") != std::string::npos);
+        else
+            throw std::exception(("SQL error: %s\n", zErrMsg));
     }
 }
 
@@ -114,7 +116,7 @@ void dbop::Database::initializeTables() {
         sql = "CREATE TABLE Corner(" \
             "hash TEXT PRIMARY KEY NOT NULL," \
             "flag INT NOT NULL," \
-            "cdhHash TEXT," \
+            "cdhHash TEXT NOT NULL," \
             "numberOfScales INT NOT NULL," \
             "scaleRatio REAL," \
             "FOREIGN KEY (cdhHash)" \
@@ -224,7 +226,31 @@ void dbop::Database::initializeTables() {
             "PRIMARY KEY (imHash, iconHash));";
         rc = sqlite3_exec(db, sql, callback, 0, &zErrMsg);
         errorCheck(rc, zErrMsg);
-    }    
+    }
+
+    sql = "SELECT name FROM sqlite_master WHERE type='table' and name = 'SourceImage';";
+    rc = sqlite3_get_table(db, sql, &resultp, &row, &col, &zErrMsg);
+    errorCheck(rc,zErrMsg);
+    if (row == 0) {
+        sql = "CREATE TABLE SourceImage(" \
+            "hash TEXT PRIMARY KEY NOT NULL," \
+            "name TEXT NOT NULL," \
+            "dir TEXT NOT NULL);";
+        rc = sqlite3_exec(db, sql, callback, 0, &zErrMsg);
+        errorCheck(rc, zErrMsg);
+    }
+
+    sql = "SELECT name FROM sqlite_master WHERE type='table' and name = 'DestImage';";
+    rc = sqlite3_get_table(db, sql, &resultp, &row, &col, &zErrMsg);
+    errorCheck(rc, zErrMsg);
+    if (row == 0) {
+        sql = "CREATE TABLE DestImage(" \
+            "hash TEXT PRIMARY KEY NOT NULL," \
+            "name TEXT NOT NULL," \
+            "dir TEXT NOT NULL);";
+        rc = sqlite3_exec(db, sql, callback, 0, &zErrMsg);
+        errorCheck(rc, zErrMsg);
+    }
 }
 
 int dbop::Database::callback(void* data, int argc, char** argv, char** azColName) {
@@ -240,9 +266,9 @@ int dbop::Database::callback(void* data, int argc, char** argv, char** azColName
 }
 
 void dbop::Database::insert_Image(std::string dir) {
-    XXH64_hash_t hash = feat::Hash::setHash(std::vector<std::string>{dir});
-    std::string hash_str = std::to_string(hash);
-    std::string name_str = img::buildImageName(dir);
+    img::Image imgOper(dir, cv::IMREAD_COLOR);
+    std::string hash_str = std::to_string(imgOper.getHash());
+    std::string name_str = imgOper.getImageName();
 
     sqlite3_stmt* strQuery = NULL;
     int rc = sqlite3_prepare_v2(db, "INSERT INTO image(hash, iconmat, name, dir) VALUES (?, ?, ?)", -1, &strQuery, NULL);
@@ -250,11 +276,7 @@ void dbop::Database::insert_Image(std::string dir) {
     sqlite3_bind_text(strQuery, 2, name_str.c_str(), name_str.size(), SQLITE_STATIC);
     sqlite3_bind_text(strQuery, 3, dir.c_str(), dir.size(), SQLITE_STATIC);
     rc = sqlite3_step(strQuery);
-    if (rc != SQLITE_DONE) {
-        char errMsg[200];
-        sprintf(errMsg, "SQL error in Image: %s with name = %s\n", sqlite3_errmsg(db), name_str.c_str());
-        throw std::exception(errMsg);
-    }
+    errorCheck(rc, const_cast<char*>(sqlite3_errmsg(db)));
 }
 
 void dbop::Database::insert_Image(img::Image image) {
@@ -268,17 +290,12 @@ void dbop::Database::insert_Image(img::Image image) {
     sqlite3_bind_text(strQuery, 2, name_str.c_str(), name_str.size(), SQLITE_STATIC);
     sqlite3_bind_text(strQuery, 3, dir_str.c_str(), dir_str.size(), SQLITE_STATIC);
     rc = sqlite3_step(strQuery);
-    if (rc != SQLITE_DONE) {
-        char errMsg[200];
-        sprintf(errMsg, "SQL error: %s with name = %s\n", sqlite3_errmsg(db), name_str.c_str());
-        throw std::exception(errMsg);
-    }
+    errorCheck(rc, const_cast<char*>(sqlite3_errmsg(db)));
 }
 
 void dbop::Database::insert_Histogram(int flag, int fb, int sb, int tb) {
-    XXH64_hash_t hash = feat::Hash::setHash(nullptr, &std::vector<float>{static_cast<float>(flag), static_cast<float>(fb),
-        static_cast<float>(sb), static_cast<float>(tb)});
-    std::string hash_str = std::to_string(hash);
+    feat::Histogram histOper(cv::Mat(), flag, fb, sb, tb);
+    std::string hash_str = std::to_string(histOper.getHash());
 
     char sql[300];
     sprintf(sql, "INSERT INTO Histogram " \
@@ -299,45 +316,48 @@ void dbop::Database::insert_Histogram(feat::Histogram hist) {
 }
 
 void dbop::Database::insert_Edge(int flag, feat::Edge::Canny* edcOper) {
-    XXH64_hash_t hash = feat::Hash::setHash(nullptr, &std::vector<float>{static_cast<float>(flag)});
-    std::string hash_str = std::to_string(hash);
+    feat::Edge edgeOper(cv::Mat(), flag, edcOper);
+    std::string hash_str = std::to_string(edgeOper.getHashVariables()[0]);
 
-    char sql[300];
+    sqlite3_stmt* strQuery = NULL;
+    int rc = sqlite3_prepare_v2(db, "INSERT INTO edge(hash, flag, edchash) VALUES (?, ?, ?)", -1, &strQuery, NULL);
 
     if (edcOper != nullptr) {
-        std::string edcHash;
-        std::vector<std::string> hashVec;
-        hashVec.push_back(std::to_string(hash));
-        hashVec.push_back(std::to_string(edcOper->getHash()));
-        edcHash = std::to_string(feat::Hash::setHash(hashVec));
-        
-        sprintf(sql, "INSERT INTO Edge " \
-            "VALUES ('%s', %d, '%s');", hash_str.c_str(), flag, edcHash.c_str());
+        std::string edcHash_str = std::to_string(edcOper->getHash());
+        sqlite3_bind_text(strQuery, 1, hash_str.c_str(), hash_str.size(), SQLITE_STATIC);
+        sqlite3_bind_int(strQuery, 2, flag);
+        sqlite3_bind_text(strQuery, 3, edcHash_str.c_str(), edcHash_str.size(), SQLITE_STATIC);
+    }
+    else {
+        sqlite3_bind_text(strQuery, 1, hash_str.c_str(), hash_str.size(), SQLITE_STATIC);
+        sqlite3_bind_int(strQuery, 2, flag);
+        sqlite3_bind_null(strQuery,3);
     }
 
-    else
-        sprintf(sql, "INSERT INTO Edge " \
-            "VALUES ('%s', %d, %s);", hash_str.c_str(), flag, "NULL");
-
-    int rc = sqlite3_exec(db, sql, callback, 0, &zErrMsg);
-    errorCheck(rc, zErrMsg);
+    rc = sqlite3_step(strQuery);
+    errorCheck(rc, const_cast<char*>(sqlite3_errmsg(db)));
 }
 
 void dbop::Database::insert_Edge(feat::Edge edge) {
-    int flag = edge.getEdgeFlag();
-    std::vector<XXH64_hash_t> hashVec = edge.getHashVariables();
-    
-    char sql[300];
+    std::string hash_str = std::to_string(edge.getHashVariables()[0]);
 
-    if(hashVec.size() == 2)
-        sprintf(sql, "INSERT INTO Edge " \
-            "VALUES ('%s', %d, '%s');", std::to_string(hashVec[0]).c_str(), flag, std::to_string(hashVec[1]).c_str());
-    else
-        sprintf(sql, "INSERT INTO Edge " \
-            "VALUES ('%s', %d, '%s');", std::to_string(hashVec[0]).c_str(), flag, "NULL");
+    sqlite3_stmt* strQuery = NULL;
+    int rc = sqlite3_prepare_v2(db, "INSERT INTO edge(hash, flag, edchash) VALUES (?, ?, ?)", -1, &strQuery, NULL);
 
-    int rc = sqlite3_exec(db, sql, callback, 0, &zErrMsg);
-    errorCheck(rc, zErrMsg);
+    if (edge.getHashVariables().size() == 2) {
+        std::string edcHash_str = std::to_string(edge.getHashVariables()[1]);
+        sqlite3_bind_text(strQuery, 1, hash_str.c_str(), hash_str.size(), SQLITE_STATIC);
+        sqlite3_bind_int(strQuery, 2, edge.getEdgeFlag());
+        sqlite3_bind_text(strQuery, 3, edcHash_str.c_str(), edcHash_str.size(), SQLITE_STATIC);
+    }
+    else {
+        sqlite3_bind_text(strQuery, 1, hash_str.c_str(), hash_str.size(), SQLITE_STATIC);
+        sqlite3_bind_int(strQuery, 2, edge.getEdgeFlag());
+        sqlite3_bind_null(strQuery, 3);
+    }
+
+    rc = sqlite3_step(strQuery);
+    errorCheck(rc, const_cast<char*>(sqlite3_errmsg(db)));
 }
 
 void dbop::Database::insert_ImageHistogram(XXH64_hash_t imHash, XXH64_hash_t histHash) {
@@ -351,54 +371,45 @@ void dbop::Database::insert_ImageHistogram(XXH64_hash_t imHash, XXH64_hash_t his
 }
 
 void dbop::Database::insert_Icon(cv::Mat iconMat_src) {
-    cv::Mat iconMat = iconMat_src.clone();
-    int maximumWidth = 100;
-    int maximumHeight = MIN(maximumWidth * iconMat.rows / iconMat.cols, maximumWidth);
-    cv::resize(iconMat, iconMat, cv::Size(maximumWidth, maximumHeight));
+    img::Icon icon(iconMat_src);
 
-    XXH64_hash_t hash = feat::Hash::setHash(&std::vector<cv::Mat>{iconMat}, nullptr);
-    std::string hash_str = std::to_string(hash);
-
-    std::string icon_str = serializeMat(iconMat);
-    const char* iconChar = icon_str.c_str();
-
-    sqlite3_stmt* strQuery = NULL;
-    int rc = sqlite3_prepare_v2(db, "INSERT INTO icon(hash, mat) VALUES (?, ?)", -1, &strQuery, NULL);
-    sqlite3_bind_text(strQuery, 1, hash_str.c_str(), hash_str.size(), SQLITE_STATIC);
-    sqlite3_bind_blob(strQuery, 2, iconChar, strlen(iconChar), SQLITE_STATIC);
-    rc = sqlite3_step(strQuery);
-    if (rc != SQLITE_DONE) {
-        char errMsg[200];
-        sprintf(errMsg, "SQL error in Icon: %s\n", sqlite3_errmsg(db));
-        throw std::exception(errMsg);
-    }
-}
-
-void dbop::Database::insert_Icon(img::Icon icon) {
     std::string hash_str = std::to_string(icon.getHash());
-    char sql[300];
-    int row;
 
-    sprintf(sql, "SELECT hash FROM icon WHERE hash = '%s';", hash_str);
-    int rc = sqlite3_get_table(db, sql, nullptr, &row, nullptr, &zErrMsg);
-    errorCheck(rc, zErrMsg);
-
-    if (row == 1)
+    std::string condition = "hash='" + hash_str + "'";
+    if (select_Hash("", "icon", condition).size() == 1)
         return;
 
     std::string icon_str = serializeMat(icon.getIconMat());
     const char* iconChar = icon_str.c_str();
 
     sqlite3_stmt* strQuery = NULL;
-    rc = sqlite3_prepare_v2(db, "INSERT INTO icon(hash, mat) VALUES (?, ?)", -1, &strQuery, NULL);
+    int rc = sqlite3_prepare_v2(db, "INSERT INTO icon(hash, mat) VALUES (?, ?)", -1, &strQuery, NULL);
+
     sqlite3_bind_text(strQuery, 1, hash_str.c_str(), hash_str.size(), SQLITE_STATIC);
     sqlite3_bind_blob(strQuery, 2, iconChar, strlen(iconChar), SQLITE_STATIC);
+
     rc = sqlite3_step(strQuery);
-    if (rc != SQLITE_DONE) {
-        char errMsg[200];
-        sprintf(errMsg, "SQL error in Icon: %s\n", sqlite3_errmsg(db));
-        throw std::exception(errMsg);
-    }
+    errorCheck(rc, const_cast<char*>(sqlite3_errmsg(db)));
+}
+
+void dbop::Database::insert_Icon(img::Icon icon) {
+    std::string hash_str = std::to_string(icon.getHash());
+    
+    std::string condition = "hash='" + hash_str + "'";
+    if (select_Hash("", "icon", condition).size() == 1)
+        return;
+
+    std::string icon_str = serializeMat(icon.getIconMat());
+    const char* iconChar = icon_str.c_str();
+
+    sqlite3_stmt* strQuery = NULL;
+    int rc = sqlite3_prepare_v2(db, "INSERT INTO icon(hash, mat) VALUES (?, ?)", -1, &strQuery, NULL);
+
+    sqlite3_bind_text(strQuery, 1, hash_str.c_str(), hash_str.size(), SQLITE_STATIC);
+    sqlite3_bind_blob(strQuery, 2, iconChar, strlen(iconChar), SQLITE_STATIC);
+
+    rc = sqlite3_step(strQuery);
+    errorCheck(rc, const_cast<char*>(sqlite3_errmsg(db)));
 }
 
 void dbop::Database::insert_ImageIcon(XXH64_hash_t imHash, XXH64_hash_t iconHash) {
@@ -406,6 +417,188 @@ void dbop::Database::insert_ImageIcon(XXH64_hash_t imHash, XXH64_hash_t iconHash
 
     sprintf(sql, "INSERT INTO ImageIcon " \
         "VALUES ('%s', '%s');", std::to_string(imHash).c_str(), std::to_string(iconHash).c_str());
+
+    int rc = sqlite3_exec(db, sql, callback, 0, &zErrMsg);
+    errorCheck(rc, zErrMsg);
+}
+
+void dbop::Database::insert_SourceImage(img::Image image) {
+    std::string hash_str = std::to_string(image.getHash());
+    std::string name_str = image.getVariablesString()[0];
+    std::string dir_str = image.getVariablesString()[1];
+
+    sqlite3_stmt* strQuery = NULL;
+    int rc = sqlite3_prepare_v2(db, "INSERT INTO SourceImage(hash, name, dir) VALUES (?, ?, ?)", -1, &strQuery, NULL);
+    sqlite3_bind_text(strQuery, 1, hash_str.c_str(), hash_str.size(), SQLITE_STATIC);
+    sqlite3_bind_text(strQuery, 2, name_str.c_str(), name_str.size(), SQLITE_STATIC);
+    sqlite3_bind_text(strQuery, 3, dir_str.c_str(), dir_str.size(), SQLITE_STATIC);
+    rc = sqlite3_step(strQuery);
+    errorCheck(rc, const_cast<char*>(sqlite3_errmsg(db)));
+}
+
+void dbop::Database::insert_EdgeCanny(feat::Edge::Canny canny) {
+    feat::Edge edge(cv::Mat(), EDGE_CANNY, &canny);
+    insert_Edge(edge);
+
+    std::string condition = "hash='" + std::to_string(canny.getHash()) + "'";
+    if(select_Hash("", "edgecanny", condition).size() == 1)
+        return;
+
+    std::string hash_str = std::to_string(canny.getHash());
+    std::vector<float> floatVec = canny.getVariablesFloat();
+    std::vector<cv::Mat> matVec = canny.getVariablesMat();
+    std::string kernelx = dbop::serializeMat(matVec[0]);
+    std::string kernely = dbop::serializeMat(matVec[1]);
+
+    sqlite3_stmt* strQuery = NULL;
+    int rc = sqlite3_prepare_v2(db, "INSERT INTO edgecanny(hash, gausskernelsize, sigma, thigh, tlow, kernelx, kernely) " \
+        "VALUES (?, ?, ?, ?, ?, ?, ?)", -1, &strQuery, NULL);
+
+    sqlite3_bind_text(strQuery, 1, hash_str.c_str(), hash_str.size(), SQLITE_STATIC);
+    sqlite3_bind_int(strQuery, 2, static_cast<int>(floatVec[0]));
+    sqlite3_bind_double(strQuery, 3, static_cast<double>(floatVec[3]));
+    sqlite3_bind_double(strQuery, 4, static_cast<double>(floatVec[1]));
+    sqlite3_bind_double(strQuery, 5, static_cast<double>(floatVec[2]));
+    sqlite3_bind_blob(strQuery, 6, kernelx.c_str(), kernelx.size(), SQLITE_STATIC);
+    sqlite3_bind_blob(strQuery, 7, kernely.c_str(), kernely.size(), SQLITE_STATIC);
+    rc = sqlite3_step(strQuery);
+    errorCheck(rc, const_cast<char*>(sqlite3_errmsg(db)));
+}
+
+void dbop::Database::insert_EdgeCanny(int gaussKernelSize, float thigh, float tlow, float sigma, cv::Mat kernelx, cv::Mat kernely) {
+    feat::Edge::Canny canny(gaussKernelSize, sigma, thigh, tlow, kernelx, kernely);
+    feat::Edge edge(cv::Mat(), EDGE_CANNY, &canny);
+    insert_Edge(edge);
+
+    std::string condition = "hash=" + canny.getHash();
+    if (select_Hash("", "edgecanny", condition).size() == 1)
+        return;
+
+    std::string hash_str = std::to_string(canny.getHash());
+    std::string kernelx_srlzd = dbop::serializeMat(kernelx);
+    std::string kernely_srlzd = dbop::serializeMat(kernely);
+
+    sqlite3_stmt* strQuery = NULL;
+    int rc = sqlite3_prepare_v2(db, "INSERT INTO edgecanny(hash, gausskernelsize, sigma, thigh, tlow, kernelx, kernely) " \
+        "VALUES (?, ?, ?, ?, ?, ?, ?)", -1, &strQuery, NULL);
+
+    sqlite3_bind_text(strQuery, 1, hash_str.c_str(), hash_str.size(), SQLITE_STATIC);
+    sqlite3_bind_int(strQuery, 2, gaussKernelSize);
+    sqlite3_bind_double(strQuery, 3, static_cast<double>(sigma));
+    sqlite3_bind_double(strQuery, 4, static_cast<double>(thigh));
+    sqlite3_bind_double(strQuery, 5, static_cast<double>(tlow));
+    sqlite3_bind_blob(strQuery, 6, kernelx_srlzd.c_str(), kernelx_srlzd.size(), SQLITE_STATIC);
+    sqlite3_bind_blob(strQuery, 7, kernely_srlzd.c_str(), kernely_srlzd.size(), SQLITE_STATIC);
+    rc = sqlite3_step(strQuery);
+    errorCheck(rc, const_cast<char*>(sqlite3_errmsg(db)));
+}
+
+void dbop::Database::insert_ImageEdge(XXH64_hash_t imHash, XXH64_hash_t edgeHash) {
+    char sql[300];
+
+    sprintf(sql, "INSERT INTO ImageEdge " \
+        "VALUES ('%s', '%s');", std::to_string(imHash).c_str(), std::to_string(edgeHash).c_str());
+
+    int rc = sqlite3_exec(db, sql, callback, 0, &zErrMsg);
+    errorCheck(rc, zErrMsg);
+}
+
+void dbop::Database::insert_CornerHarris(float radius, float squareSize, float sigmai, float sigmad, float alpha,
+    cv::Mat kernelx, cv::Mat kernely) {
+    feat::Corner::Harris harris(radius, squareSize, sigmai, sigmad, alpha,
+        kernelx, kernely);
+
+    std::string condition = "hash=" + harris.getHash();
+    if (select_Hash("", "cornerharris", condition).size() == 1)
+        return;
+
+    std::string hash_str = std::to_string(harris.getHash());
+    std::string kernelx_srlzd = dbop::serializeMat(kernelx);
+    std::string kernely_srlzd = dbop::serializeMat(kernely);
+
+    sqlite3_stmt* strQuery = NULL;
+    int rc = sqlite3_prepare_v2(db, "INSERT INTO cornerHarris(hash, radius, squareSize, sigmai, sigmad, alpha, kernelx, kernely) " \
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)", -1, &strQuery, NULL);
+
+    sqlite3_bind_text(strQuery, 1, hash_str.c_str(), hash_str.size(), SQLITE_STATIC);
+    sqlite3_bind_int(strQuery, 2, static_cast<int>(round(radius)));
+    sqlite3_bind_int(strQuery, 3, static_cast<int>(round(squareSize)));
+    sqlite3_bind_double(strQuery, 4, static_cast<double>(sigmai));
+    sqlite3_bind_double(strQuery, 5, static_cast<double>(sigmad));
+    sqlite3_bind_double(strQuery, 6, static_cast<double>(alpha));
+    sqlite3_bind_blob(strQuery, 7, kernelx_srlzd.c_str(), kernelx_srlzd.size(), SQLITE_STATIC);
+    sqlite3_bind_blob(strQuery, 8, kernely_srlzd.c_str(), kernely_srlzd.size(), SQLITE_STATIC);
+    rc = sqlite3_step(strQuery);
+    errorCheck(rc, const_cast<char*>(sqlite3_errmsg(db)));
+}
+
+void dbop::Database::insert_CornerHarris(feat::Corner::Harris harris) {
+    std::string condition = "hash=" + harris.getHash();
+    if (select_Hash("", "cornerharris", condition).size() == 1)
+        return;
+
+    std::string hash_str = std::to_string(harris.getHash());
+    std::string kernelx_srlzd = dbop::serializeMat(harris.getVariablesMat()[0]);
+    std::string kernely_srlzd = dbop::serializeMat(harris.getVariablesMat()[1]);
+
+    sqlite3_stmt* strQuery = NULL;
+    int rc = sqlite3_prepare_v2(db, "INSERT INTO cornerHarris(hash, radius, squareSize, sigmai, sigmad, alpha, kernelx, kernely) " \
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)", -1, &strQuery, NULL);
+
+    sqlite3_bind_text(strQuery, 1, hash_str.c_str(), hash_str.size(), SQLITE_STATIC);
+    sqlite3_bind_int(strQuery, 2, static_cast<int>(round(harris.getVariablesFloat()[0])));
+    sqlite3_bind_int(strQuery, 3, static_cast<int>(round(harris.getVariablesFloat()[1])));
+    sqlite3_bind_double(strQuery, 4, static_cast<double>(harris.getVariablesFloat()[2]));
+    sqlite3_bind_double(strQuery, 5, static_cast<double>(harris.getVariablesFloat()[3]));
+    sqlite3_bind_double(strQuery, 6, static_cast<double>(harris.getVariablesFloat()[4]));
+    sqlite3_bind_blob(strQuery, 7, kernelx_srlzd.c_str(), kernelx_srlzd.size(), SQLITE_STATIC);
+    sqlite3_bind_blob(strQuery, 8, kernely_srlzd.c_str(), kernely_srlzd.size(), SQLITE_STATIC);
+    rc = sqlite3_step(strQuery);
+    errorCheck(rc, const_cast<char*>(sqlite3_errmsg(db)));
+}
+
+void dbop::Database::insert_Corner(int flag, int numberOfScales, float scaleRatio, feat::Corner::Harris* harrisOper) {
+    feat::Corner cornerOper(cv::Mat(), harrisOper, flag, numberOfScales, scaleRatio);
+    std::string hash_str = std::to_string(cornerOper.getHashVariables()[0]);
+
+    sqlite3_stmt* strQuery = NULL;
+    int rc = sqlite3_prepare_v2(db, "INSERT INTO corner(hash, flag, cdhHash, numberofScales, scaleRatio)" \
+        "VALUES (?, ?, ?, ?, ?)", -1, &strQuery, NULL);
+
+    std::string cdhHash_str = std::to_string(harrisOper->getHash());
+    sqlite3_bind_text(strQuery, 1, hash_str.c_str(), hash_str.size(), SQLITE_STATIC);
+    sqlite3_bind_int(strQuery, 2, flag);
+    sqlite3_bind_text(strQuery, 3, cdhHash_str.c_str(), cdhHash_str.size(), SQLITE_STATIC);
+    sqlite3_bind_int(strQuery, 4, numberOfScales);
+    sqlite3_bind_double(strQuery, 5, static_cast<double>(scaleRatio));
+
+    rc = sqlite3_step(strQuery);
+    errorCheck(rc, const_cast<char*>(sqlite3_errmsg(db)));
+}
+
+void dbop::Database::insert_Corner(feat::Corner corner) {
+    std::string hash_str = std::to_string(corner.getHashVariables()[0]);
+
+    sqlite3_stmt* strQuery = NULL;
+    int rc = sqlite3_prepare_v2(db, "INSERT INTO corner(hash, flag, cdhHash, numberofScales, scaleRatio)" \
+        "VALUES (?, ?, ?, ?, ?)", -1, &strQuery, NULL);
+
+    std::string cdhHash_str = std::to_string(corner.getHashVariables()[1]);
+    sqlite3_bind_text(strQuery, 1, hash_str.c_str(), hash_str.size(), SQLITE_STATIC);
+    sqlite3_bind_int(strQuery, 2, corner.getIntVariables()[0]);
+    sqlite3_bind_text(strQuery, 3, cdhHash_str.c_str(), cdhHash_str.size(), SQLITE_STATIC);
+    sqlite3_bind_int(strQuery, 4, corner.getIntVariables()[1]);
+    sqlite3_bind_double(strQuery, 5, static_cast<double>(corner.getScaleRatio));
+
+    rc = sqlite3_step(strQuery);
+    errorCheck(rc, const_cast<char*>(sqlite3_errmsg(db)));
+}
+
+void dbop::Database::insert_ImageCorner(XXH64_hash_t imHash, XXH64_hash_t cornerHash) {
+    char sql[300];
+
+    sprintf(sql, "INSERT INTO ImageCorner " \
+        "VALUES ('%s', '%s');", std::to_string(imHash).c_str(), std::to_string(cornerHash).c_str());
 
     int rc = sqlite3_exec(db, sql, callback, 0, &zErrMsg);
     errorCheck(rc, zErrMsg);
@@ -449,7 +642,9 @@ std::vector<std::vector<std::string>> dbop::Database::select_GENERAL(std::vector
         switch (int rc = sqlite3_step(strQuery)) {
         case SQLITE_ROW:
             for (int i = 0; i < att; i++) {
-                hashVec[i].push_back(reinterpret_cast<const char*>(sqlite3_column_text(strQuery, i + 1)));
+                if (sqlite3_column_bytes(strQuery, 0 + i) == 0);                    
+                else
+                    hashVec[i].push_back(reinterpret_cast<const char*>(sqlite3_column_text(strQuery, 0 + i)));
             }
             row++;
             break;
@@ -469,12 +664,19 @@ std::vector<std::vector<std::string>> dbop::Database::select_GENERAL(std::vector
     return std::vector<std::vector<std::string>>{};
 }
 
-std::vector<std::string> dbop::Database::select_Hash(std::string hashAbb, std::string className) {
+std::vector<std::string> dbop::Database::select_Hash(std::string hashAbb, std::string className, std::string condition) {
     sqlite3_stmt* strQuery = NULL;
 
-    int rc = sqlite3_prepare_v2(db, "SELECT ?hash FROM ?", -1, &strQuery, NULL);
-    sqlite3_bind_text(strQuery, 1, hashAbb.c_str(), hashAbb.size(), SQLITE_STATIC);
-    sqlite3_bind_text(strQuery, 2, className.c_str(), className.size(), SQLITE_STATIC);
+    int rc;
+    std::string stmt;
+    if (condition != "") {
+        stmt = "SELECT " + hashAbb + "hash" + " FROM " + className + " WHERE " + condition + ";";
+        rc = sqlite3_prepare_v2(db, stmt.c_str(), -1, &strQuery, NULL);
+    }
+    else {
+        stmt = "SELECT " + hashAbb + "hash" + " FROM " + className;
+        rc = sqlite3_prepare_v2(db, stmt.c_str(), -1, &strQuery, NULL);
+    }
 
     std::vector<std::string> hashVec;
     int row = 0;
@@ -482,7 +684,7 @@ std::vector<std::string> dbop::Database::select_Hash(std::string hashAbb, std::s
     while (!done) {
         switch (int rc = sqlite3_step(strQuery)) {
         case SQLITE_ROW:
-            hashVec.push_back(reinterpret_cast<const char*>(sqlite3_column_text(strQuery, 1)));
+            hashVec.push_back(reinterpret_cast<const char*>(sqlite3_column_text(strQuery, 0)));
             row++;
             break;
         case SQLITE_DONE:
@@ -494,6 +696,63 @@ std::vector<std::string> dbop::Database::select_Hash(std::string hashAbb, std::s
         }
     }
     return hashVec;
+}
+
+img::Image dbop::Database::select_SourceImage() {
+    sqlite3_stmt* strQuery = NULL;
+
+    int rc = sqlite3_prepare_v2(db, "SELECT dir FROM SourceImage", -1, &strQuery, NULL);
+
+    std::vector<std::string> imgVec;
+    int row = 0;
+    bool done = false;
+    const char* charOper;
+    while (!done) {
+        switch (int rc = sqlite3_step(strQuery)) {
+        case SQLITE_ROW: 
+            charOper = reinterpret_cast<const char*>(sqlite3_column_text(strQuery, 0));
+            imgVec.push_back(charOper);
+            row++;
+            break;
+        case SQLITE_DONE:
+            done = true;
+            break;
+        default:
+            errorCheck(rc, const_cast<char*>(sqlite3_errmsg(db)));
+        }
+    }
+    if (row > 1) {
+        delete_GENERAL(std::vector<std::string>{"SourceImage"});
+        throw std::exception("Multiple source images, somehow. Pretty much impossible error. Source image table cleared, load source image again even if it's still there.");
+    }
+    else if (row == 0) {
+        throw std::exception("Unable to locate source image. Load image to source first.");
+    }
+    else {
+        return img::Image(imgVec[0], cv::IMREAD_COLOR);
+    }
+    
+}
+
+void dbop::Database::delete_GENERAL(std::vector<std::string> tableVec, std::string conditions) {
+    sqlite3_stmt* strQuery = NULL;
+
+    std::string tables = "";
+    for (std::string i : tableVec) {
+        tables.append(i);
+        tables.append(",");
+    }
+    tables.erase(tables.end() - 1);
+
+    std::string statement;
+    if (conditions != "")
+        statement = "DELETE FROM " + tables + " WHERE " + conditions + ";";
+    else
+        statement = "DELETE FROM " + tables + ";";
+    int rc = sqlite3_prepare_v2(db, statement.c_str(), -1, &strQuery, NULL);
+    errorCheck(rc, const_cast<char*>(sqlite3_errmsg(db)));
+    rc = sqlite3_step(strQuery);
+    errorCheck(rc, const_cast<char*>(sqlite3_errmsg(db)));
 }
 
 std::string dbop::serializeMat(cv::Mat operand) {

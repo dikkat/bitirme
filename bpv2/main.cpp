@@ -32,6 +32,7 @@
 	ADD UHMMMMM WHAT WAS IT YES EDGE COMPARISON METHODS AND MAYBE CORNER ASWELL
 	CHANGE RESIZE PARAMETERS AT DBOP::INSERT_IMAGE FUNCTION -- DONE
 	LETS NOT FORGET MULTI THREADING
+	CHECK IF POINTERS BE CRAZY AT CORNER HARRIS LAPLACE
 
 	FINISH UNIVERSITY
 	GET A 15K DOLLAR PER MONTH JOB
@@ -162,11 +163,14 @@ int main(int argc, char* argv[])
 	QApplication a(argc, argv);
 	MainWindow w = MainWindow(db);
 	while (true) {
-		
-
+		try {
 			gen::printTesting(gen::tout);
 			w.show();
 			return a.exec();
-		
+		}
+		catch(std::exception e) {
+			w.showError(e.what());
+			continue;
+		}
 	}
 }

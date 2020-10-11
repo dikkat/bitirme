@@ -1,5 +1,4 @@
 #pragma once
-
 #include <QFile>
 #include <QTextStream>
 #include <QMessageBox>
@@ -30,6 +29,7 @@
 #include "iop.h"
 #include "dbop.h"
 #include "linker.h"
+#include "qcustomplot.h"
 
 namespace qtdbop {
 
@@ -72,20 +72,25 @@ public:
 	void showError(QString err);
 	void showError(const QSqlError& err);
 	Ui::MainWindow getUI();
+	~MainWindow();
 private slots:
 	void openImageLabel();
 	void hideConsole();
 	void openList();
-	void displayHash(img::Image* dest_img = nullptr);
 	void displayFeature();
+	void displayButtons_BGR();
 private:
 	Ui::MainWindow ui;
 	QSqlRelationalTableModel* model;
 	int iconIdx, simValIdx = 2;
+	void switchDisplayWidgets(bool toLabel, bool source);
 	QList<int> prepareHistogram();
 	QList<float> prepareEdge();
 	QList<float> prepareCorner();
-	QImage calculateFeature(int index);
+	void displayHash(img::Image* src);
+	void displayHistogram(img::Image* src, bool source);
+	void displayEdge(img::Image* src, bool source);
+	void displayCorner(img::Image* src, bool source);
 	void createActions();
 	bool loadFiles(const QStringList& fileNames);
 	bool loadFile(const QString& fileName);
@@ -93,6 +98,4 @@ private:
 	void printToScreen(QString text);
 	void setImage(QLabel* imlabel, const QImage& newImage);
 	void addToMainTable(img::Image* image);
-	QImage image;
-	img::Image* srcImg = nullptr;
 };

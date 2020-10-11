@@ -62,30 +62,47 @@ XXH64_hash_t feat::Histogram::getHash() {
 cv::Mat feat::Histogram::histogramHSVCalculation(cv::Mat sourceMat) {
     cv::MatND hsvbase, histbase;
     cv::cvtColor(sourceMat, hsvbase, cv::COLOR_BGR2HSV);
-    int histSize[] = { getBin()[0], getBin()[1], getBin()[2] };
+
+    std::vector<cv::Mat> hsv_planes;
+    cv::split(hsvbase, hsv_planes);
+
+    const int histSize[] = { getBin()[0], getBin()[1], getBin()[2] };
 
     float h_ranges[] = { 0, 180 };
     float sv_ranges[] = { 0, 256 };
     const float* histRange[] = { h_ranges, sv_ranges, sv_ranges };
 
     bool uniform = true; bool accumulate = false;
-    int channels[] = { 0, 1, 2 };
+    int channels[] = { 0 };
 
-    cv::calcHist(&hsvbase, 1, channels, cv::Mat(), histbase, 3, histSize, histRange, uniform, accumulate);
+    cv::Mat h_hist, s_hist, v_hist;
+    cv::calcHist(&hsv_planes[0], 1, channels, cv::Mat(), h_hist, 1, &histSize[0], histRange, uniform, accumulate);
+    cv::calcHist(&hsv_planes[1], 1, channels, cv::Mat(), s_hist, 1, &histSize[1], histRange, uniform, accumulate);
+    cv::calcHist(&hsv_planes[2], 1, channels, cv::Mat(), v_hist, 1, &histSize[2], histRange, uniform, accumulate);
+
+    cv::merge(std::vector<cv::Mat>{h_hist, s_hist, v_hist}, histbase);
     return histbase;
 }
 
 cv::Mat feat::Histogram::histogramBGRCalculation(cv::Mat sourceMat) {
-    int histSize[] = { getBin()[0], getBin()[1], getBin()[2] };
+    std::vector<cv::Mat> bgr_planes;
+    cv::split(sourceMat, bgr_planes);
+
+    const int histSize[] = { getBin()[0], getBin()[1], getBin()[2] };
 
     float bgr_ranges[] = { 0, 256 };
-    const float* histRange[] = { bgr_ranges, bgr_ranges , bgr_ranges };
+    const float* histRange[] = { bgr_ranges };
 
     bool uniform = true; bool accumulate = false;
-    int channels[] = { 0, 1, 2 };
+    int channels[] = { 0 };
 
-    cv::MatND histbase;
-    cv::calcHist(&sourceMat, 1, channels, cv::Mat(), histbase, 3, histSize, histRange, uniform, accumulate);
+    cv::Mat b_hist, g_hist, r_hist;
+    cv::calcHist(&bgr_planes[0], 1, channels, cv::Mat(), b_hist, 1, &histSize[0], histRange, uniform, accumulate);
+    cv::calcHist(&bgr_planes[1], 1, channels, cv::Mat(), g_hist, 1, &histSize[1], histRange, uniform, accumulate);
+    cv::calcHist(&bgr_planes[2], 1, channels, cv::Mat(), r_hist, 1, &histSize[2], histRange, uniform, accumulate);
+
+    cv::Mat histbase;
+    cv::merge(std::vector<cv::Mat>{b_hist, g_hist, r_hist}, histbase);
     return histbase;
 }
 
@@ -96,7 +113,7 @@ cv::Mat feat::Histogram::histogramGRAYCalculation(cv::Mat sourceMat) {
     if (sourceMat.channels() == 3)
         cv::cvtColor(sourceMat, greyMat, cv::COLOR_BGR2GRAY);
 
-    float gray_range[] = { - pow(2,32) + 1, pow(2,32) - 1 };
+    float gray_range[] = { 0, 256 };
     const float* histRange[] = { gray_range };
 
     bool uniform = true; bool accumulate = false;
@@ -161,17 +178,18 @@ cv::Mat feat::Histogram::createHistogramDisplayImage(std::vector<cv::Mat> bgrhis
     }
     return histImgMat;
 }
-
+/*OUTDATED, WILL DO IT AT QT NOW
 cv::Mat feat::Histogram::createHistogramDisplayImage(int hist_w, int hist_h) { //https://stackoverflow.com/a/46202761/9304781
     cv::Mat oper = histMat.clone();
     oper.convertTo(oper, CV_64F);
     cv::Mat resultMat;
     return resultMat;
 }
-
+*/
 feat::Edge::Edge(cv::Mat imageMat, int flag, feat::Edge::Canny* edc) {
     cv::Mat oper;
-    switch (flag) {
+    
+    switch(flag) {
     case EDGE_SOBEL:
         oper = edgeDetectionSobel(imageMat);
         break;
@@ -188,13 +206,15 @@ feat::Edge::Edge(cv::Mat imageMat, int flag, feat::Edge::Canny* edc) {
             child_edc = edc;
             edc->parent = this;
             oper = edc->edgeDetectionCanny(imageMat);
+            auto temp = edc->getHash();
+            edcHash = &temp;
         }
         break;
     default:
         throw std::exception("Illegal edge detection flag.");
     }
     edgeFlag = flag;
-    sourceMat = oper;
+    edgeMat = oper;
 
     hash = feat::Hash::setHash(nullptr, &std::vector<float>{static_cast<float>(flag)});
     if (child_edc != nullptr) {
@@ -210,10 +230,14 @@ int feat::Edge::getEdgeFlag() {
 }
 
 std::vector<XXH64_hash_t> feat::Edge::getHashVariables() {
-    if(edcHash != nullptr)
+    if(edcHash == nullptr)
         return std::vector<XXH64_hash_t>{hash};
     else
         return std::vector<XXH64_hash_t>{hash, *edcHash};
+}
+
+cv::Mat feat::Edge::getEdgeMat() {
+    return edgeMat;
 }
 
 feat::Edge::Canny* feat::Edge::getCannyPtr() {
@@ -558,11 +582,19 @@ void feat::Edge::Canny::performHysteresis(cv::Mat& resultMat, float weak, float 
     }
 }
 
-feat::Corner::Corner(cv::Mat imageMat, int flag, int numofScales, float scaleRat, feat::Corner::Harris* cdh) {
+feat::Corner::Corner(cv::Mat imageMat, feat::Corner::Harris* cdh, int flag, int numberofScales, float scaleRat) {
     cv::Mat oper;
     switch (flag) {
     case CORNER_HARLAP:
-        oper = cornerDetectionHarrisLaplace(imageMat, numofScales, scaleRat);
+        if (cdh == nullptr)
+            throw std::exception("Initialize Harris class first.");
+        else {
+            child = cdh;
+            cdh->parent = this;
+            auto temp = cdh->getHash();
+            cdhHash = &temp;
+            oper = cornerDetectionHarrisLaplace(imageMat, cdh, numberofScales, scaleRat);
+        }
         break;
     case CORNER_HARRIS:
         if (cdh == nullptr)
@@ -570,6 +602,8 @@ feat::Corner::Corner(cv::Mat imageMat, int flag, int numofScales, float scaleRat
         else {
             child = cdh;
             cdh->parent = this;
+            auto temp = cdh->getHash();
+            cdhHash = &temp;
             oper = cdh->cornerDetectionHarris(imageMat);
         }
         break;
@@ -577,8 +611,27 @@ feat::Corner::Corner(cv::Mat imageMat, int flag, int numofScales, float scaleRat
         throw std::exception("Illegal edge detection flag.");
     }
     cornerFlag = flag;
+    numofScales = numberofScales;
+    scaleRatio = scaleRat;
     sourceMat = oper;
+    hash = feat::Hash::setHash(nullptr, &std::vector<float>{static_cast<float>(flag), static_cast<float>(numofScales),
+        scaleRatio});
+    std::vector<std::string> hashVec;
+    hashVec.push_back(std::to_string(hash));
+    hashVec.push_back(std::to_string(*cdhHash));
+    hash = feat::Hash::setHash(hashVec);
 }
+
+std::vector<int> feat::Corner::getIntVariables() {
+    return std::vector<int>{cornerFlag, numofScales};
+}
+float feat::Corner::getScaleRatio() {
+    return scaleRatio;
+}
+std::vector<XXH64_hash_t> feat::Corner::getHashVariables() {
+    return std::vector<XXH64_hash_t>{hash, *cdhHash};
+}
+
 
 cv::Mat feat::Corner::paintPointsOverImage(cv::Mat const imageMat, cv::Mat const pointMat, bool gray, float numOfPoints, float radius, float thickness, cv::Scalar pointColor) {
     std::vector<cv::Point> pointVec;
@@ -604,7 +657,7 @@ cv::Mat feat::Corner::paintPointsOverImage(cv::Mat const imageMat, cv::Mat const
     return imgOper;
 }
 
-cv::Mat feat::Corner::cornerDetectionHarrisLaplace(cv::Mat imageMat, float n, float scaleRatio) {
+cv::Mat feat::Corner::cornerDetectionHarrisLaplace(cv::Mat imageMat, feat::Corner::Harris* cdh, float n, float scaleRatio) {
     //https://www.robots.ox.ac.uk/~vgg/research/affine/det_eval_files/mikolajczyk_ijcv2004.pdf
     //%85 ben -- %15 https://www.mathworks.com/matlabcentral/fileexchange/64689-harris-affine-and-harris-laplace-interest-point-detector
     //VEEEEEEEEEEERY SLOW
@@ -652,12 +705,11 @@ cv::Mat feat::Corner::cornerDetectionHarrisLaplace(cv::Mat imageMat, float n, fl
         cv::Laplacian(LoGDerivative, LoGDerivative, CV_32F, 5);
         setOfDerivatives.push_back(LoGDerivative);
 
-        Harris cdhOper;
-        cdhOper.setVariables("sigmai", setOfScales[i]);
-        cdhOper.setVariables("sigmad", scaleConstant * setOfScales[i]);
-        cdhOper.setVariables("squareSize", 5);
+        Harris* cdhOper = cdh; 
+        cdhOper->setVariables("sigmai", setOfScales[i]);
+        cdhOper->setVariables("sigmad", scaleConstant * setOfScales[i]);
         
-        cv::Mat harrisPointMat = cdhOper.cornerDetectionHarris(imgOper);
+        cv::Mat harrisPointMat = cdhOper->cornerDetectionHarris(imgOper);
 
         for (int j = 0; j < harrisPointMat.rows; j++) {
             for (int k = 0; k < harrisPointMat.cols; k++) {
@@ -749,7 +801,7 @@ std::vector<cv::Mat> feat::Corner::Harris::getVariablesMat() {
     return std::vector<cv::Mat>{kernelx, kernely };
 }
 
-XXH64_hash_t feat::Corner::Harris::getVariableHash() {
+XXH64_hash_t feat::Corner::Harris::getHash() {
     return hash;
 }
 
@@ -962,10 +1014,11 @@ XXH64_hash_t feat::Hash::setHash(std::vector<cv::Mat>* matVec, std::vector<float
             hashMat.push_back(iter);
         }
 
-    if (!hashMat.isContinuous())
-        hashMat = hashMat.clone();
+    std::string hashStr = "";
+    for (int i = 0; i < hashMat.total(); i++)
+        hashStr.append(std::to_string(hashMat.at<float>(i)));
 
-    return feat::Hash::hash_xxHash(hashMat);
+    return XXH64(hashStr.c_str(), hashStr.size(), NULL);
 }
 
 XXH64_hash_t feat::Hash::setHash(std::vector<std::string> strVec) {

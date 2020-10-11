@@ -13,7 +13,15 @@ cv::Mat QImageToCvMat(const QImage& operand) {
 }
 
 QImage cvMatToQImage(cv::Mat& operand) {
-	QImage imgIn = QImage((uchar*)operand.data, operand.cols, operand.rows, operand.step, QImage::Format_BGR888);
+	QImage imgIn;
+	if (operand.channels() == 3)
+		imgIn = QImage((uchar*)operand.data, operand.cols, operand.rows, operand.step, QImage::Format_BGR888);
+	else if (operand.channels() == 1) {
+		cv::imwrite("buffer.jpg", operand);
+		imgIn = QImage("buffer.jpg");
+	}
+	else
+		throw std::exception("Number of image channels can't be different than 1 and 3.");
 	return imgIn;
 }
 
@@ -123,18 +131,47 @@ MainWindow::MainWindow(dbop::Database dbObj, QWidget *parent)	: QMainWindow(pare
 	ui.label_imgSrc->setScaledContents(true);
 
 	ui.textEdit->hide();
-	
 
-	QRegExpValidator* validator = new QRegExpValidator(QRegExp("[0-9]"), this);
+	QDoubleValidator* validator = new QDoubleValidator(0.0001, 100.0, 1000);
 	ui.lineEdit_alpha->setValidator(validator);
+	ui.lineEdit_alpha->setText("0.04");
 	ui.lineEdit_gauss->setValidator(validator);
+	ui.lineEdit_gauss->setText("31");
+	ui.lineEdit_numOfScales->setValidator(validator);
+	ui.lineEdit_numOfScales->setText("3");
 	ui.lineEdit_radius->setValidator(validator);
+	ui.lineEdit_radius->setText("3");
 	ui.lineEdit_sigma->setValidator(validator);
+	ui.lineEdit_sigma->setText("1.4");
 	ui.lineEdit_sigmad->setValidator(validator);
+	ui.lineEdit_sigmad->setText("0.9");
 	ui.lineEdit_sigmai->setValidator(validator);
+	ui.lineEdit_sigmai->setText("1.4");
 	ui.lineEdit_squareSize->setValidator(validator);
+	ui.lineEdit_squareSize->setText("3");
 	ui.lineEdit_thigh->setValidator(validator);
+	ui.lineEdit_thigh->setText("0.13");
 	ui.lineEdit_tlow->setValidator(validator);
+	ui.lineEdit_tlow->setText("0.075");
+
+	ui.checkBox_B->setVisible(false);
+	ui.checkBox_G->setVisible(false);
+	ui.checkBox_R->setVisible(false);
+
+	ui.horizontalSlider_sbin->setEnabled(false);
+	ui.horizontalSlider_tbin->setEnabled(false);
+
+	ui.stackedWidget_src->setCurrentIndex(0);
+	ui.stackedWidget_dest->setCurrentIndex(0);
+	
+	img::Image srcImg("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench00140.jpg", cv::IMREAD_COLOR);
+	ui.label_imgSrc->setPixmap(QPixmap::fromImage(cvMatToQImage(srcImg.getImageMat())));
+	lnkr::setSourceImage(srcImg);
+
+	ui.gridLayout_9->setAlignment(ui.verticalSlider_TL, Qt::AlignHCenter);
+	ui.gridLayout_10->setAlignment(ui.verticalSlider_TR, Qt::AlignHCenter);
+	ui.gridLayout_6->setAlignment(ui.verticalSlider_BL, Qt::AlignHCenter);
+	ui.gridLayout_11->setAlignment(ui.verticalSlider_BR, Qt::AlignHCenter);
 
 	/*printToScreen("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/testbridge.txt", true);
 
@@ -152,7 +189,12 @@ MainWindow::MainWindow(dbop::Database dbObj, QWidget *parent)	: QMainWindow(pare
 	MWObject.connect(ui.pushButton_srcImgLabel, SIGNAL(clicked()), this, SLOT(openImageLabel()));
 	MWObject.connect(ui.consoleButton, SIGNAL(clicked()), this, SLOT(hideConsole()));
 	MWObject.connect(ui.imageLabelButton_2, SIGNAL(clicked()), this, SLOT(openImageLabel()));
-	MWObject.connect(ui.pushButton_disp, SIGNAL(clicked()), this, SLOT(displayFeature()));
+	MWObject.connect(ui.pushButton_dispInDet, SIGNAL(clicked()), this, SLOT(displayFeature()));
+	MWObject.connect(ui.comboBox_histFlag, SIGNAL(currentIndexChanged(int)), this, SLOT(displayButtons_BGR()));
+}
+
+MainWindow::~MainWindow(){
+	mw_dbPtr->delete_GENERAL(std::vector<std::string>{"sourceimage"});
 }
 
 void MainWindow::showError(const QSqlError& err) {
@@ -168,22 +210,306 @@ Ui::MainWindow MainWindow::getUI() {
 	return ui;
 }
 
-void MainWindow::displayHash(img::Image* dest_img) {
-	if (srcImg == nullptr) {
-		throw std::exception("Unable to locate source image. Load image to source first.");
+void MainWindow::displayButtons_BGR() {
+	if (ui.comboBox_histFlag->currentIndex() == HIST_GRAY) {
+		ui.checkBox_B->setVisible(false);
+		ui.checkBox_G->setVisible(false);
+		ui.checkBox_R->setVisible(false);
+		ui.horizontalSlider_sbin->setEnabled(false);
+		ui.horizontalSlider_tbin->setEnabled(false);
+		ui.horizontalSlider_fbin->setMaximum(255);
+		ui.label_bMax->setText("255");
 	}
-	if(dest_img != nullptr)
-		ui.label_imHash->setText(std::to_string(srcImg->getHash()).c_str());
-	else
-		ui.label_destHash->setText(std::to_string(dest_img->getHash()).c_str());
+	else if (ui.comboBox_histFlag->currentIndex() == HIST_BGR) {
+		ui.checkBox_B->setText("B");
+		ui.checkBox_B->setVisible(true);
+		ui.checkBox_G->setText("G");
+		ui.checkBox_G->setVisible(true);
+		ui.checkBox_R->setText("R");
+		ui.checkBox_R->setVisible(true);
+		ui.horizontalSlider_sbin->setEnabled(true);
+		ui.horizontalSlider_tbin->setEnabled(true);
+		ui.horizontalSlider_fbin->setMaximum(255);
+		ui.label_bMax->setText("255");
+	}
+	else if (ui.comboBox_histFlag->currentIndex() == HIST_HSV) {
+		ui.checkBox_B->setText("H");
+		ui.checkBox_B->setVisible(true);
+		ui.checkBox_G->setText("S");
+		ui.checkBox_G->setVisible(true);
+		ui.checkBox_R->setText("V");
+		ui.checkBox_R->setVisible(true);
+		ui.horizontalSlider_sbin->setEnabled(true);
+		ui.horizontalSlider_tbin->setEnabled(true);
+		ui.horizontalSlider_fbin->setMaximum(180);
+		ui.label_bMax->setText("180");
+	}
 }
 
 void MainWindow::displayFeature() {
-	QImage feat_img = calculateFeature(ui.tabWidget_comparison->currentIndex());
-	ui.label_imgDest->setPixmap(QPixmap::fromImage(feat_img));
+	int index = ui.tabWidget_comparison->currentIndex();
+	img::Image srcImg = mw_dbPtr->select_SourceImage();
+
+	if (index == 0) {
+		displayHash(&srcImg);
+	}
+	else if (index == 1) {
+		displayHistogram(&srcImg, true);
+		ui.mainTabWidget->setCurrentIndex(1);
+	}
+	else if (index == 2) {
+		displayEdge(&srcImg, true);
+		ui.mainTabWidget->setCurrentIndex(1);
+	}
+	else if (index == 3) {
+		ui.mainTabWidget->setCurrentIndex(1);
+	}
 }
 
-//fbin, sbin, tbin, flag
+void MainWindow::displayHash(img::Image* src) {
+	if (ui.label_imgSrc->pixmap()->isNull()) {
+		throw std::exception("Unable to locate source image. Load image to source first.");
+	}
+	else {
+		std::string srcDHash = feat::Hash::imageHashing_dHash(QImageToCvMat(ui.label_imgSrc->pixmap()->toImage())).to_string();
+		ui.label_imHash->setText(srcDHash.c_str());
+	}
+
+	if (!ui.label_imgDest->pixmap()->isNull()) {		
+		std::string destDHash = feat::Hash::imageHashing_dHash(QImageToCvMat(ui.label_imgDest->pixmap()->toImage())).to_string();
+		ui.label_destHash->setText(destDHash.c_str());
+	}
+	else {
+		throw std::exception("Unable to locate comparison image. Load image to compare first.");
+	}
+}
+
+void MainWindow::displayHistogram(img::Image* src, bool source){
+	QList<int> histVals = prepareHistogram();
+	feat::Histogram srcHist = lnkr::setHistogram(src, histVals[0], histVals[1], histVals[2], histVals[3]);
+	cv::Mat histPtr = srcHist.getHistogramMat();
+
+	double max;
+	cv::minMaxLoc(histPtr, nullptr, &max);
+
+	QCustomPlot* plotSrc;
+	if (source)
+		plotSrc = ui.plot_source;
+	else
+		plotSrc = ui.plot_dest;
+
+	plotSrc->setLocale(QLocale(QLocale::English, QLocale::UnitedStates));
+	plotSrc->legend->setVisible(true);
+	QFont legendFont = font();
+	legendFont.setPointSize(6);
+	plotSrc->legend->setFont(legendFont);
+	plotSrc->legend->setBrush(QBrush(QColor(255, 255, 255, 230)));
+	plotSrc->axisRect()->insetLayout()->setInsetAlignment(0, Qt::AlignTop | Qt::AlignRight);
+
+	if (histPtr.channels() == 1) {
+		QVector<double> data, keys;
+		for (int i = 0; i < histPtr.total(); i++) {
+			keys.push_back(i);
+			data.push_back(static_cast<double>(histPtr.at<float>(i)));
+		}
+
+		int pc = plotSrc->plottableCount();
+		for (int i = 0; i < pc; i++) {
+			plotSrc->removeGraph(plotSrc->graph(0));
+			plotSrc->removePlottable(plotSrc->plottable(0));
+		}
+
+		plotSrc->replot();
+		QCPBars* barSrc = new QCPBars(plotSrc->xAxis, plotSrc->yAxis);
+		barSrc->setData(keys, data);
+		barSrc->setName("Gray Histogram");
+		barSrc->setPen(QPen(QColor(Qt::lightGray)));
+		plotSrc->xAxis->setLabel("Histogram bins");
+		plotSrc->yAxis->setLabel("Number of pixels");
+		plotSrc->yAxis->setRange(0, max + max * 0.10);
+		plotSrc->xAxis->setRange(0, histPtr.rows + histPtr.rows * 0.10);
+		plotSrc->replot();
+	}
+
+	else if (histPtr.channels() == 3 && srcHist.getVariablesFloat()[0] == HIST_BGR) {
+		QVector<QVector<double>> data;
+		data.resize(3);
+		QVector<double> keys;
+		for (int i = 0; i < histPtr.total(); i++) {
+			keys.push_back(i);
+			data[0].push_back(static_cast<double>(histPtr.at<cv::Vec3f>(i)[0]));
+			data[1].push_back(static_cast<double>(histPtr.at<cv::Vec3f>(i)[1]));
+			data[2].push_back(static_cast<double>(histPtr.at<cv::Vec3f>(i)[2]));
+		}
+
+		int pc = plotSrc->plottableCount();
+		for (int i = 0; i < pc; i++) {
+			plotSrc->removeGraph(plotSrc->graph(0));
+			plotSrc->removePlottable(plotSrc->plottable(0));
+		}
+
+		plotSrc->replot();
+
+		if (ui.checkBox_B->checkState()) {
+			QCPBars* barSrcB = new QCPBars(plotSrc->xAxis, plotSrc->yAxis);
+			barSrcB->setPen(QPen(QColor(Qt::darkBlue)));
+			barSrcB->setData(keys, data[0]);
+			barSrcB->setName("Blue Histogram");
+		}
+
+		if (ui.checkBox_G->checkState()) {
+			QCPBars* barSrcG = new QCPBars(plotSrc->xAxis, plotSrc->yAxis);
+			barSrcG->setPen(QPen(QColor(Qt::darkGreen)));
+			barSrcG->setData(keys, data[1]);
+			barSrcG->setName("Green Histogram");
+		}
+
+		if (ui.checkBox_R->checkState()) {
+			QCPBars* barSrcR = new QCPBars(plotSrc->xAxis, plotSrc->yAxis);
+			barSrcR->setPen(QPen(QColor(Qt::darkRed)));
+			barSrcR->setData(keys, data[2]);
+			barSrcR->setName("Red Histogram");
+		}
+
+		plotSrc->xAxis->setLabel("Histogram bins");
+		plotSrc->yAxis->setLabel("Number of pixels");
+		plotSrc->yAxis->setRange(0, max + max * 0.10);
+		plotSrc->xAxis->setRange(0, histPtr.rows + histPtr.rows * 0.10);
+		plotSrc->replot();
+	}
+
+	else if (histPtr.channels() == 3 && srcHist.getVariablesFloat()[0] == HIST_HSV) {
+		QVector<QVector<double>> data;
+		data.resize(3);
+		QVector<double> keys;
+		for (int i = 0; i < histPtr.total(); i++) {
+			keys.push_back(i);
+			data[0].push_back(static_cast<double>(histPtr.at<cv::Vec3f>(i)[0]));
+			data[1].push_back(static_cast<double>(histPtr.at<cv::Vec3f>(i)[1]));
+			data[2].push_back(static_cast<double>(histPtr.at<cv::Vec3f>(i)[2]));
+		}
+
+		int pc = plotSrc->plottableCount();
+		for (int i = 0; i < pc; i++) {
+			plotSrc->removeGraph(plotSrc->graph(0));
+			plotSrc->removePlottable(plotSrc->plottable(0));
+		}
+
+		plotSrc->replot();
+		if (ui.checkBox_B->checkState()) {
+			QCPBars* barSrcH = new QCPBars(plotSrc->xAxis, plotSrc->yAxis);
+			barSrcH->setPen(QPen(QColor(Qt::darkMagenta)));
+			barSrcH->setData(keys, data[0]);
+			barSrcH->setName("Hue Histogram");
+		}
+
+		if (ui.checkBox_G->checkState()) {
+			QCPBars* barSrcS = new QCPBars(plotSrc->xAxis, plotSrc->yAxis);
+			barSrcS->setPen(QPen(QColor(Qt::darkCyan)));
+			barSrcS->setData(keys, data[1]);
+			barSrcS->setName("Saturation Histogram");
+		}
+		
+		if (ui.checkBox_R->checkState()) {
+			QCPBars* barSrcV = new QCPBars(plotSrc->xAxis, plotSrc->yAxis);
+			barSrcV->setPen(QPen(QColor(Qt::darkGray)));
+			barSrcV->setData(keys, data[2]);
+			barSrcV->setName("Value Histogram");
+		}
+
+		plotSrc->xAxis->setLabel("Histogram bins");
+		plotSrc->yAxis->setLabel("Number of pixels");
+		plotSrc->yAxis->setRange(0, max + max * 0.10);
+		plotSrc->xAxis->setRange(0, histPtr.rows + histPtr.rows * 0.10);
+		plotSrc->replot();
+	}
+}
+
+void MainWindow::displayEdge(img::Image* src, bool source) {
+	QList<float> edgeVals = prepareEdge();
+	feat::Edge srcEdge;
+
+	if (edgeVals[0] == EDGE_CANNY) {
+		cv::Mat kernelX;
+		cv::Mat kernelY;
+		switch (static_cast<int>(edgeVals[5])) {
+		case KERNEL_SOBEL:
+			kernelX = feat::sobelX;
+			kernelY = feat::sobelY;
+			break;
+		case KERNEL_PREWT:
+			kernelX = feat::prewittX;
+			kernelY = feat::prewittY;
+			break;
+		case KERNEL_ROBRT:
+			kernelX = feat::robertX;
+			kernelY = feat::robertY;
+			break;
+		default:
+			throw std::exception("Illegal kernel flag.");
+			break;
+		}
+
+		feat::Edge::Canny* canny = new feat::Edge::Canny(edgeVals[1], edgeVals[4], edgeVals[2], edgeVals[3], kernelX, kernelY);
+		srcEdge = lnkr::setEdge(src, edgeVals[0], canny);
+	}
+
+	else {
+		srcEdge = lnkr::setEdge(src, edgeVals[0]);
+		gen::imageTesting(srcEdge.getEdgeMat(), "tester");
+	}
+
+	if (source) {
+		switchDisplayWidgets(true, true);
+		ui.label_derSrcBig->setPixmap(QPixmap::fromImage(QImage(cvMatToQImage(srcEdge.getEdgeMat()))));
+	}
+	else {
+		switchDisplayWidgets(true, false);
+		ui.label_derDestBig->setPixmap(QPixmap::fromImage(QImage(cvMatToQImage(srcEdge.getEdgeMat()))));
+	}
+}
+//cornerFlag, radius, squareSize, alpha, sigmai, sigmad
+void MainWindow::displayCorner(img::Image* src, bool source) {
+	QList<float> cornerVals = prepareCorner();
+	feat::Corner srcCorner;
+
+	if (cornerVals[0] == CORNER_HARRIS || cornerVals[0] == CORNER_HARLAP) {
+		feat::Corner::Harris* harris = new feat::Corner::Harris(cornerVals[1], cornerVals[2], cornerVals[4], cornerVals[5], cornerVals[3]);
+		srcCorner = lnkr::setCorner(src, *harris, cornerVals[0],   edgeVals[0], canny);
+	}
+	else {
+		srcEdge = lnkr::setEdge(src, edgeVals[0]);
+		gen::imageTesting(srcEdge.getEdgeMat(), "tester");
+	}
+
+	if (source) {
+		switchDisplayWidgets(true, true);
+		ui.label_derSrcBig->setPixmap(QPixmap::fromImage(QImage(cvMatToQImage(srcEdge.getEdgeMat()))));
+	}
+	else {
+		switchDisplayWidgets(true, false);
+		ui.label_derDestBig->setPixmap(QPixmap::fromImage(QImage(cvMatToQImage(srcEdge.getEdgeMat()))));
+	}
+}
+
+void MainWindow::switchDisplayWidgets(bool toLabel, bool source) {
+	if (toLabel) {
+		if (source)
+			ui.stackedWidget_src->setCurrentIndex(1);
+
+		else if (!source)
+			ui.stackedWidget_dest->setCurrentIndex(1);
+	}
+	else {
+		if (source)
+			ui.stackedWidget_src->setCurrentIndex(0);
+
+		else if (!source)
+			ui.stackedWidget_dest->setCurrentIndex(0);
+	}
+}
+
+//flag, fbin, sbin, tbin
 QList<int> MainWindow::prepareHistogram() {
 	QList<int> histVals;
 
@@ -193,7 +519,8 @@ QList<int> MainWindow::prepareHistogram() {
 	histVals.push_back(ui.horizontalSlider_tbin->value());
 	
 	//if it is not gray hist and any of the sliders are zero OR if it is gray and first slider is zero ERROR
-	if ((histVals[3] != 0 && (histVals[0] == 0 || histVals[1] == 0 || histVals[2] == 0)) || (histVals[3] == 0 && histVals[0] == 0))
+	if ((histVals[0] != 0 && (histVals[1] == 0 || histVals[2] == 0 || histVals[3] == 0)) 
+		|| (histVals[0] == 0 && histVals[1] == 0))
 		throw std::exception("Zero value sliders. Sliders can't be zero, pick a value.");
 
 	return histVals;
@@ -210,6 +537,7 @@ QList<float> MainWindow::prepareEdge() {
 		edgeVals.push_back(ui.lineEdit_tlow->text().toFloat());
 		edgeVals.push_back(ui.lineEdit_thigh->text().toFloat());
 		edgeVals.push_back(ui.lineEdit_sigma->text().toFloat());
+		edgeVals.push_back(ui.comboBox_kernelFlag->currentIndex());
 	}
 
 	if (edgeVals[0] == EDGE_CANNY && (edgeVals[1] == 0 || edgeVals[2] == 0 || edgeVals[3] == 0))
@@ -233,14 +561,6 @@ QList<float> MainWindow::prepareCorner() {
 		throw std::exception("Zero value boxes. Harris values can't be zero, pick a value.");
 
 	return cornerVals;
-}
-
-QImage MainWindow::calculateFeature(int index) {
-	if (index == 0) { 
-		feat::Histogram srcImg_hist(QImageToCvMat(ui.label_imgSrc->pixmap()->toImage()), ui.comboBox_histFlag->currentIndex());
-		gen::imageTesting(srcImg_hist.createHistogramDisplayImage(300, 300), "tester1");
-		return cvMatToQImage(srcImg_hist.createHistogramDisplayImage(300, 300));
-	}
 }
 
 void MainWindow::printToScreen(QString fileName, bool filecheck) {
@@ -292,14 +612,9 @@ bool MainWindow::loadFile(const QString& fileName)
 	}
 
 	setImage(ui.label_imgSrc, newImage);
-	//imageList[0].setImageDirectory(fileName.toStdString());
 	setWindowFilePath(fileName);
-	srcImg = &lnkr::createImage(QDir::cleanPath(fileName).toStdString(), cv::IMREAD_COLOR);
+	lnkr::setSourceImage(QDir::cleanPath(fileName).toStdString(), cv::IMREAD_COLOR);
 
-	const QString message = tr("Opened \"%1\", %2x%3, Depth: %4")
-		.arg(QDir::toNativeSeparators(fileName)).arg(image.width()).arg(image.height()).arg(image.depth());
-	statusBar()->showMessage(message);
-	
 	return true;
 }
 
@@ -353,7 +668,7 @@ void MainWindow::hideConsole() {
 }
 
 void MainWindow::setImage(QLabel* imlabel, const QImage& newImage) {
-	image = newImage;
+	QImage image = newImage;
 	/*if (imageList.size() == 0) {
 		imageList.push_back(QImageToimgImage(image));
 	}

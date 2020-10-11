@@ -4,12 +4,10 @@
 #include "xxhash.h"
 #include "sim.h"
 
-#define WITHOUT_NUMPY
-#include "matplotlibcpp.h"
-
 enum hist_flag { HIST_GRAY, HIST_BGR, HIST_HSV };
 enum edge_flag { EDGE_SOBEL, EDGE_PREWT, EDGE_ROBRT, EDGE_CANNY, EDGE_DRCHE };
 enum corner_flag { CORNER_HARRIS, CORNER_HARLAP };
+enum kernel_flag {KERNEL_SOBEL, KERNEL_PREWT, KERNEL_ROBRT};
 
 namespace feat {
 
@@ -26,7 +24,6 @@ namespace feat {
 		static XXH64_hash_t hash_xxHash(cv::Mat const inputMat);
 		static XXH64_hash_t setHash(std::vector<cv::Mat>* matVec = nullptr, std::vector<float>* floatVec = nullptr);
 		static XXH64_hash_t setHash(std::vector<std::string> strVec);
-	private:
 		static std::bitset<64> imageHashing_dHash(cv::Mat const imageMat);
 		static std::bitset<64> imageHashing_pHash(cv::Mat const imageMat);
 	};
@@ -59,9 +56,9 @@ namespace feat {
 	public:
 		class Canny {
 		public:
-			Canny(float kernelSize = 31, float sigm = 1.4, float thgh = 0.13,
-				float tlw = 0.075, cv::Mat kerx = feat::prewittX, cv::Mat kery = feat::prewittY) :
-				gaussKernelSize(kernelSize), sigma(sigm), thigh(thgh), tlow(tlw), kernelx(kerx), kernely(kery) {
+			Canny(float gaussKernelSize = 31, float sigma = 1.4, float thigh = 0.13, float tlow = 0.075, 
+				cv::Mat kernelx = feat::prewittX, cv::Mat kernely = feat::prewittY) :
+				gaussKernelSize(gaussKernelSize), sigma(sigma), thigh(thigh), tlow(tlow), kernelx(kernelx), kernely(kernely) {
 				setHash();
 			}
 			cv::Mat edgeDetectionCanny(cv::Mat const imageMat);
@@ -87,15 +84,17 @@ namespace feat {
 			void doubleThreshold(cv::Mat& resultMat, cv::Mat const magMat, float max, float tlow, float thigh, float weakratio);
 		}; //HAUSDORFF DISTANCE FOR EDGE COMPARISON ALSO MAYBE SIFT ALGORITHM
 		Edge(cv::Mat imageMat, int flag, feat::Edge::Canny* edc = nullptr);
+		Edge(){}
 		int getEdgeFlag();
 		std::vector<XXH64_hash_t> getHashVariables();
+		cv::Mat getEdgeMat();
 		static std::vector<cv::Mat> calculateEdgeGradientMagnitudeDirection(cv::Mat const kx, cv::Mat const ky, cv::Mat const imat);
 	private:
 		XXH64_hash_t hash;
 		XXH64_hash_t* edcHash = nullptr;
 		Canny* child_edc = nullptr;
 		int edgeFlag;
-		cv::Mat sourceMat;
+		cv::Mat edgeMat;
 		Canny* getCannyPtr();
 		cv::Mat edgeDetectionSobel(cv::Mat const imageMat);
 		cv::Mat edgeDetectionPrewitt(cv::Mat const imageMat);
@@ -109,14 +108,16 @@ namespace feat {
 		//NEED FURTHER EXPLORATION, IF I HAVE ENOUGH TIME I WOULD LIKE TO ADD HARRIS AFFINE DETECTOR AND BRISK DETECTOR	
 		class Harris {
 		public:
-			Harris() : radius(3), squareSize(3), sigmai(1.4), sigmad(0.9),
-				alpha(0.04), kernelx(feat::prewittX), kernely(feat::prewittY) {
+			Harris(float radius = 3, float squareSize = 3, float sigmai = 1.4, float sigmad = 0.9, float alpha = 0.04,
+				cv::Mat kernelx = feat::prewittX, cv::Mat kernely = feat::prewittY) : 
+				radius(radius), squareSize(squareSize), sigmai(sigmai), sigmad(sigmad), alpha(alpha),
+				kernelx(kernelx), kernely(kernely) {
 				setHash();
 			}
 			void setVariables(std::string varName, float fltVal = 0, cv::Mat* matVal = nullptr);
 			std::vector<float> getVariablesFloat();
 			std::vector<cv::Mat> getVariablesMat();
-			XXH64_hash_t getVariableHash();
+			XXH64_hash_t getHash();
 			cv::Mat cornerDetectionHarris(cv::Mat const imageMat);
 		private:
 			friend class Corner;
@@ -133,15 +134,21 @@ namespace feat {
 			void setHash();
 			cv::Mat calculate(cv::Mat const imageMat);
 		};
-		Corner(cv::Mat imageMat, int flag, int numofScales = 3, float scaleRat = 0, feat::Corner::Harris* cdh = nullptr);
+		Corner(cv::Mat imageMat, feat::Corner::Harris* cdh, int flag, int numberofScales = 3, float scaleRat = 0);
+		Corner() {}
+		std::vector<int> getIntVariables();
+		float getScaleRatio();
+		std::vector<XXH64_hash_t> getHashVariables();
 		static cv::Mat paintPointsOverImage(cv::Mat const imageMat, cv::Mat const pointMat, bool gray = true, float numOfPoints = 100, float radius = 2, float thickness = 2, cv::Scalar pointColor = { 255,0,255 });
-		static cv::Mat cornerDetectionHarrisLaplace(cv::Mat imageMat, float n = 3, float scaleRatio = 0);
+		static cv::Mat cornerDetectionHarrisLaplace(cv::Mat imageMat, feat::Corner::Harris* cdh, float n = 3, float scaleRatio = 0);
 		static void localMaxima(cv::Mat src, cv::Mat& dst, int squareSize, float threshold);
 	private:
 		XXH64_hash_t hash;
 		XXH64_hash_t* cdhHash = nullptr;
 		Harris* child = nullptr;
 		int cornerFlag;
+		int numofScales;
+		float scaleRatio;
 		cv::Mat sourceMat;
 	};	
 }

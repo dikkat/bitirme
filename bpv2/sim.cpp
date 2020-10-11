@@ -12,8 +12,6 @@ bool sim::vectorSizeEqualityCheck(std::vector<T> lefthand, std::vector<T> righth
 template bool sim::vectorSizeEqualityCheck<float>(std::vector<float> lefthand, std::vector<float> righthand);
 template bool sim::vectorSizeEqualityCheck<cf>(std::vector<cf> lefthand, std::vector<cf> righthand);
 
-
-
 float sim::similarityCosine(std::vector<float> lefthand, std::vector<float> righthand) {
 	vectorSizeEqualityCheck(lefthand, righthand);
 

@@ -165,7 +165,8 @@ MainWindow::MainWindow(dbop::Database dbObj, QWidget *parent)	: QMainWindow(pare
 	ui.stackedWidget_dest->setCurrentIndex(0);
 	
 	img::Image srcImg("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench00140.jpg", cv::IMREAD_COLOR);
-	ui.label_imgSrc->setPixmap(QPixmap::fromImage(cvMatToQImage(srcImg.getImageMat())));
+	ui.label_imgSrc->setPixmap(QPixmap::fromImage(cvMatToQImage(
+		srcImg.getImageMat())).scaled(ui.label_imgSrc->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
 	lnkr::setSourceImage(srcImg);
 
 	ui.gridLayout_9->setAlignment(ui.verticalSlider_TL, Qt::AlignHCenter);
@@ -188,7 +189,6 @@ MainWindow::MainWindow(dbop::Database dbObj, QWidget *parent)	: QMainWindow(pare
 	QObject MWObject;
 	MWObject.connect(ui.pushButton_srcImgLabel, SIGNAL(clicked()), this, SLOT(openImageLabel()));
 	MWObject.connect(ui.consoleButton, SIGNAL(clicked()), this, SLOT(hideConsole()));
-	MWObject.connect(ui.imageLabelButton_2, SIGNAL(clicked()), this, SLOT(openImageLabel()));
 	MWObject.connect(ui.pushButton_dispInDet, SIGNAL(clicked()), this, SLOT(displayFeature()));
 	MWObject.connect(ui.comboBox_histFlag, SIGNAL(currentIndexChanged(int)), this, SLOT(displayButtons_BGR()));
 }
@@ -262,6 +262,7 @@ void MainWindow::displayFeature() {
 		ui.mainTabWidget->setCurrentIndex(1);
 	}
 	else if (index == 3) {
+		displayCorner(&srcImg, true);
 		ui.mainTabWidget->setCurrentIndex(1);
 	}
 }
@@ -473,22 +474,16 @@ void MainWindow::displayCorner(img::Image* src, bool source) {
 	QList<float> cornerVals = prepareCorner();
 	feat::Corner srcCorner;
 
-	if (cornerVals[0] == CORNER_HARRIS || cornerVals[0] == CORNER_HARLAP) {
 		feat::Corner::Harris* harris = new feat::Corner::Harris(cornerVals[1], cornerVals[2], cornerVals[4], cornerVals[5], cornerVals[3]);
-		srcCorner = lnkr::setCorner(src, *harris, cornerVals[0],   edgeVals[0], canny);
-	}
-	else {
-		srcEdge = lnkr::setEdge(src, edgeVals[0]);
-		gen::imageTesting(srcEdge.getEdgeMat(), "tester");
-	}
+		srcCorner = lnkr::setCorner(src, *harris, cornerVals[0], cornerVals[6], 0);
 
 	if (source) {
 		switchDisplayWidgets(true, true);
-		ui.label_derSrcBig->setPixmap(QPixmap::fromImage(QImage(cvMatToQImage(srcEdge.getEdgeMat()))));
+		ui.label_derSrcBig->setPixmap(QPixmap::fromImage(QImage(cvMatToQImage(srcCorner.getCornerMarkedMat()))));
 	}
 	else {
 		switchDisplayWidgets(true, false);
-		ui.label_derDestBig->setPixmap(QPixmap::fromImage(QImage(cvMatToQImage(srcEdge.getEdgeMat()))));
+		ui.label_derDestBig->setPixmap(QPixmap::fromImage(QImage(cvMatToQImage(srcCorner.getCornerMarkedMat()))));
 	}
 }
 
@@ -556,8 +551,10 @@ QList<float> MainWindow::prepareCorner() {
 	cornerVals.push_back(ui.lineEdit_alpha->text().toFloat());
 	cornerVals.push_back(ui.lineEdit_sigmai->text().toFloat());
 	cornerVals.push_back(ui.lineEdit_sigmad->text().toFloat());
+	cornerVals.push_back(ui.lineEdit_numOfScales->text().toFloat());
 
-	if (cornerVals[1] == 0 || cornerVals[2] == 0 || cornerVals[3] == 0 || cornerVals[4] == 0 || cornerVals[5] == 0)
+	if (cornerVals[1] == 0 || cornerVals[2] == 0 || cornerVals[3] == 0 || cornerVals[4] == 0 || cornerVals[5] == 0
+		|| cornerVals[6] == 0)
 		throw std::exception("Zero value boxes. Harris values can't be zero, pick a value.");
 
 	return cornerVals;

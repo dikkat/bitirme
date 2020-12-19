@@ -139,7 +139,11 @@ namespace feat {
 		std::vector<int> getIntVariables();
 		float getScaleRatio();
 		std::vector<XXH64_hash_t> getHashVariables();
-		static cv::Mat paintPointsOverImage(cv::Mat const imageMat, cv::Mat const pointMat, bool gray = true, float numOfPoints = 100, float radius = 2, float thickness = 2, cv::Scalar pointColor = { 255,0,255 });
+		cv::Mat getCornerMat();
+		cv::Mat getCornerMarkedMat(bool gray = false, float numOfPoints = 1000, float radius = 2, float thickness = 2,
+			cv::Scalar pointColor = { 255,0,255 });
+		static cv::Mat paintPointsOverImage(cv::Mat const imageMat, cv::Mat const pointMat, bool gray = true, 
+			float numOfPoints = 100, float radius = 2, float thickness = 2, cv::Scalar pointColor = { 255,0,255 });
 		static cv::Mat cornerDetectionHarrisLaplace(cv::Mat imageMat, feat::Corner::Harris* cdh, float n = 3, float scaleRatio = 0);
 		static void localMaxima(cv::Mat src, cv::Mat& dst, int squareSize, float threshold);
 	private:
@@ -150,5 +154,7 @@ namespace feat {
 		int numofScales;
 		float scaleRatio;
 		cv::Mat sourceMat;
+		cv::Mat cornerMat;
+		cv::Mat cornerMarkedMat;
 	};	
 }

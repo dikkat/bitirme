@@ -613,7 +613,8 @@ feat::Corner::Corner(cv::Mat imageMat, feat::Corner::Harris* cdh, int flag, int 
     cornerFlag = flag;
     numofScales = numberofScales;
     scaleRatio = scaleRat;
-    sourceMat = oper;
+    sourceMat = imageMat;
+    cornerMat = oper;
     hash = feat::Hash::setHash(nullptr, &std::vector<float>{static_cast<float>(flag), static_cast<float>(numofScales),
         scaleRatio});
     std::vector<std::string> hashVec;
@@ -632,8 +633,17 @@ std::vector<XXH64_hash_t> feat::Corner::getHashVariables() {
     return std::vector<XXH64_hash_t>{hash, *cdhHash};
 }
 
+cv::Mat feat::Corner::getCornerMat() {
+    return cornerMat;
+}
 
-cv::Mat feat::Corner::paintPointsOverImage(cv::Mat const imageMat, cv::Mat const pointMat, bool gray, float numOfPoints, float radius, float thickness, cv::Scalar pointColor) {
+cv::Mat feat::Corner::getCornerMarkedMat(bool gray, float numOfPoints, float radius, float thickness, cv::Scalar pointColor) {
+    this->cornerMarkedMat = paintPointsOverImage(sourceMat, cornerMat, gray, numOfPoints, radius, thickness, pointColor);
+    return this->cornerMarkedMat;
+}
+
+cv::Mat feat::Corner::paintPointsOverImage(cv::Mat const imageMat, cv::Mat const pointMat, bool gray, float numOfPoints, 
+    float radius, float thickness, cv::Scalar pointColor) {
     std::vector<cv::Point> pointVec;
 
     cv::Mat pointMatOper = pointMat.clone();
@@ -666,7 +676,7 @@ cv::Mat feat::Corner::cornerDetectionHarrisLaplace(cv::Mat imageMat, feat::Corne
 
     if (scaleRatio == 0) {
         if (imageMat.cols > recommendedWidth)
-            scale = recommendedWidth / imageMat.cols;
+            scale = static_cast<float>(recommendedWidth) / imageMat.cols;
         else
             scale = 1;
         width = imageMat.cols * scale;
@@ -705,7 +715,7 @@ cv::Mat feat::Corner::cornerDetectionHarrisLaplace(cv::Mat imageMat, feat::Corne
         cv::Laplacian(LoGDerivative, LoGDerivative, CV_32F, 5);
         setOfDerivatives.push_back(LoGDerivative);
 
-        Harris* cdhOper = cdh; 
+        Harris* cdhOper = cdh;
         cdhOper->setVariables("sigmai", setOfScales[i]);
         cdhOper->setVariables("sigmad", scaleConstant * setOfScales[i]);
         
@@ -764,7 +774,7 @@ cv::Mat feat::Corner::cornerDetectionHarrisLaplace(cv::Mat imageMat, feat::Corne
             }
 
             if (LoG[1] > LoG[0] && LoG[1] > LoG[2]) {
-                pointLocVec[i][j] *= 1 / scaleRatio;
+                pointLocVec[i][j] *= 1 / scale;
                 resultMat.at<float>(pointLocVec[i][j]) = 255;
             }
 
@@ -806,13 +816,9 @@ XXH64_hash_t feat::Corner::Harris::getHash() {
 }
 
 cv::Mat feat::Corner::Harris::cornerDetectionHarris(cv::Mat const imageMat) {
-    if (sourceMat.data == NULL) {
-        parent->cdhHash = &hash;
-        sourceMat = calculate(imageMat);
-        return sourceMat;
-    }
-    else
-        return sourceMat;
+    parent->cdhHash = &hash;
+    sourceMat = calculate(imageMat);
+    return sourceMat;
 }
 
 void feat::Corner::Harris::setHash() {

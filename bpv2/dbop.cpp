@@ -588,7 +588,7 @@ void dbop::Database::insert_Corner(feat::Corner corner) {
     sqlite3_bind_int(strQuery, 2, corner.getIntVariables()[0]);
     sqlite3_bind_text(strQuery, 3, cdhHash_str.c_str(), cdhHash_str.size(), SQLITE_STATIC);
     sqlite3_bind_int(strQuery, 4, corner.getIntVariables()[1]);
-    sqlite3_bind_double(strQuery, 5, static_cast<double>(corner.getScaleRatio));
+    sqlite3_bind_double(strQuery, 5, static_cast<double>(corner.getScaleRatio()));
 
     rc = sqlite3_step(strQuery);
     errorCheck(rc, const_cast<char*>(sqlite3_errmsg(db)));

@@ -1,0 +1,7 @@
+<RCC>
+    <qresource prefix="/new/prefix1">
+        <file>Resources/qt resources/zoom(1).svg</file>
+        <file>Resources/qt resources/zoom.svg</file>
+        <file>Resources/qt resources/zoom.png</file>
+    </qresource>
+</RCC>

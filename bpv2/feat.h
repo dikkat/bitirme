@@ -10,7 +10,6 @@ enum corner_flag { CORNER_HARRIS, CORNER_HARLAP };
 enum kernel_flag {KERNEL_SOBEL, KERNEL_PREWT, KERNEL_ROBRT};
 
 namespace feat {
-
 	extern cv::Mat sobelX;
 	extern cv::Mat sobelY;
 	extern cv::Mat prewittX;
@@ -20,7 +19,7 @@ namespace feat {
 
 	class Hash {
 	public:
-		static int compareImageHash(cv::Mat const lefthand, cv::Mat const righthand);
+		static std::pair<int, std::pair<std::bitset<64>, std::bitset<64>>> compareImageHash(cv::Mat const lefthand, cv::Mat const righthand);
 		static XXH64_hash_t hash_xxHash(cv::Mat const inputMat);
 		static XXH64_hash_t setHash(std::vector<cv::Mat>* matVec = nullptr, std::vector<float>* floatVec = nullptr);
 		static XXH64_hash_t setHash(std::vector<std::string> strVec);
@@ -85,6 +84,7 @@ namespace feat {
 		}; //HAUSDORFF DISTANCE FOR EDGE COMPARISON ALSO MAYBE SIFT ALGORITHM
 		Edge(cv::Mat imageMat, int flag, feat::Edge::Canny* edc = nullptr);
 		Edge(){}
+		~Edge();
 		int getEdgeFlag();
 		std::vector<XXH64_hash_t> getHashVariables();
 		cv::Mat getEdgeMat();

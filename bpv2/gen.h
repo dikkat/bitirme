@@ -14,5 +14,6 @@ namespace gen {
 	extern std::ostringstream tout;
 	void imageTesting(cv::Mat imageMat, std::string filename);
 	void printTesting(std::ostringstream &osoperator);
+	bool cmpf(float A, float B, float epsilon = 0.005f);
 }
 

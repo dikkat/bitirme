@@ -286,9 +286,15 @@ void MainWindow::displayHash(img::Image* src) {
 }
 
 void MainWindow::displayHistogram(img::Image* src, bool source){
-	QList<int> histVals = prepareHistogram();
-	feat::Histogram srcHist = lnkr::setHistogram(src, histVals[0], histVals[1], histVals[2], histVals[3]);
-	cv::Mat histPtr = srcHist.getHistogramMat();
+	QList<int> histVals;
+	try {
+		histVals = prepareHistogram();
+	}
+	catch (...) {
+		return; //TODO: HATAYI YAKALA
+	}
+	feat::Histogram* srcHist = lnkr::setHistogram(src, histVals[0], histVals[1], histVals[2], histVals[3]);
+	cv::Mat histPtr = srcHist->getHistogramMat();
 
 	double max;
 	cv::minMaxLoc(histPtr, nullptr, &max);
@@ -306,11 +312,13 @@ void MainWindow::displayHistogram(img::Image* src, bool source){
 	plotSrc->legend->setFont(legendFont);
 	plotSrc->legend->setBrush(QBrush(QColor(255, 255, 255, 230)));
 	plotSrc->axisRect()->insetLayout()->setInsetAlignment(0, Qt::AlignTop | Qt::AlignRight);
+	plotSrc->axisRect()->insetLayout()->setMargins(QMargins(0, 2, 2, 0));
+	plotSrc->legend->setIconSize(QSize(10, 15));
 
 	if (histPtr.channels() == 1) {
 		QVector<double> data, keys;
 		for (int i = 0; i < histPtr.total(); i++) {
-			keys.push_back(i);
+			keys.push_back(static_cast<float>(255) / static_cast<float>(histPtr.total()) * i);
 			data.push_back(static_cast<double>(histPtr.at<float>(i)));
 		}
 
@@ -321,18 +329,19 @@ void MainWindow::displayHistogram(img::Image* src, bool source){
 		}
 
 		plotSrc->replot();
-		QCPBars* barSrc = new QCPBars(plotSrc->xAxis, plotSrc->yAxis);
-		barSrc->setData(keys, data);
-		barSrc->setName("Gray Histogram");
-		barSrc->setPen(QPen(QColor(Qt::lightGray)));
+		//QCPBars* barSrc = new QCPBars(plotSrc->xAxis, plotSrc->yAxis); TODO: BAR OR GRAPH DECIDE
+		QCPGraph* graphPtr = new QCPGraph(plotSrc->xAxis, plotSrc->yAxis);
+		graphPtr->setData(keys, data);
+		graphPtr->setName("Gray Histogram");
+		graphPtr->setPen(QPen(QColor(Qt::lightGray)));
 		plotSrc->xAxis->setLabel("Histogram bins");
 		plotSrc->yAxis->setLabel("Number of pixels");
 		plotSrc->yAxis->setRange(0, max + max * 0.10);
-		plotSrc->xAxis->setRange(0, histPtr.rows + histPtr.rows * 0.10);
+		plotSrc->xAxis->setRange(0, 255 + 255 * 0.10);
 		plotSrc->replot();
 	}
 
-	else if (histPtr.channels() == 3 && srcHist.getVariablesFloat()[0] == HIST_BGR) {
+	else if (histPtr.channels() == 3 && srcHist->getVariablesFloat()[0] == HIST_BGR) {
 		QVector<QVector<double>> data;
 		data.resize(3);
 		QVector<double> keys;
@@ -352,24 +361,27 @@ void MainWindow::displayHistogram(img::Image* src, bool source){
 		plotSrc->replot();
 
 		if (ui.checkBox_B->checkState()) {
-			QCPBars* barSrcB = new QCPBars(plotSrc->xAxis, plotSrc->yAxis);
-			barSrcB->setPen(QPen(QColor(Qt::darkBlue)));
-			barSrcB->setData(keys, data[0]);
-			barSrcB->setName("Blue Histogram");
+			QCPGraph* graphPtrB = new QCPGraph(plotSrc->xAxis, plotSrc->yAxis);
+			//QCPBars* barSrcB = new QCPBars(plotSrc->xAxis, plotSrc->yAxis);
+			graphPtrB->setPen(QPen(QColor(Qt::darkBlue)));
+			graphPtrB->setData(keys, data[0]);
+			graphPtrB->setName("Blue Histogram");
 		}
 
 		if (ui.checkBox_G->checkState()) {
-			QCPBars* barSrcG = new QCPBars(plotSrc->xAxis, plotSrc->yAxis);
-			barSrcG->setPen(QPen(QColor(Qt::darkGreen)));
-			barSrcG->setData(keys, data[1]);
-			barSrcG->setName("Green Histogram");
+			QCPGraph* graphPtrG = new QCPGraph(plotSrc->xAxis, plotSrc->yAxis);
+			//QCPBars* barSrcG = new QCPBars(plotSrc->xAxis, plotSrc->yAxis);
+			graphPtrG->setPen(QPen(QColor(Qt::darkGreen)));
+			graphPtrG->setData(keys, data[1]);
+			graphPtrG->setName("Green Histogram");
 		}
 
 		if (ui.checkBox_R->checkState()) {
-			QCPBars* barSrcR = new QCPBars(plotSrc->xAxis, plotSrc->yAxis);
-			barSrcR->setPen(QPen(QColor(Qt::darkRed)));
-			barSrcR->setData(keys, data[2]);
-			barSrcR->setName("Red Histogram");
+			QCPGraph* graphPtrR = new QCPGraph(plotSrc->xAxis, plotSrc->yAxis);
+			//QCPBars* barSrcR = new QCPBars(plotSrc->xAxis, plotSrc->yAxis);
+			graphPtrR->setPen(QPen(QColor(Qt::darkRed)));
+			graphPtrR->setData(keys, data[2]);
+			graphPtrR->setName("Red Histogram");
 		}
 
 		plotSrc->xAxis->setLabel("Histogram bins");
@@ -379,7 +391,7 @@ void MainWindow::displayHistogram(img::Image* src, bool source){
 		plotSrc->replot();
 	}
 
-	else if (histPtr.channels() == 3 && srcHist.getVariablesFloat()[0] == HIST_HSV) {
+	else if (histPtr.channels() == 3 && srcHist->getVariablesFloat()[0] == HIST_HSV) {
 		QVector<QVector<double>> data;
 		data.resize(3);
 		QVector<double> keys;
@@ -398,24 +410,27 @@ void MainWindow::displayHistogram(img::Image* src, bool source){
 
 		plotSrc->replot();
 		if (ui.checkBox_B->checkState()) {
-			QCPBars* barSrcH = new QCPBars(plotSrc->xAxis, plotSrc->yAxis);
-			barSrcH->setPen(QPen(QColor(Qt::darkMagenta)));
-			barSrcH->setData(keys, data[0]);
-			barSrcH->setName("Hue Histogram");
+			QCPGraph* graphPtrH = new QCPGraph(plotSrc->xAxis, plotSrc->yAxis);
+			//QCPBars* barSrcH = new QCPBars(plotSrc->xAxis, plotSrc->yAxis);
+			graphPtrH->setPen(QPen(QColor(Qt::darkMagenta)));
+			graphPtrH->setData(keys, data[0]);
+			graphPtrH->setName("Hue Histogram");
 		}
 
 		if (ui.checkBox_G->checkState()) {
-			QCPBars* barSrcS = new QCPBars(plotSrc->xAxis, plotSrc->yAxis);
-			barSrcS->setPen(QPen(QColor(Qt::darkCyan)));
-			barSrcS->setData(keys, data[1]);
-			barSrcS->setName("Saturation Histogram");
+			QCPGraph* graphPtrS = new QCPGraph(plotSrc->xAxis, plotSrc->yAxis);
+			//QCPBars* barSrcS = new QCPBars(plotSrc->xAxis, plotSrc->yAxis);
+			graphPtrS->setPen(QPen(QColor(Qt::darkCyan)));
+			graphPtrS->setData(keys, data[1]);
+			graphPtrS->setName("Saturation Histogram");
 		}
 		
 		if (ui.checkBox_R->checkState()) {
-			QCPBars* barSrcV = new QCPBars(plotSrc->xAxis, plotSrc->yAxis);
-			barSrcV->setPen(QPen(QColor(Qt::darkGray)));
-			barSrcV->setData(keys, data[2]);
-			barSrcV->setName("Value Histogram");
+			QCPGraph* graphPtrV = new QCPGraph(plotSrc->xAxis, plotSrc->yAxis);
+			//QCPBars* barSrcV = new QCPBars(plotSrc->xAxis, plotSrc->yAxis);
+			graphPtrV->setPen(QPen(QColor(Qt::darkGray)));
+			graphPtrV->setData(keys, data[2]);
+			graphPtrV->setName("Value Histogram");
 		}
 
 		plotSrc->xAxis->setLabel("Histogram bins");
@@ -424,11 +439,13 @@ void MainWindow::displayHistogram(img::Image* src, bool source){
 		plotSrc->xAxis->setRange(0, histPtr.rows + histPtr.rows * 0.10);
 		plotSrc->replot();
 	}
+
+	delete(srcHist);
 }
 
 void MainWindow::displayEdge(img::Image* src, bool source) {
 	QList<float> edgeVals = prepareEdge();
-	feat::Edge srcEdge;
+	feat::Edge* srcEdge;
 
 	if (edgeVals[0] == EDGE_CANNY) {
 		cv::Mat kernelX;
@@ -450,41 +467,43 @@ void MainWindow::displayEdge(img::Image* src, bool source) {
 			throw std::exception("Illegal kernel flag.");
 			break;
 		}
-
 		feat::Edge::Canny* canny = new feat::Edge::Canny(edgeVals[1], edgeVals[4], edgeVals[2], edgeVals[3], kernelX, kernelY);
 		srcEdge = lnkr::setEdge(src, edgeVals[0], canny);
 	}
 
 	else {
 		srcEdge = lnkr::setEdge(src, edgeVals[0]);
-		gen::imageTesting(srcEdge.getEdgeMat(), "tester");
 	}
 
 	if (source) {
 		switchDisplayWidgets(true, true);
-		ui.label_derSrcBig->setPixmap(QPixmap::fromImage(QImage(cvMatToQImage(srcEdge.getEdgeMat()))));
+		ui.label_derSrcBig->setPixmap(QPixmap::fromImage(QImage(cvMatToQImage(srcEdge->getEdgeMat()))));
 	}
 	else {
 		switchDisplayWidgets(true, false);
-		ui.label_derDestBig->setPixmap(QPixmap::fromImage(QImage(cvMatToQImage(srcEdge.getEdgeMat()))));
+		ui.label_derDestBig->setPixmap(QPixmap::fromImage(QImage(cvMatToQImage(srcEdge->getEdgeMat()))));
 	}
+
+	delete(srcEdge);
 }
 //cornerFlag, radius, squareSize, alpha, sigmai, sigmad
 void MainWindow::displayCorner(img::Image* src, bool source) {
 	QList<float> cornerVals = prepareCorner();
-	feat::Corner srcCorner;
+	feat::Corner* srcCorner;
 
-		feat::Corner::Harris* harris = new feat::Corner::Harris(cornerVals[1], cornerVals[2], cornerVals[4], cornerVals[5], cornerVals[3]);
-		srcCorner = lnkr::setCorner(src, *harris, cornerVals[0], cornerVals[6], 0);
+	feat::Corner::Harris* harris = new feat::Corner::Harris(cornerVals[1], cornerVals[2], cornerVals[4], cornerVals[5], cornerVals[3]);
+	srcCorner = lnkr::setCorner(src, *harris, cornerVals[0], cornerVals[6], 0);
 
 	if (source) {
 		switchDisplayWidgets(true, true);
-		ui.label_derSrcBig->setPixmap(QPixmap::fromImage(QImage(cvMatToQImage(srcCorner.getCornerMarkedMat()))));
+		ui.label_derSrcBig->setPixmap(QPixmap::fromImage(QImage(cvMatToQImage(srcCorner->getCornerMarkedMat()))));
 	}
 	else {
 		switchDisplayWidgets(true, false);
-		ui.label_derDestBig->setPixmap(QPixmap::fromImage(QImage(cvMatToQImage(srcCorner.getCornerMarkedMat()))));
+		ui.label_derDestBig->setPixmap(QPixmap::fromImage(QImage(cvMatToQImage(srcCorner->getCornerMarkedMat()))));
 	}
+
+	delete(srcCorner);
 }
 
 void MainWindow::switchDisplayWidgets(bool toLabel, bool source) {

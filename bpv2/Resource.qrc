@@ -3,5 +3,6 @@
         <file>Resources/qt resources/zoom(1).svg</file>
         <file>Resources/qt resources/zoom.svg</file>
         <file>Resources/qt resources/zoom.png</file>
+        <file>Resources/iaprtc12/images/00/53.jpg</file>
     </qresource>
 </RCC>

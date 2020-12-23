@@ -31,7 +31,7 @@ img::Image lnkr::setSourceImage(img::Image src) {
 	return src;
 }
 
-feat::Histogram lnkr::setHistogram(img::Image* image_ptr, int flag, int fb, int sb, int tb) {
+feat::Histogram* lnkr::setHistogram(img::Image* image_ptr, int flag, int fb, int sb, int tb) {
 	XXH64_hash_t histHash = feat::Hash::setHash(nullptr, &std::vector<float>{static_cast<float>(flag), static_cast<float>(fb),
 		static_cast<float>(sb), static_cast<float>(tb)});
 
@@ -42,10 +42,10 @@ feat::Histogram lnkr::setHistogram(img::Image* image_ptr, int flag, int fb, int 
 	lnkr_dbPtr->insert_Histogram(*imgHist);
 	lnkr_dbPtr->insert_ImageHistogram(image_ptr->getHash(), imgHist->getHash());
 
-	return *imgHist;
+	return imgHist;
 }
 
-feat::Edge::Canny lnkr::setEdgeCanny(img::Image* image_ptr, float gauss, float sigma, float thigh, float tlow, cv::Mat kernelx, cv::Mat kernely) {
+feat::Edge::Canny* lnkr::setEdgeCanny(img::Image* image_ptr, float gauss, float sigma, float thigh, float tlow, cv::Mat kernelx, cv::Mat kernely) {
 	std::vector<float> getVariablesFloat{gauss, thigh, tlow, sigma};
 	std::vector<cv::Mat> getVariablesMat{kernelx, kernely};
 
@@ -73,12 +73,13 @@ feat::Edge::Canny lnkr::setEdgeCanny(img::Image* image_ptr, float gauss, float s
 	}
 
 	lnkr_dbPtr->insert_Edge(*imgEdge);
+	delete(imgEdge);
 	lnkr_dbPtr->insert_EdgeCanny(*edgeCanny);
 
-	return *edgeCanny;
+	return edgeCanny;
 }
 
-feat::Edge lnkr::setEdge(img::Image* image_ptr, int flag, feat::Edge::Canny* edc) {
+feat::Edge* lnkr::setEdge(img::Image* image_ptr, int flag, feat::Edge::Canny* edc) {
 	XXH64_hash_t edgeHash = feat::Hash::setHash(nullptr, &std::vector<float>{static_cast<float>(flag)});
 	XXH64_hash_t hash;
 
@@ -102,12 +103,10 @@ feat::Edge lnkr::setEdge(img::Image* image_ptr, int flag, feat::Edge::Canny* edc
 
 	imgEdge = new feat::Edge(image_ptr->getImageMat(), flag, edc);
 
-	feat::Edge perm = *imgEdge;
-
-	return perm;
+	return imgEdge;
 }
 
-feat::Corner::Harris lnkr::setCornerHarris(img::Image* image_ptr, float radius, float squareSize, float sigmai, float sigmad, 
+feat::Corner::Harris* lnkr::setCornerHarris(img::Image* image_ptr, float radius, float squareSize, float sigmai, float sigmad, 
 	float alpha, cv::Mat kernelx, cv::Mat kernely) {
 	std::vector<float> getVariablesFloat{ radius, squareSize, sigmai, sigmad, alpha };
 	std::vector<cv::Mat> getVariablesMat{ kernelx, kernely };
@@ -122,10 +121,10 @@ feat::Corner::Harris lnkr::setCornerHarris(img::Image* image_ptr, float radius, 
 
 	lnkr_dbPtr->insert_CornerHarris(*cornerHarris);
 
-	return *cornerHarris;
+	return cornerHarris;
 }
 
-feat::Corner lnkr::setCorner(img::Image* image_ptr, feat::Corner::Harris cdh, int flag, int numberofScales, float scaleRatio) {
+feat::Corner* lnkr::setCorner(img::Image* image_ptr, feat::Corner::Harris cdh, int flag, int numberofScales, float scaleRatio) {
 	XXH64_hash_t hash = feat::Hash::setHash(nullptr, &std::vector<float>{static_cast<float>(flag), 
 		static_cast<float>(numberofScales), scaleRatio});
 	std::vector<std::string> hashVec;
@@ -141,9 +140,7 @@ feat::Corner lnkr::setCorner(img::Image* image_ptr, feat::Corner::Harris cdh, in
 
 	imgCorner = new feat::Corner(image_ptr->getImageMat(), &cdh, flag, numberofScales, scaleRatio);
 
-	feat::Corner perm = *imgCorner;
-
-	return perm;
+	return imgCorner;
 }
 
 void lnkr::setIcon(img::Image* image_ptr) {
@@ -173,8 +170,9 @@ feat::Histogram* lnkr::getImageHist(img::Image* image_ptr, XXH64_hash_t histHash
 		if (resultVec[0].size() == 0)
 			return nullptr;
 		else {
-			return &feat::Histogram(image_ptr->getImageMat(), std::stof(resultVec[0][0]), std::stof(resultVec[1][0]),
+			auto *histPtr = new feat::Histogram(image_ptr->getImageMat(), std::stof(resultVec[0][0]), std::stof(resultVec[1][0]),
 				std::stof(resultVec[2][0]), std::stof(resultVec[3][0]));
+			return histPtr;
 		}
 	}
 }
@@ -209,13 +207,15 @@ feat::Edge* lnkr::getImageEdge(img::Image* image_ptr, XXH64_hash_t edgeHash) {
 					cv::Mat kernely = dbop::deserializeMat(cannyVec[5][0]);
 					canny = feat::Edge::Canny(std::stof(cannyVec[0][0]), std::stof(cannyVec[1][0]), std::stof(cannyVec[2][0]),
 						std::stof(cannyVec[3][0]), kernelx, kernely);
-					return &feat::Edge(image_ptr->getImageMat(), std::stoi(resultVec[0][0]), &canny);
+					auto* edgePtr = new feat::Edge(image_ptr->getImageMat(), std::stoi(resultVec[0][0]), &canny);
+					return edgePtr;
 				}
 				else
 					throw std::exception("Edge object has not null canny hash, but that hash isn't on Canny table.");
 			}
 			else {
-				return &feat::Edge(image_ptr->getImageMat(), std::stoi(resultVec[0][0]), nullptr);
+				auto* edgePtr = new feat::Edge(image_ptr->getImageMat(), std::stoi(resultVec[0][0]), nullptr);
+				return edgePtr;
 			}
 		}
 	}
@@ -245,7 +245,7 @@ feat::Edge::Canny* lnkr::getEdgeCanny(img::Image* image_ptr, XXH64_hash_t cannyH
 		return nullptr;
 
 	else {
-		feat::Edge::Canny canny;
+		feat::Edge::Canny* canny;
 
 		condition = "hash='" + std::to_string(cannyHash) + "'";
 		std::vector<std::vector<std::string>> cannyVec = lnkr_dbPtr->select_GENERAL(std::vector<std::vector<std::string>>{
@@ -257,12 +257,12 @@ feat::Edge::Canny* lnkr::getEdgeCanny(img::Image* image_ptr, XXH64_hash_t cannyH
 		cv::Mat kernelx = dbop::deserializeMat(cannyVec[4][0]);
 		cv::Mat kernely = dbop::deserializeMat(cannyVec[5][0]);
 
-		canny = feat::Edge::Canny(std::stof(cannyVec[0][0]), std::stof(cannyVec[1][0]), std::stof(cannyVec[2][0]),
+		canny = new feat::Edge::Canny(std::stof(cannyVec[0][0]), std::stof(cannyVec[1][0]), std::stof(cannyVec[2][0]),
 			std::stof(cannyVec[3][0]), kernelx, kernely);
-		if (canny.getHash() != cannyHash)
+		if (canny->getHash() != cannyHash)
 			throw std::exception("Hash calculation is wrong. Check the hash class.");
 		else
-			return &canny;
+			return canny;
 	}
 }
 
@@ -280,7 +280,7 @@ feat::Corner* lnkr::getImageCorner(img::Image* image_ptr, XXH64_hash_t cornerHas
 
 	else {
 		condition = "hash='" + cornerHash_str + "'";
-		feat::Corner::Harris harris;
+		feat::Corner::Harris* harris;
 		std::vector<std::vector<std::string>> resultVec = lnkr_dbPtr->select_GENERAL(std::vector<std::vector<std::string>>{
 			{"cdhHash", "flag", "numberofscales", "scaleratio"}, { "corner" }, { condition }});
 		if (resultVec[0].size() == 0)
@@ -298,11 +298,12 @@ feat::Corner* lnkr::getImageCorner(img::Image* image_ptr, XXH64_hash_t cornerHas
 				cv::Mat kernelx = dbop::deserializeMat(harrisVec[5][0]);
 				cv::Mat kernely = dbop::deserializeMat(harrisVec[6][0]);
 
-				harris = feat::Corner::Harris(std::stof(harrisVec[0][0]), std::stof(harrisVec[1][0]), std::stof(harrisVec[2][0]),
+				harris = new feat::Corner::Harris(std::stof(harrisVec[0][0]), std::stof(harrisVec[1][0]), std::stof(harrisVec[2][0]),
 					std::stof(harrisVec[3][0]), std::stof(harrisVec[4][0]), kernelx, kernely);
 
-				corner = new feat::Corner(image_ptr->getImageMat(), &harris, std::stoi(resultVec[1][0]),
+				corner = new feat::Corner(image_ptr->getImageMat(), harris, std::stoi(resultVec[1][0]),
 					std::stoi(resultVec[2][0]), std::stof(resultVec[3][0]));
+				delete(harris);
 				return corner;
 			}
 		}
@@ -333,7 +334,7 @@ feat::Corner::Harris* lnkr::getCornerHarris(img::Image* image_ptr, XXH64_hash_t 
 		return nullptr;
 	}
 	else {
-		feat::Corner::Harris harris;
+		feat::Corner::Harris* harris;
 
 		condition = "hash='" + std::to_string(harrisHash) + "'";
 		std::vector<std::vector<std::string>> harrisVec = lnkr_dbPtr->select_GENERAL(std::vector<std::vector<std::string>>{
@@ -345,12 +346,12 @@ feat::Corner::Harris* lnkr::getCornerHarris(img::Image* image_ptr, XXH64_hash_t 
 		cv::Mat kernelx = dbop::deserializeMat(harrisVec[5][0]);
 		cv::Mat kernely = dbop::deserializeMat(harrisVec[6][0]);
 
-		harris = feat::Corner::Harris(std::stof(harrisVec[0][0]), std::stof(harrisVec[1][0]), std::stof(harrisVec[2][0]),
+		harris = new feat::Corner::Harris(std::stof(harrisVec[0][0]), std::stof(harrisVec[1][0]), std::stof(harrisVec[2][0]),
 			std::stof(harrisVec[3][0]), std::stof(harrisVec[4][0]), kernelx, kernely);
-		if (harris.getHash() != harrisHash)
+		if (harris->getHash() != harrisHash)
 			throw std::exception("Hash calculation is wrong. Check the hash class.");
 		else
-			return &harris;
+			return harris;
 	}
 }
 

@@ -64,7 +64,7 @@ namespace sim {
 	cv::Mat convolution2DopenCV(cv::Mat const imageMat, cv::Mat kernel);
 
 	cv::Mat rotateMatrix180(cv::Mat srcmat);
-	cv::Mat filterGauss(cv::Mat const operand, int k = 5, float sigma = 1.4, float mu = 1, bool openCV = true);
+	cv::Mat filterGauss(cv::Mat const operand, int k = 5, float sigma = 1.4, float mu = 0, bool openCV = true);
 	cv::Mat gaussKernel(float kernel_size, float sigma, float mu);
 
 	float sumOfVectorMembers(std::vector<float> operand, int offset);

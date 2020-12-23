@@ -570,19 +570,18 @@ cv::Mat sim::convolution2DSeparable(cv::Mat const imageMat, cv::Mat const kernel
 	};
 	
 	if (kernel.rows != kernel.cols) {
-		std::cout << "Separable convolution failed.";
-		return convolution2DHelix(imageMat, kernel);		
-	}
-
-	if (rankOfMatrix(kernel) != 1) {
-		std::cout << "Separable convolution failed.";
-		return convolution2DHelix(imageMat, kernel);
+		throw std::exception("Separable convolution failed.");
 	}
 
 	std::vector<cv::Mat> matVec = decompose(kernel);
 
 	cv::Mat* xkernel = &matVec[0];
 	cv::Mat* ykernel = &matVec[1];
+
+	for(int i = 0; i < xkernel->total(); i++)
+		if(!gen::cmpf(xkernel->at<float>(i), ykernel->at<float>(i), 0.0005))
+			throw std::exception("Separable convolution failed.");
+
 	cv::Mat matOperY = cv::Mat::zeros(imageMat.rows, imageMat.cols, CV_32FC1);
 
 	cv::Mat imgOper;
@@ -780,6 +779,9 @@ cv::Mat sim::rotateMatrix180(cv::Mat srcmat)
 }
 
 cv::Mat sim::filterGauss(cv::Mat const operand, int ksize, float sigma, float mu, bool openCV) {
+	if (mu != 0) {
+		throw std::exception("Mu value must be zero.");
+	}
 	if (ksize % 2 != 1 || ksize < 0)
 		throw std::exception("Illegal kernel size.");
 
@@ -857,9 +859,15 @@ cv::Mat sim::gaussKernel(float kernel_size, float sigma, float mu) {  //http://d
 		sumofVec += coeff[i];
 	}
 
+	std::cout << xvec << "\n" << yvec << "\n";
+
 	gaussMat = xvec * yvec;
 
+	std::cout << gaussMat << "\n";
+
 	gaussMat = gaussMat * sumofVec;
+
+	std::cout << gaussMat << "\n";
 
 	return gaussMat;
 }

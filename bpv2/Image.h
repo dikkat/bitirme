@@ -16,18 +16,18 @@ namespace feat {
 namespace img {
 	class Image {
 	public:
-		Image(std::string imgdir, int flag);
+		Image(string imgdir, int flag);
 		Image() {}
-		const std::string getImageName();
+		const string getImageName();
 		cv::Mat getImageMat();
-		std::vector<std::string> getVariablesString();
+		std::vector<string> getVariablesString();
 		XXH64_hash_t getHash();		
 	private:
 		XXH64_hash_t hash;
 		cv::Mat imageMat;
-		std::string name, dir;
-		void setImageDirectory(std::string imgdir);
-		cv::Mat readImageFile(std::string imgdir, int flag);
+		string name, dir;
+		void setImageDirectory(string imgdir);
+		cv::Mat readImageFile(string imgdir, int flag);
 	};
 
 	class Icon {
@@ -40,10 +40,10 @@ namespace img {
 		cv::Mat iconMat;
 	};
 
-	std::string buildImageName(std::string imgdir);
-	std::vector<Image> readImageFolder(std::string imagefoldername, int flag, bool all, int number);
-	std::string typeToString(int type);
+	string buildImageName(string imgdir);
+	std::vector<Image> readImageFolder(string imagefoldername, int flag, bool all, int number);
+	string typeToString(int type);
 	void displayImage(cv::Mat imgmat);
 
-	void imageTesting(cv::Mat imageMat, std::string filename);
+	void imageTesting(cv::Mat imageMat, string filename);
 }

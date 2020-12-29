@@ -7,33 +7,48 @@ cv::Mat feat::prewittY = (cv::Mat_<float>(3, 3) << 1, 1, 1, 0, 0, 0, -1, -1, -1)
 cv::Mat feat::robertX = (cv::Mat_<float>(2, 2) << 1, 0, 0, -1);
 cv::Mat feat::robertY = (cv::Mat_<float>(2, 2) << 0, 1, -1, 0);
 
-feat::Histogram::Histogram(cv::Mat imageMat, int flag, int fb, int sb, int tb) {
-	fbin = fb;
-	sbin = sb;
-	tbin = tb;
-
-	if (flag == -1) {
-		if (imageMat.channels() == 1)
-			histMat = histogramGRAYCalculation(imageMat);
-		else if (imageMat.channels() == 3)
-			histMat = histogramBGRCalculation(imageMat);
-		else
-			throw std::exception("Illegal number of channels for histogram.");
+feat::Histogram::Histogram(cv::Mat imageMat, int flag, int fb, int sb, int tb) : fbin(fb), sbin(sb), tbin(tb), 
+	flag(flag), sourceMat(imageMat) {
+	if (flag == HIST_BGR) {
+		float bgr_ranges[] = { 0, 256 };
+		const float* histRange[] = { bgr_ranges };
+		const int histSize[] = { getBin()[0], getBin()[1], getBin()[2] };
+		std::pair<cv::Mat, cv::Mat> temp = histogramCalculation(sourceMat, flag, histSize, histRange);
+		histMat = temp.first;
+		nhistMat = temp.second;
 	}
-
-	else if (flag == HIST_BGR)
-		histMat = histogramBGRCalculation(imageMat);
-	else if (flag == HIST_HSV)
-		histMat = histogramHSVCalculation(imageMat);
-	else if (flag == HIST_GRAY)
-		histMat = histogramGRAYCalculation(imageMat);
+	else if (flag == HIST_HSV) {
+		float h_ranges[] = { 0, 180 };
+		float sv_ranges[] = { 0, 256 };
+		const float* histRange[] = { h_ranges, sv_ranges, sv_ranges };
+		const int histSize[] = { getBin()[0], getBin()[1], getBin()[2] };
+		std::pair<cv::Mat, cv::Mat> temp = histogramCalculation(sourceMat, flag, histSize, histRange);
+		histMat = temp.first;
+		nhistMat = temp.second;
+	}
+	else if (flag == HIST_GRAY) {
+		float gray_range[] = { 0, 256 };
+		const float* histRange[] = { gray_range };
+		const int histSize[] = { getBin()[0] };
+		std::pair<cv::Mat, cv::Mat> temp = histogramCalculation(sourceMat, flag, histSize, histRange);
+		histMat = temp.first;
+		nhistMat = temp.second;
+	}
+	else if (flag == HIST_DATA) {
+		double max, min;
+		cv::minMaxLoc(sourceMat, &min, &max);
+		float data_range[] = { roundf(min), roundf(max) + 1 };
+		const float* histRange[] = { data_range };
+		const int histSize[] = { getBin()[0] };
+		std::pair<cv::Mat, cv::Mat> temp = histogramCalculation(sourceMat, flag, histSize, histRange);
+		histMat = temp.first;
+		nhistMat = temp.second;
+	}
 	else
 		throw std::exception("Illegal histogram build flag.");
 
-	nhistMat = normalizeMat(histMat, 0, 1);
-	histFlag = flag;
-	sourceMat = imageMat;
-	hash = feat::Hash::setHash(nullptr, &std::vector<float>{static_cast<float>(flag), static_cast<float>(fb),
+	nhistMat = normalizeHistMat(histMat, 0, 1);
+	hash = feat::Hash::setHash(nullptr, &vecf{static_cast<float>(flag), static_cast<float>(fb),
 		static_cast<float>(sb), static_cast<float>(tb)});
 }
 
@@ -50,8 +65,8 @@ int* feat::Histogram::getBin() {
 	return binval;
 }
 
-std::vector<float> feat::Histogram::getVariablesFloat() {
-	return std::vector<float>{static_cast<float>(histFlag), static_cast<float>(fbin),
+vecf feat::Histogram::getVariablesFloat() {
+	return vecf{static_cast<float>(flag), static_cast<float>(fbin),
 		static_cast<float>(sbin), static_cast<float>(tbin)};
 }
 
@@ -59,72 +74,114 @@ XXH64_hash_t feat::Histogram::getHash() {
 	return hash;
 }
 
-cv::Mat feat::Histogram::histogramHSVCalculation(cv::Mat sourceMat) {
-	cv::MatND hsvbase, histbase;
-	cv::cvtColor(sourceMat, hsvbase, cv::COLOR_BGR2HSV);
+std::pair<cv::Mat, cv::Mat> feat::Histogram::histogramCalculation(cv::Mat sourceMat, int hist_flag, const int histSize[], const float* histRange[]) {
+	cv::Mat histData, tempHist, tempnHist;
+	std::pair<cv::Mat, cv::Mat> histReturn;
+	
+	if (hist_flag == HIST_BGR)
+		histData = sourceMat.clone();
+	else if (hist_flag == HIST_HSV)
+		cv::cvtColor(sourceMat, histData, cv::COLOR_BGR2HSV);
+	else if (hist_flag == HIST_GRAY) {
+		cv::cvtColor(sourceMat, histData, cv::COLOR_BGR2GRAY);
+		histData = sim::channelCheck(histData);
+	}
+	else if (hist_flag == HIST_DATA)
+		histData = sourceMat.clone();
+	else
+		throw std::exception("Illegal histogram build flag.");
 
-	std::vector<cv::Mat> hsv_planes;
-	cv::split(hsvbase, hsv_planes);
-
-	const int histSize[] = { getBin()[0], getBin()[1], getBin()[2] };
-
-	float h_ranges[] = { 0, 180 };
-	float sv_ranges[] = { 0, 256 };
-	const float* histRange[] = { h_ranges, sv_ranges, sv_ranges };
-
-	bool uniform = true; bool accumulate = false;
-	int channels[] = { 0 };
-
-	cv::Mat h_hist, s_hist, v_hist;
-	cv::calcHist(&hsv_planes[0], 1, channels, cv::Mat(), h_hist, 1, &histSize[0], histRange, uniform, accumulate);
-	cv::calcHist(&hsv_planes[1], 1, channels, cv::Mat(), s_hist, 1, &histSize[1], histRange, uniform, accumulate);
-	cv::calcHist(&hsv_planes[2], 1, channels, cv::Mat(), v_hist, 1, &histSize[2], histRange, uniform, accumulate);
-
-	cv::merge(std::vector<cv::Mat>{h_hist, s_hist, v_hist}, histbase);
-	return histbase;
-}
-
-cv::Mat feat::Histogram::histogramBGRCalculation(cv::Mat sourceMat) {
-	std::vector<cv::Mat> bgr_planes;
-	cv::split(sourceMat, bgr_planes);
-
-	const int histSize[] = { getBin()[0], getBin()[1], getBin()[2] };
-
-	float bgr_ranges[] = { 0, 256 };
-	const float* histRange[] = { bgr_ranges };
+	std::vector<cv::Mat> data_planes;
+	cv::split(histData, data_planes);
 
 	bool uniform = true; bool accumulate = false;
 	int channels[] = { 0 };
 
-	cv::Mat b_hist, g_hist, r_hist;
-	cv::calcHist(&bgr_planes[0], 1, channels, cv::Mat(), b_hist, 1, &histSize[0], histRange, uniform, accumulate);
-	cv::calcHist(&bgr_planes[1], 1, channels, cv::Mat(), g_hist, 1, &histSize[1], histRange, uniform, accumulate);
-	cv::calcHist(&bgr_planes[2], 1, channels, cv::Mat(), r_hist, 1, &histSize[2], histRange, uniform, accumulate);
+	std::vector<cv::Mat> histVec;
+	for (int i = 0; i < data_planes.size(); i++) {
+		cv::Mat loopOper;
+		cv::calcHist(&data_planes[i], 1, channels, cv::Mat(), loopOper, 1, &histSize[i], histRange, uniform, accumulate);
+		histVec.push_back(loopOper);
+	}
+	cv::merge(histVec, tempHist);
 
-	cv::Mat histbase;
-	cv::merge(std::vector<cv::Mat>{b_hist, g_hist, r_hist}, histbase);
-	return histbase;
+	std::vector<cv::Mat> nhistVec;
+	for (int i = 0; i < histVec.size(); i++) {
+		cv::Mat loopOper;
+		cv::normalize(histVec[i], loopOper, 0, 1, cv::NORM_MINMAX);
+		nhistVec.push_back(loopOper);
+	}
+	cv::merge(nhistVec, tempnHist);
+
+	return std::make_pair(tempHist, tempnHist);
 }
 
-cv::Mat feat::Histogram::histogramGRAYCalculation(cv::Mat sourceMat) {
-	int histSize[] = { getBin()[0] };
+//cv::Mat feat::Histogram::histogramHSVCalculation(cv::Mat sourceMat) {
+//	cv::Mat hsvbase, histbase;
+//	cv::cvtColor(sourceMat, hsvbase, cv::COLOR_BGR2HSV);
+//
+//	std::vector<cv::Mat> hsv_planes;
+//	cv::split(hsvbase, hsv_planes);
+//
+//	const int histSize[] = { getBin()[0], getBin()[1], getBin()[2] };
+//
+//	float h_ranges[] = { 0, 180 };
+//	float sv_ranges[] = { 0, 256 };
+//	const float* histRange[] = { h_ranges, sv_ranges, sv_ranges };
+//
+//	bool uniform = true; bool accumulate = false;
+//	int channels[] = { 0 };
+//
+//	cv::Mat h_hist, s_hist, v_hist;
+//	cv::calcHist(&hsv_planes[0], 1, channels, cv::Mat(), h_hist, 1, &histSize[0], histRange, uniform, accumulate);
+//	cv::calcHist(&hsv_planes[1], 1, channels, cv::Mat(), s_hist, 1, &histSize[1], histRange, uniform, accumulate);
+//	cv::calcHist(&hsv_planes[2], 1, channels, cv::Mat(), v_hist, 1, &histSize[2], histRange, uniform, accumulate);
+//
+//	cv::merge(std::vector<cv::Mat>{h_hist, s_hist, v_hist}, histbase);
+//	return histbase;
+//}
+//
+//cv::Mat feat::Histogram::histogramBGRCalculation(cv::Mat sourceMat) {
+//	std::vector<cv::Mat> bgr_planes;
+//	cv::split(sourceMat, bgr_planes);
+//
+//	const int histSize[] = { getBin()[0], getBin()[1], getBin()[2] };
+//
+//	float bgr_ranges[] = { 0, 256 };
+//	const float* histRange[] = { bgr_ranges };
+//
+//	bool uniform = true; bool accumulate = false;
+//	int channels[] = { 0 };
+//
+//	cv::Mat b_hist, g_hist, r_hist;
+//	cv::calcHist(&bgr_planes[0], 1, channels, cv::Mat(), b_hist, 1, &histSize[0], histRange, uniform, accumulate);
+//	cv::calcHist(&bgr_planes[1], 1, channels, cv::Mat(), g_hist, 1, &histSize[1], histRange, uniform, accumulate);
+//	cv::calcHist(&bgr_planes[2], 1, channels, cv::Mat(), r_hist, 1, &histSize[2], histRange, uniform, accumulate);
+//
+//	cv::Mat histbase;
+//	cv::merge(std::vector<cv::Mat>{b_hist, g_hist, r_hist}, histbase);
+//	return histbase;
+//}
+//
+//cv::Mat feat::Histogram::histogramGRAYCalculation(cv::Mat sourceMat) {
+//	int histSize[] = { getBin()[0] };
+//
+//	cv::Mat greyMat;
+//	if (sourceMat.channels() == 3)
+//		cv::cvtColor(sourceMat, greyMat, cv::COLOR_BGR2GRAY);
+//
+//	float gray_range[] = { 0, 256 };
+//	const float* histRange[] = { gray_range };
+//
+//	bool uniform = true; bool accumulate = false;
+//	int channels[] = { 0 };
+//
+//	cv::Mat histbase;
+//	cv::calcHist(&sourceMat, 1, channels, cv::Mat(), histbase, 1, histSize, histRange, uniform, accumulate);
+//	return histbase;
+//}
 
-	cv::Mat greyMat;
-	if (sourceMat.channels() == 3)
-		cv::cvtColor(sourceMat, greyMat, cv::COLOR_BGR2GRAY);
-
-	float gray_range[] = { 0, 256 };
-	const float* histRange[] = { gray_range };
-
-	bool uniform = true; bool accumulate = false;
-	int channels[] = { 0 };
-
-	cv::MatND histbase;
-	cv::calcHist(&sourceMat, 1, channels, cv::Mat(), histbase, 1, histSize, histRange, uniform, accumulate);
-	return histbase;
-}
-
-cv::Mat feat::Histogram::normalizeMat(cv::Mat sourceMat, float alpha, float beta) {
+cv::Mat feat::Histogram::normalizeHistMat(cv::Mat sourceMat, float alpha, float beta) {
 	cv::Mat nhist;
 	normalize(sourceMat, nhist, alpha, beta, cv::NORM_MINMAX, -1, cv::Mat());
 	return nhist;
@@ -157,9 +214,9 @@ cv::Mat feat::Histogram::createHistogramDisplayImage(std::vector<cv::Mat> bgrhis
 
 	cv::Mat histImgMat(hist_h, hist_w, CV_8UC3, cv::Scalar(0, 0, 0));
 
-	cv::Mat b_hist = normalizeMat(bgrhist[0], 0, histImgMat.rows);
-	cv::Mat g_hist = normalizeMat(bgrhist[1], 0, histImgMat.rows);
-	cv::Mat r_hist = normalizeMat(bgrhist[2], 0, histImgMat.rows);
+	cv::Mat b_hist = normalizeHistMat(bgrhist[0], 0, histImgMat.rows);
+	cv::Mat g_hist = normalizeHistMat(bgrhist[1], 0, histImgMat.rows);
+	cv::Mat r_hist = normalizeHistMat(bgrhist[2], 0, histImgMat.rows);
 
 	nhistBGR.push_back(b_hist);
 	nhistBGR.push_back(g_hist);
@@ -186,18 +243,22 @@ cv::Mat feat::Histogram::createHistogramDisplayImage(int hist_w, int hist_h) { /
 	return resultMat;
 }
 */
-feat::Edge::Edge(cv::Mat imageMat, int flag, feat::Edge::Canny* edc) {
+feat::Edge::Edge(cv::Mat imageMat, int flag, feat::Edge::Canny* edc, float recommendedWidth, int magbin, int dirbin) 
+	: magbin(magbin), dirbin(dirbin) {
 	cv::Mat oper;
+	if(recommendedWidth != -1)
+		cv::resize(imageMat, oper, cv::Size(recommendedWidth, 
+			static_cast<float>(imageMat.rows) / static_cast<float>(imageMat.cols) * recommendedWidth));
 
 	switch (flag) {
 	case EDGE_SOBEL:
-		oper = edgeDetectionSobel(imageMat);
+		edgeMat = edgeDetectionSobel(oper);
 		break;
 	case EDGE_PREWT:
-		oper = edgeDetectionPrewitt(imageMat);
+		edgeMat = edgeDetectionPrewitt(oper);
 		break;
 	case EDGE_ROBRT:
-		oper = edgeDetectionRobertsCross(imageMat);
+		edgeMat = edgeDetectionRobertsCross(oper);
 		break;
 	case EDGE_CANNY:
 		if (edc == nullptr)
@@ -205,19 +266,18 @@ feat::Edge::Edge(cv::Mat imageMat, int flag, feat::Edge::Canny* edc) {
 		else {
 			child_edc = new feat::Edge::Canny(*edc);
 			child_edc->parent = this;
-			oper = child_edc->edgeDetectionCanny(imageMat);
-			edcHash = new XXH64_hash_t(child_edc->getHash());
+			edgeMat = child_edc->edgeDetectionCanny(oper);
+			edcHash = new XXH64_hash_t(child_edc->hash);
 		}
 		break;
 	default:
 		throw std::exception("Illegal edge detection flag.");
 	}
 	edgeFlag = flag;
-	edgeMat = oper;
 
-	hash = feat::Hash::setHash(nullptr, &std::vector<float>{static_cast<float>(flag)});
+	hash = feat::Hash::setHash(nullptr, &vecf{static_cast<float>(flag)});
 	if (child_edc != nullptr) {
-		std::vector<std::string> hashVec;
+		std::vector<string> hashVec;
 		hashVec.push_back(std::to_string(hash));
 		hashVec.push_back(std::to_string(child_edc->getHash()));
 		hash = feat::Hash::setHash(hashVec);
@@ -225,10 +285,12 @@ feat::Edge::Edge(cv::Mat imageMat, int flag, feat::Edge::Canny* edc) {
 }
 
 feat::Edge::~Edge() {
-	if (child_edc != nullptr)
-		delete(child_edc);
 	if (edcHash != nullptr)
 		delete(edcHash);
+	if (child_edc != nullptr)
+		delete(child_edc);
+	if (grad != nullptr)
+		delete(grad);
 }
 
 int feat::Edge::getEdgeFlag() {
@@ -250,18 +312,22 @@ feat::Edge::Canny* feat::Edge::getCannyPtr() {
 	return child_edc;
 }
 
+feat::Gradient* feat::Edge::getGradientPtr() {
+	return grad;
+}
+
 cv::Mat feat::Edge::edgeDetectionSobel(cv::Mat const imageMat) {
-	cv::Mat sobelg = commonOperationsSPR(sobelX, sobelY, imageMat);
+	cv::Mat sobelg = commonOperationsSPR(imageMat, sobelX, sobelY);
 	return sobelg;
 }
 
 cv::Mat feat::Edge::edgeDetectionPrewitt(cv::Mat const imageMat) {
-	cv::Mat prewittg = commonOperationsSPR(prewittX, prewittY, imageMat);
+	cv::Mat prewittg = commonOperationsSPR(imageMat, prewittX, prewittY);
 	return prewittg;
 }
 
 cv::Mat feat::Edge::edgeDetectionRobertsCross(cv::Mat const imageMat) {
-	cv::Mat robertsg = commonOperationsSPR(robertX, robertY, imageMat);
+	cv::Mat robertsg = commonOperationsSPR(imageMat, robertX, robertY);
 	return robertsg;
 }
 
@@ -370,68 +436,28 @@ cv::Mat feat::Edge::edgeDetectionDeriche(cv::Mat const imageMat, float alpha) {
 }
 
 
-cv::Mat feat::Edge::commonOperationsSPR(cv::Mat const kx, cv::Mat const ky, cv::Mat const imat) {
-	cv::Mat kernelx = kx;
-	cv::Mat kernely = ky;
-
-	cv::Mat sprgx = sim::convolution2DopenCV(imat, kernelx);
-	cv::Mat sprgy = sim::convolution2DopenCV(imat, kernely);
-
-	cv::Mat sprg(sprgx.dims, sprgx.size, sprgx.type());
-	for (int i = 0; i < sprg.rows; i++) {
-		for (int j = 0; j < sprg.cols; j++)
-			sprg.at<float>(i, j) = hypot(sprgx.at<float>(i, j), sprgy.at<float>(i, j));
-	}
-
-	sprg(cv::Range(floor(kx.rows / 2), sprg.rows - floor(kx.rows / 2)), cv::Range(floor(kx.cols / 2), sprg.cols - floor(kx.cols / 2))).copyTo(sprg);
-
-	cv::normalize(sprg, sprg, 0, 255, cv::NORM_MINMAX);
-	return sprg;
-}
-
-std::vector<cv::Mat> feat::Edge::calculateEdgeGradientMagnitudeDirection(cv::Mat const kx, cv::Mat const ky, cv::Mat const imat) {
-	cv::Mat kernelx = kx;
-	cv::Mat kernely = ky;
-
-	cv::Mat sprgx = sim::convolution2D(imat, kernelx);
-	cv::Mat sprgy = sim::convolution2D(imat, kernely);
-
-	cv::Mat sprgMag(sprgx.dims, sprgx.size, sprgx.type());
-	cv::Mat sprgDir(sprgx.dims, sprgx.size, sprgx.type());
-
-	for (int i = 0; i < sprgMag.rows; i++) {
-		for (int j = 0; j < sprgMag.cols; j++) {
-			sprgMag.at<float>(i, j) = hypot(sprgx.at<float>(i, j), sprgy.at<float>(i, j));
-		}
-	}
-
-	double sprgMAX;
-	cv::minMaxLoc(sprgMag, 0, &sprgMAX);
-	sprgMag = sprgMag / sprgMAX * 255;
-
-	for (int i = 0; i < sprgDir.rows; i++) {
-		for (int j = 0; j < sprgDir.cols; j++) {
-			sprgDir.at<float>(i, j) = atan2f(sprgy.at<float>(i, j), sprgx.at<float>(i, j));
-			if (sprgDir.at<float>(i, j) < 0)
-				sprgDir.at<float>(i, j) += M_PI * 2;
-		}
-	}
-
-	return std::vector<cv::Mat>{sprgMag, sprgDir};
+cv::Mat feat::Edge::commonOperationsSPR(cv::Mat const imageMat, cv::Mat const kernelx, cv::Mat const kernely) {
+	grad = new Gradient(imageMat, kernelx, kernely, magbin, dirbin);
+	std::pair<cv::Mat, cv::Mat> &pair = grad->getGradientMats();
+	cv::Mat magMat = pair.first;
+	cv::normalize(magMat, magMat, 0, 255, cv::NORM_MINMAX);
+	return magMat;
 }
 
 cv::Mat feat::Edge::Canny::edgeDetectionCanny(cv::Mat const imageMat) {
 	if (sourceMat.data == NULL) {
 		parent->edcHash = &hash;
 		sourceMat = calculate(imageMat);
-		return sourceMat;
 	}
-	else
-		return sourceMat;
+	return sourceMat;
+}
+
+feat::Edge::Canny::~Canny() {
+	parent = nullptr;
 }
 
 ////kernelx, kernely, gaussKernelSize, thigh, tlow, sigma
-//void feat::Edge::Canny::setVariables(std::string varName, float fltVal, cv::Mat matVal) {
+//void feat::Edge::Canny::setVariables(string varName, float fltVal, cv::Mat matVal) {
 //    if (varName == "kernelx")
 //        kernelx = matVal;
 //    else if (varName == "kernely")
@@ -449,8 +475,8 @@ cv::Mat feat::Edge::Canny::edgeDetectionCanny(cv::Mat const imageMat) {
 //    setHash();
 //}
 
-std::vector<float> feat::Edge::Canny::getVariablesFloat() {
-	return std::vector<float>{gaussKernelSize, thigh, tlow, sigma};
+vecf feat::Edge::Canny::getVariablesFloat() {
+	return vecf{gaussKernelSize, thigh, tlow, sigma};
 }
 
 std::vector<cv::Mat> feat::Edge::Canny::getVariablesMat() {
@@ -468,14 +494,15 @@ void feat::Edge::Canny::setHash() {
 cv::Mat feat::Edge::Canny::calculate(cv::Mat const imageMat) { //Computer Vision, Mar 2000, Alg 24
 	//http://www.tomgibara.com/computer-vision/CannyEdgeDetector
 	cv::Mat cannyoper = sim::channelCheck(imageMat);																							 //https://towardsdatascience.com/canny-edge-detection-step-by-step-in-python-computer-vision-b49c3a2d8123
-	cannyoper = sim::filterGauss(cannyoper, gaussKernelSize, sigma);
+	cannyoper = sim::filterGauss(cannyoper, gaussKernelSize, sigma, 0, true);
 
 	cv::Mat kernelx = (cv::Mat_<float>(3, 3) << -1, 0, 1, -2, 0, 2, -1, 0, 1);
 	cv::Mat kernely = (cv::Mat_<float>(3, 3) << 1, 2, 1, 0, 0, 0, -1, -2, -1);
 
-	std::vector<cv::Mat> temp = feat::Edge::calculateEdgeGradientMagnitudeDirection(kernelx, kernely, cannyoper);
-	cv::Mat magMat = std::ref(temp[0]);
-	cv::Mat dirMat = std::ref(temp[1]);
+	parent->grad = new Gradient(cannyoper, kernelx, kernely);
+	std::pair<cv::Mat, cv::Mat> pair = parent->grad->getGradientMats();
+	cv::Mat magMat = pair.first;
+	cv::Mat dirMat = pair.second;
 
 	cv::Mat nonMaximaMat = nonMaximumSuppression(dirMat, magMat);
 	double max;
@@ -595,38 +622,43 @@ feat::Corner::Corner(cv::Mat imageMat, feat::Corner::Harris* cdh, int flag, int 
 		if (cdh == nullptr)
 			throw std::exception("Initialize Harris class first.");
 		else {
-			child = cdh;
-			cdh->parent = this;
-			auto temp = cdh->getHash();
-			cdhHash = &temp;
-			oper = cornerDetectionHarrisLaplace(imageMat, cdh, numberofScales, scaleRat);
+			child = new feat::Corner::Harris(*cdh);
+			child->parent = this;
+			cdhHash = new XXH64_hash_t(child->getHash());
+			oper = cornerDetectionHarrisLaplace(imageMat, child, numberofScales, scaleRat);
 		}
 		break;
 	case CORNER_HARRIS:
 		if (cdh == nullptr)
 			throw std::exception("Initialize Harris class first.");
 		else {
-			child = cdh;
-			cdh->parent = this;
-			auto temp = cdh->getHash();
-			cdhHash = &temp;
+			child = new feat::Corner::Harris(*cdh);
+			child->parent = this;
+			cdhHash = new XXH64_hash_t(child->getHash());
 			oper = cdh->cornerDetectionHarris(imageMat);
 		}
 		break;
 	default:
-		throw std::exception("Illegal edge detection flag.");
+		throw std::exception("Illegal corner detection flag.");
 	}
 	cornerFlag = flag;
 	numofScales = numberofScales;
 	scaleRatio = scaleRat;
 	sourceMat = imageMat;
 	cornerMat = oper;
-	hash = feat::Hash::setHash(nullptr, &std::vector<float>{static_cast<float>(flag), static_cast<float>(numofScales),
+	hash = feat::Hash::setHash(nullptr, &vecf{static_cast<float>(flag), static_cast<float>(numofScales),
 		scaleRatio});
-	std::vector<std::string> hashVec;
+	std::vector<string> hashVec;
 	hashVec.push_back(std::to_string(hash));
 	hashVec.push_back(std::to_string(*cdhHash));
 	hash = feat::Hash::setHash(hashVec);
+}
+
+feat::Corner::~Corner() {
+	if (child != nullptr)
+		delete(child);
+	if (cdhHash != nullptr)
+		delete(cdhHash);
 }
 
 std::vector<int> feat::Corner::getIntVariables() {
@@ -644,7 +676,8 @@ cv::Mat feat::Corner::getCornerMat() {
 }
 
 cv::Mat feat::Corner::getCornerMarkedMat(bool gray, float numOfPoints, float radius, float thickness, cv::Scalar pointColor) {
-	this->cornerMarkedMat = paintPointsOverImage(sourceMat, cornerMat, gray, numOfPoints, radius, thickness, pointColor);
+	if(this->cornerMarkedMat.data == NULL)
+		this->cornerMarkedMat = paintPointsOverImage(sourceMat, cornerMat, gray, numOfPoints, radius, thickness, pointColor);
 	return this->cornerMarkedMat;
 }
 
@@ -680,7 +713,7 @@ cv::Mat feat::Corner::cornerDetectionHarrisLaplace(cv::Mat imageMat, feat::Corne
 	int recommendedWidth = 375, width, height;
 	float scale;
 
-	if (scaleRatio == 0) {
+	if (gen::cmpf(scaleRatio, 0)) {
 		if (imageMat.cols > recommendedWidth)
 			scale = static_cast<float>(recommendedWidth) / imageMat.cols;
 		else
@@ -700,7 +733,7 @@ cv::Mat feat::Corner::cornerDetectionHarrisLaplace(cv::Mat imageMat, feat::Corne
 	cv::Mat imgOper = sim::channelCheck(imageMat);
 
 	cv::resize(imgOper, imgOper, cv::Size(width, height));
-	std::vector<float> setOfScales;
+	vecf setOfScales;
 	float ki = 1.4;
 	float sigma0 = 1.0;
 	for (int i = 1; i < n + 1; i++)
@@ -789,7 +822,7 @@ cv::Mat feat::Corner::cornerDetectionHarrisLaplace(cv::Mat imageMat, feat::Corne
 	return resultMat;
 }
 
-void feat::Corner::Harris::setVariables(std::string varName, float fltVal, cv::Mat* matVal) {
+void feat::Corner::Harris::setVariables(string varName, float fltVal, cv::Mat* matVal) {
 	if (varName == "kernelx")
 		kernelx = *matVal;
 	else if (varName == "kernely")
@@ -809,8 +842,8 @@ void feat::Corner::Harris::setVariables(std::string varName, float fltVal, cv::M
 	//setHash();
 }
 
-std::vector<float> feat::Corner::Harris::getVariablesFloat() {
-	return std::vector<float>{radius, squareSize, sigmai, sigmad, alpha};
+vecf feat::Corner::Harris::getVariablesFloat() {
+	return vecf{radius, squareSize, sigmai, sigmad, alpha};
 }
 
 std::vector<cv::Mat> feat::Corner::Harris::getVariablesMat() {
@@ -822,8 +855,10 @@ XXH64_hash_t feat::Corner::Harris::getHash() {
 }
 
 cv::Mat feat::Corner::Harris::cornerDetectionHarris(cv::Mat const imageMat) {
-	parent->cdhHash = &hash;
-	sourceMat = calculate(imageMat);
+	if (sourceMat.data == NULL) {
+		parent->cdhHash = &hash;
+		sourceMat = calculate(imageMat);
+	}
 	return sourceMat;
 }
 
@@ -832,7 +867,47 @@ void feat::Corner::Harris::setHash() {
 }
 
 cv::Mat feat::Corner::Harris::calculate(cv::Mat const imageMat) {
-	// %80 ben -- %20 https://www.mathworks.com/matlabcentral/fileexchange/64689-harris-affine-and-harris-laplace-interest-point-detector
+	auto localMaxima = [](cv::Mat src, cv::Mat& dst, int squareSize, float threshold) {
+		if (squareSize == 0) {
+			dst = src.clone();
+			return;
+		}
+
+		cv::Mat m0;
+		dst = src.clone();
+		cv::Point maxLoc(0, 0);
+
+		int sqrCenter = (squareSize - 1) / 2;
+
+		cv::Mat localWindowMask = cv::Mat::zeros(cv::Size(squareSize, squareSize), CV_32F);
+		localWindowMask.at<float>(sqrCenter, sqrCenter) = 255;
+
+		cv::threshold(dst, m0, threshold, 1, cv::THRESH_BINARY);
+		dst = dst.mul(m0);
+
+		for (int i = 0; i < dst.rows; i++)
+			for (int j = 0; j < dst.cols; j++) {
+				if (dst.at<float>(i, j) == 0)
+					continue;
+
+				if (j - sqrCenter < 0 || i - sqrCenter < 0 || i + sqrCenter + 1 >= dst.rows || j + sqrCenter + 1 >= dst.cols) {
+					dst.at<float>(i, j) = 0;
+					continue;
+				}
+
+				m0 = dst.colRange(j - sqrCenter, j + sqrCenter + 1).rowRange(i - sqrCenter, i + sqrCenter + 1);
+
+				minMaxLoc(m0, NULL, NULL, NULL, &maxLoc);
+				if ((maxLoc.x == sqrCenter) && (maxLoc.y == sqrCenter)) {
+					m0 = m0.mul(localWindowMask);
+					j += sqrCenter;
+				}
+
+				else
+					m0.at<float>(sqrCenter, sqrCenter) = 0;
+			}
+	};
+
 	cv::Mat imgOper = sim::channelCheck(imageMat), resultOper = cv::Mat::zeros(imgOper.rows, imgOper.cols, CV_32FC1);
 
 	float gauss_size = 31;
@@ -861,11 +936,6 @@ cv::Mat feat::Corner::Harris::calculate(cv::Mat const imageMat) {
 	for (int i = center; i < imgOper.rows - center - 1; i++)
 		for (int j = center; j < imgOper.cols - center - 1; j++) {
 			cv::Mat tensor = cv::Mat::zeros(2, 2, CV_32FC1);
-			/*float weightF = pow(sigmad, 2);
-			tensor.at<float>(0, 0) = weightF * derivativeXX.at<float>(i, j);
-			tensor.at<float>(0, 1) = weightF * derivativeXY.at<float>(i, j);
-			tensor.at<float>(1, 0) = weightF * derivativeXY.at<float>(i, j);
-			tensor.at<float>(1, 1) = weightF * derivativeYY.at<float>(i, j);*/
 
 			for (int p = 0; p < radius; p++)
 				for (int q = 0; q < radius; q++) {
@@ -984,37 +1054,13 @@ std::bitset<64> feat::Hash::imageHashing_pHash(cv::Mat const imageMat) {
 	return bits;
 }
 
-//Uses hamming distance //TODO:CHANGE THIS TO SOMETHING SENSIBLE
-std::pair<int, std::pair<std::bitset<64>, std::bitset<64>>> feat::Hash::compareImageHash(cv::Mat const lefthand, cv::Mat const righthand) {
-	std::bitset<64> lhand_dhash = imageHashing_dHash(lefthand);
-	std::bitset<64> rhand_dhash = imageHashing_dHash(righthand);
-
-	int diff = 0;
-	/*for (int i = 0; i < 64; i++) {
-		if (lhand_dhash[i] != rhand_dhash[i])
-			diff++;
-	}*/
-
-	if (diff < 10) {
-		std::bitset<64> lhand_phash = imageHashing_pHash(lefthand);
-		std::bitset<64> rhand_phash = imageHashing_pHash(righthand);
-		diff = 0;
-		for (int i = 0; i < 64; i++) {
-			if (lhand_phash[i] != rhand_phash[i])
-				diff++;
-		}
-	}
-
-	return std::make_pair(diff, std::make_pair(lhand_dhash, rhand_dhash));
-}
-
 XXH64_hash_t feat::Hash::hash_xxHash(cv::Mat const inputMat) {
 	cv::Mat matOper = inputMat.clone();
 	XXH64_hash_t hash = XXH64(matOper.ptr<float>(0), matOper.total(), NULL);
 	return hash;
 }
 
-XXH64_hash_t feat::Hash::setHash(std::vector<cv::Mat>* matVec, std::vector<float>* floatVec) {
+XXH64_hash_t feat::Hash::setHash(std::vector<cv::Mat>* matVec, vecf* floatVec) {
 	cv::Mat1f hashMat;
 	if (matVec != nullptr)
 		for (cv::Mat iter : *matVec) {
@@ -1027,16 +1073,99 @@ XXH64_hash_t feat::Hash::setHash(std::vector<cv::Mat>* matVec, std::vector<float
 			hashMat.push_back(iter);
 		}
 
-	std::string hashStr = "";
+	string hashStr = "";
 	for (int i = 0; i < hashMat.total(); i++)
 		hashStr.append(std::to_string(hashMat.at<float>(i)));
 
 	return XXH64(hashStr.c_str(), hashStr.size(), NULL);
 }
 
-XXH64_hash_t feat::Hash::setHash(std::vector<std::string> strVec) {
-	std::string combined = "";
-	for (std::string i : strVec)
+XXH64_hash_t feat::Hash::setHash(std::vector<string> strVec) {
+	string combined = "";
+	for (string i : strVec)
 		combined.append(i);
 	return XXH64(combined.c_str(), combined.size(), NULL);
+}
+
+//01 FOR D, 10 FOR P, 11 FOR BOTH
+feat::Hash::Hash(cv::Mat const imageMat, std::pair<bool, bool> selectHash) {
+	if (!selectHash.first && !selectHash.second)
+		throw std::exception("Hash selection bool pair can't be both zero.");
+	else if (selectHash.first && !selectHash.second)
+		dHash = imageHashing_dHash(imageMat);
+	else if (!selectHash.first && selectHash.second)
+		pHash = imageHashing_pHash(imageMat);
+	else {
+		dHash = imageHashing_dHash(imageMat);
+		pHash = imageHashing_pHash(imageMat);
+	}	
+}
+
+std::pair<std::bitset<64>, std::bitset<64>> feat::Hash::getHashVariables() {
+	return std::make_pair(dHash, pHash);
+}
+
+feat::Gradient::Gradient(cv::Mat const imageMat, cv::Mat kernelx, cv::Mat kernely, float magbin, float dirbin) {
+	auto matPair = calculateEdgeGradientMagnitudeDirection(imageMat, kernelx, kernely);
+	this->magMat = matPair.first;
+	this->dirMat = matPair.second;
+	auto histPair = calculateEdgeGradientHistograms(magMat, dirMat, magbin, dirbin);
+	this->magHist = histPair.first;
+	this->dirHist = histPair.second;
+}
+
+feat::Gradient::Gradient(cv::Mat magMat, cv::Mat dirMat, float magbin, float dirbin) : magMat(magMat), dirMat(dirMat) {
+	auto histPair = calculateEdgeGradientHistograms(magMat, dirMat, magbin, dirbin);
+	this->magHist = histPair.first;
+	this->dirHist = histPair.second;
+}
+
+std::pair<feat::Histogram, feat::Histogram> feat::Gradient::getGradientHists() {
+	return std::make_pair(magHist, dirHist);
+}
+
+std::pair<feat::Histogram, feat::Histogram> feat::Gradient::calculateEdgeGradientHistograms(cv::Mat magMat, cv::Mat dirMat,
+	int magbin, int dirbin) {
+	auto const& grad = getGradientMats();
+
+	auto const& magMatT = grad.first;
+	auto magHist = feat::Histogram(magMatT, HIST_DATA, magbin);
+
+	auto const& dirMatT = grad.second;
+	auto dirHist = feat::Histogram(dirMatT, HIST_DATA, dirbin);
+
+	return std::make_pair(magHist, dirHist);
+}
+
+std::pair<cv::Mat, cv::Mat> feat::Gradient::calculateEdgeGradientMagnitudeDirection(cv::Mat const imat, cv::Mat const kx, cv::Mat const ky) {
+	cv::Mat kernelx = kx;
+	cv::Mat kernely = ky;
+
+	cv::Mat sprgx = sim::convolution2DOpenCV(imat, kernelx);
+	cv::Mat sprgy = sim::convolution2DOpenCV(imat, kernely);
+
+	cv::Mat sprgMag(sprgx.dims, sprgx.size, sprgx.type());
+	cv::Mat sprgDir(sprgx.dims, sprgx.size, sprgx.type());
+
+	for (int i = 0; i < sprgMag.rows; i++) {
+		for (int j = 0; j < sprgMag.cols; j++) {
+			sprgMag.at<float>(i, j) = hypot(sprgx.at<float>(i, j), sprgy.at<float>(i, j));
+		}
+	}
+
+	for (int i = 0; i < sprgDir.rows; i++) {
+		for (int j = 0; j < sprgDir.cols; j++) {
+			sprgDir.at<float>(i, j) = atan2f(sprgy.at<float>(i, j), sprgx.at<float>(i, j));
+			if (sprgDir.at<float>(i, j) < 0)
+				sprgDir.at<float>(i, j) += M_PI * 2;
+		}
+	}
+
+	cv::normalize(sprgMag, sprgMag, 0, 255, cv::NORM_MINMAX);
+
+	return std::make_pair(sprgMag, sprgDir);
+}
+
+std::pair<cv::Mat, cv::Mat> feat::Gradient::getGradientMats() {
+	return std::make_pair(this->magMat, this->dirMat);
 }

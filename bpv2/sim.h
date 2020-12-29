@@ -39,14 +39,14 @@ namespace sim {
 	template<typename T>
 	bool vectorSizeEqualityCheck(std::vector<T> lefthand, std::vector<T> righthand);
 
-	float similarityCosine(std::vector<float> lefthand, std::vector<float> righthand);
-	float similarityJaccard(std::vector<float> lefthand, std::vector<float> righthand);
-	float distanceManhattan(std::vector<float> lefthand, std::vector<float> righthand);
-	float distanceEuclidean(std::vector<float> lefthand, std::vector<float> righthand);
-	float distanceMinkowski(std::vector<float> lefthand, std::vector<float> righthand, int order);
-	float distanceChiSquared(std::vector<float> lefthand, std::vector<float> righthand);
-	float histogramIntersection(std::vector<float> lefthand, std::vector<float> righthand);
-	float crossCorrelation(std::vector<float> lefthand, std::vector<float> righthand);
+	float similarityCosine(vecf lefthand, vecf righthand);
+	float similarityJaccard(vecf lefthand, vecf righthand);
+	float distanceManhattan(vecf lefthand, vecf righthand);
+	float distanceEuclidean(vecf lefthand, vecf righthand);
+	float distanceMinkowski(vecf lefthand, vecf righthand, int order);
+	float distanceChiSquared(vecf lefthand, vecf righthand);
+	float histogramIntersection(vecf lefthand, vecf righthand);
+	float crossCorrelation(vecf lefthand, vecf righthand);
 
 	template <typename T>
 	std::vector<T> matToVector(cv::Mat operand);
@@ -61,18 +61,15 @@ namespace sim {
 	cv::Mat convolution2DSeparable(cv::Mat const imageMat, cv::Mat kernel);
 	cv::Mat convolution2DNormal(cv::Mat const imageMat, cv::Mat kernel);
 	cv::Mat convolution2DHelix(cv::Mat const imageMat, cv::Mat kernel);
-	cv::Mat convolution2DopenCV(cv::Mat const imageMat, cv::Mat kernel);
+	cv::Mat convolution2DOpenCV(cv::Mat const imageMat, cv::Mat kernel);
 
 	cv::Mat rotateMatrix180(cv::Mat srcmat);
 	cv::Mat filterGauss(cv::Mat const operand, int k = 5, float sigma = 1.4, float mu = 0, bool openCV = true);
 	cv::Mat gaussKernel(float kernel_size, float sigma, float mu);
 
-	float sumOfVectorMembers(std::vector<float> operand, int offset);
+	float sumOfVectorMembers(vecf operand, int offset);
 	int rankOfMatrix(cv::Mat mat);
 	template <typename T>
 	int getI(std::vector<T> operand);
 	cv::Mat channelCheck(cv::Mat const imageMat);
 }
-
-template <typename T>
-std::vector<T> operator+(const std::vector<T>& a, const std::vector<T>& b);

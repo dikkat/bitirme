@@ -4,18 +4,18 @@ void lnkr::setDatabaseClass(dbop::Database dbObj) {
 	lnkr_dbPtr = &dbObj;
 }
 
-img::Image lnkr::createImage(std::string dir, int flag) {
+img::Image lnkr::createImage(string dir, int flag) {
 	img::Image image(dir,flag);
 	lnkr_dbPtr->insert_Image(image);
 	return image;
 }
 
-img::Image lnkr::setSourceImage(std::string dir, int flag) {
+img::Image lnkr::setSourceImage(string dir, int flag) {
 	img::Image image(dir, flag);
 
-	lnkr_dbPtr->delete_GENERAL(std::vector<std::string>{"sourceimage"});
-	std::string condition = "hash='" + std::to_string(image.getHash()) + "'";
-	lnkr_dbPtr->delete_GENERAL(std::vector<std::string>{"image"}, condition);
+	lnkr_dbPtr->delete_GENERAL(std::vector<string>{"sourceimage"});
+	string condition = "hash='" + std::to_string(image.getHash()) + "'";
+	lnkr_dbPtr->delete_GENERAL(std::vector<string>{"image"}, condition);
 
 	lnkr_dbPtr->insert_SourceImage(image);
 	return image;
@@ -23,16 +23,16 @@ img::Image lnkr::setSourceImage(std::string dir, int flag) {
 
 img::Image lnkr::setSourceImage(img::Image src) {
 
-	lnkr_dbPtr->delete_GENERAL(std::vector<std::string>{"sourceimage"});
-	std::string condition = "hash='" + std::to_string(src.getHash()) + "'";
-	lnkr_dbPtr->delete_GENERAL(std::vector<std::string>{"image"}, condition);
+	lnkr_dbPtr->delete_GENERAL(std::vector<string>{"sourceimage"});
+	string condition = "hash='" + std::to_string(src.getHash()) + "'";
+	lnkr_dbPtr->delete_GENERAL(std::vector<string>{"image"}, condition);
 
 	lnkr_dbPtr->insert_SourceImage(src);
 	return src;
 }
 
 feat::Histogram* lnkr::setHistogram(img::Image* image_ptr, int flag, int fb, int sb, int tb) {
-	XXH64_hash_t histHash = feat::Hash::setHash(nullptr, &std::vector<float>{static_cast<float>(flag), static_cast<float>(fb),
+	XXH64_hash_t histHash = feat::Hash::setHash(nullptr, &vecf{static_cast<float>(flag), static_cast<float>(fb),
 		static_cast<float>(sb), static_cast<float>(tb)});
 
 	feat::Histogram* imgHist = lnkr::getImageHist(image_ptr, histHash);
@@ -46,13 +46,13 @@ feat::Histogram* lnkr::setHistogram(img::Image* image_ptr, int flag, int fb, int
 }
 
 feat::Edge::Canny* lnkr::setEdgeCanny(img::Image* image_ptr, float gauss, float sigma, float thigh, float tlow, cv::Mat kernelx, cv::Mat kernely) {
-	std::vector<float> getVariablesFloat{gauss, thigh, tlow, sigma};
+	vecf getVariablesFloat{gauss, thigh, tlow, sigma};
 	std::vector<cv::Mat> getVariablesMat{kernelx, kernely};
 
 	XXH64_hash_t cannyHash = feat::Hash::setHash(&getVariablesMat, &getVariablesFloat);
-	XXH64_hash_t edgeHash = feat::Hash::setHash(nullptr, &std::vector<float>{static_cast<float>(EDGE_CANNY)});
+	XXH64_hash_t edgeHash = feat::Hash::setHash(nullptr, &vecf{static_cast<float>(EDGE_CANNY)});
 
-	edgeHash = feat::Hash::setHash(std::vector<std::string>{std::to_string(edgeHash), std::to_string(cannyHash)});
+	edgeHash = feat::Hash::setHash(std::vector<string>{std::to_string(edgeHash), std::to_string(cannyHash)});
 
 	feat::Edge* imgEdge = lnkr::getImageEdge(image_ptr, edgeHash);
 	feat::Edge::Canny* edgeCanny = lnkr::getEdgeCanny(image_ptr, cannyHash);
@@ -80,11 +80,11 @@ feat::Edge::Canny* lnkr::setEdgeCanny(img::Image* image_ptr, float gauss, float 
 }
 
 feat::Edge* lnkr::setEdge(img::Image* image_ptr, int flag, feat::Edge::Canny* edc) {
-	XXH64_hash_t edgeHash = feat::Hash::setHash(nullptr, &std::vector<float>{static_cast<float>(flag)});
+	XXH64_hash_t edgeHash = feat::Hash::setHash(nullptr, &vecf{static_cast<float>(flag)});
 	XXH64_hash_t hash;
 
 	if (edc != nullptr) {
-		std::vector<std::string> hashVec;
+		std::vector<string> hashVec;
 		hashVec.push_back(std::to_string(edgeHash));
 		hashVec.push_back(std::to_string(edc->getHash()));
 		hash = feat::Hash::setHash(hashVec);
@@ -108,7 +108,7 @@ feat::Edge* lnkr::setEdge(img::Image* image_ptr, int flag, feat::Edge::Canny* ed
 
 feat::Corner::Harris* lnkr::setCornerHarris(img::Image* image_ptr, float radius, float squareSize, float sigmai, float sigmad, 
 	float alpha, cv::Mat kernelx, cv::Mat kernely) {
-	std::vector<float> getVariablesFloat{ radius, squareSize, sigmai, sigmad, alpha };
+	vecf getVariablesFloat{ radius, squareSize, sigmai, sigmad, alpha };
 	std::vector<cv::Mat> getVariablesMat{ kernelx, kernely };
 
 	XXH64_hash_t harrisHash = feat::Hash::setHash(&getVariablesMat, &getVariablesFloat);
@@ -125,9 +125,9 @@ feat::Corner::Harris* lnkr::setCornerHarris(img::Image* image_ptr, float radius,
 }
 
 feat::Corner* lnkr::setCorner(img::Image* image_ptr, feat::Corner::Harris cdh, int flag, int numberofScales, float scaleRatio) {
-	XXH64_hash_t hash = feat::Hash::setHash(nullptr, &std::vector<float>{static_cast<float>(flag), 
+	XXH64_hash_t hash = feat::Hash::setHash(nullptr, &vecf{static_cast<float>(flag), 
 		static_cast<float>(numberofScales), scaleRatio});
-	std::vector<std::string> hashVec;
+	std::vector<string> hashVec;
 	hashVec.push_back(std::to_string(hash));
 	hashVec.push_back(std::to_string(cdh.getHash()));
 	hash = feat::Hash::setHash(hashVec);
@@ -151,12 +151,12 @@ void lnkr::setIcon(img::Image* image_ptr) {
 }
 
 feat::Histogram* lnkr::getImageHist(img::Image* image_ptr, XXH64_hash_t histHash) {
-	std::string condition = "imhash='" + std::to_string(image_ptr->getHash()) + "'";
-	std::vector<std::string> histHashVec = lnkr_dbPtr->select_Hash(
+	string condition = "imhash='" + std::to_string(image_ptr->getHash()) + "'";
+	std::vector<string> histHashVec = lnkr_dbPtr->select_Hash(
 		"hist", "imagehistogram", condition);
 
-	std::string hist = "";
-	for (std::string i : histHashVec)
+	string hist = "";
+	for (string i : histHashVec)
 		if (i == std::to_string(histHash))
 			hist = i;
 
@@ -165,7 +165,7 @@ feat::Histogram* lnkr::getImageHist(img::Image* image_ptr, XXH64_hash_t histHash
 
 	else {
 		condition = "hash='" + std::to_string(histHash) + "'";
-		std::vector<std::vector<std::string>> resultVec = lnkr_dbPtr->select_GENERAL(std::vector<std::vector<std::string>>{ 
+		std::vector<std::vector<string>> resultVec = lnkr_dbPtr->select_GENERAL(std::vector<std::vector<string>>{ 
 			{"flag", "fbin", "sbin", "tbin"}, { "histogram" }, { condition }});
 		if (resultVec[0].size() == 0)
 			return nullptr;
@@ -179,11 +179,11 @@ feat::Histogram* lnkr::getImageHist(img::Image* image_ptr, XXH64_hash_t histHash
 
 //CHECK AGAIN
 feat::Edge* lnkr::getImageEdge(img::Image* image_ptr, XXH64_hash_t edgeHash) {
-	std::string condition = "imhash='" + std::to_string(image_ptr->getHash()) + "'";
-	std::vector<std::string> edgeHashVec = lnkr_dbPtr->select_Hash("edge", "imageedge", condition);
+	string condition = "imhash='" + std::to_string(image_ptr->getHash()) + "'";
+	std::vector<string> edgeHashVec = lnkr_dbPtr->select_Hash("edge", "imageedge", condition);
 
-	std::string edge = "";
-	for (std::string i : edgeHashVec)
+	string edge = "";
+	for (string i : edgeHashVec)
 		if (i == std::to_string(edgeHash))
 			edge = i;
 
@@ -193,14 +193,14 @@ feat::Edge* lnkr::getImageEdge(img::Image* image_ptr, XXH64_hash_t edgeHash) {
 	else {
 		condition = "hash='" + std::to_string(edgeHash) + "'";
 		feat::Edge::Canny canny;
-		std::vector<std::vector<std::string>> resultVec = lnkr_dbPtr->select_GENERAL(std::vector<std::vector<std::string>>{
+		std::vector<std::vector<string>> resultVec = lnkr_dbPtr->select_GENERAL(std::vector<std::vector<string>>{
 			{"flag", "edcHash"}, { "edge" }, { condition }});
 		if (resultVec[0].size() == 0)
 			return nullptr;
 		else {
 			if (resultVec[1].size() != 0 && std::stoi(resultVec[0][0]) == EDGE_CANNY) {
 				condition = "hash='" + resultVec[1][0] + "'";
-				std::vector<std::vector<std::string>> cannyVec = lnkr_dbPtr->select_GENERAL(std::vector<std::vector<std::string>>{
+				std::vector<std::vector<string>> cannyVec = lnkr_dbPtr->select_GENERAL(std::vector<std::vector<string>>{
 					{"gausskernelsize", "sigma", "thigh", "tlow", "kernelx", "kernely"}, { "edgecanny" }, { condition }});
 				if (cannyVec[0].size() != 0) {
 					cv::Mat kernelx = dbop::deserializeMat(cannyVec[4][0]);
@@ -222,11 +222,11 @@ feat::Edge* lnkr::getImageEdge(img::Image* image_ptr, XXH64_hash_t edgeHash) {
 }
 
 feat::Edge::Canny* lnkr::getEdgeCanny(img::Image* image_ptr, XXH64_hash_t cannyHash) {
-	std::string condition = "imhash='" + std::to_string(image_ptr->getHash()) + "'";
-	std::vector<std::string> edgeHashVec = lnkr_dbPtr->select_Hash("edge", "imageedge", condition);
+	string condition = "imhash='" + std::to_string(image_ptr->getHash()) + "'";
+	std::vector<string> edgeHashVec = lnkr_dbPtr->select_Hash("edge", "imageedge", condition);
 
-	std::vector<std::string> cannyHashVec;
-	std::string edgeHash = "";
+	std::vector<string> cannyHashVec;
+	string edgeHash = "";
 
 	if (edgeHashVec.size() == 0) {
 		return nullptr;
@@ -248,7 +248,7 @@ feat::Edge::Canny* lnkr::getEdgeCanny(img::Image* image_ptr, XXH64_hash_t cannyH
 		feat::Edge::Canny* canny;
 
 		condition = "hash='" + std::to_string(cannyHash) + "'";
-		std::vector<std::vector<std::string>> cannyVec = lnkr_dbPtr->select_GENERAL(std::vector<std::vector<std::string>>{
+		std::vector<std::vector<string>> cannyVec = lnkr_dbPtr->select_GENERAL(std::vector<std::vector<string>>{
 			{"gausskernelsize", "sigma", "thigh", "tlow", "kernelx", "kernely"}, { "edgecanny" }, { condition }});
 
 		if (cannyVec[0].size() == 0)
@@ -267,11 +267,11 @@ feat::Edge::Canny* lnkr::getEdgeCanny(img::Image* image_ptr, XXH64_hash_t cannyH
 }
 
 feat::Corner* lnkr::getImageCorner(img::Image* image_ptr, XXH64_hash_t cornerHash) {
-	std::string condition = "imhash='" + std::to_string(image_ptr->getHash()) + "'";
-	std::vector<std::string> cornerHashVec = lnkr_dbPtr->select_Hash("corner", "imagecorner", condition);
+	string condition = "imhash='" + std::to_string(image_ptr->getHash()) + "'";
+	std::vector<string> cornerHashVec = lnkr_dbPtr->select_Hash("corner", "imagecorner", condition);
 
-	std::string cornerHash_str = "";
-	for (std::string i : cornerHashVec)
+	string cornerHash_str = "";
+	for (string i : cornerHashVec)
 		if (i == std::to_string(cornerHash))
 			cornerHash_str = i;
 
@@ -281,14 +281,14 @@ feat::Corner* lnkr::getImageCorner(img::Image* image_ptr, XXH64_hash_t cornerHas
 	else {
 		condition = "hash='" + cornerHash_str + "'";
 		feat::Corner::Harris* harris;
-		std::vector<std::vector<std::string>> resultVec = lnkr_dbPtr->select_GENERAL(std::vector<std::vector<std::string>>{
+		std::vector<std::vector<string>> resultVec = lnkr_dbPtr->select_GENERAL(std::vector<std::vector<string>>{
 			{"cdhHash", "flag", "numberofscales", "scaleratio"}, { "corner" }, { condition }});
 		if (resultVec[0].size() == 0)
 			return nullptr;
 		else {
 			feat::Corner* corner;
 			condition = "hash='" + resultVec[0][0] + "'";
-			std::vector<std::vector<std::string>> harrisVec = lnkr_dbPtr->select_GENERAL(std::vector<std::vector<std::string>>{
+			std::vector<std::vector<string>> harrisVec = lnkr_dbPtr->select_GENERAL(std::vector<std::vector<string>>{
 				{"radius", "squaresize", "sigmai", "sigmad", "alpha", "kernelx", "kernely"}, { "cornerharris" }, { condition }});
 
 			if (harrisVec[0].size() == 0) {
@@ -311,11 +311,11 @@ feat::Corner* lnkr::getImageCorner(img::Image* image_ptr, XXH64_hash_t cornerHas
 }
 
 feat::Corner::Harris* lnkr::getCornerHarris(img::Image* image_ptr, XXH64_hash_t harrisHash) {
-	std::string condition = "imhash='" + std::to_string(image_ptr->getHash()) + "'";
-	std::vector<std::string> cornerHashVec = lnkr_dbPtr->select_Hash("corner", "imagecorner", condition);
+	string condition = "imhash='" + std::to_string(image_ptr->getHash()) + "'";
+	std::vector<string> cornerHashVec = lnkr_dbPtr->select_Hash("corner", "imagecorner", condition);
 
-	std::vector<std::string> harrisHashVec;
-	std::string cornerHash = "";
+	std::vector<string> harrisHashVec;
+	string cornerHash = "";
 
 	if (cornerHashVec.size() == 0) {
 		return nullptr;
@@ -337,7 +337,7 @@ feat::Corner::Harris* lnkr::getCornerHarris(img::Image* image_ptr, XXH64_hash_t 
 		feat::Corner::Harris* harris;
 
 		condition = "hash='" + std::to_string(harrisHash) + "'";
-		std::vector<std::vector<std::string>> harrisVec = lnkr_dbPtr->select_GENERAL(std::vector<std::vector<std::string>>{
+		std::vector<std::vector<string>> harrisVec = lnkr_dbPtr->select_GENERAL(std::vector<std::vector<string>>{
 			{"radius", "squaresize", "sigmai", "sigmad", "alpha", "kernelx", "kernely"}, { "cornerharris" }, { condition }});
 
 		if (harrisVec[0].size() == 0)

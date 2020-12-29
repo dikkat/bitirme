@@ -8,9 +8,9 @@ static dbop::Database* lnkr_dbPtr;
 
 namespace lnkr {
 	void setDatabaseClass(dbop::Database dbObj);
-	img::Image createImage(std::string dir, int flag);
+	img::Image createImage(string dir, int flag);
 
-	img::Image setSourceImage(std::string dir, int flag);
+	img::Image setSourceImage(string dir, int flag);
 	img::Image setSourceImage(img::Image src);
 	feat::Histogram* setHistogram(img::Image* image_ptr, int flag, int fb, int sb, int tb);
 	feat::Edge::Canny* setEdgeCanny(img::Image* image_ptr, float gauss, float sigma, float thigh, float tlow, cv::Mat kernelx, cv::Mat kernely);

@@ -13,17 +13,33 @@ bool gen::cmpf(float A, float B, float epsilon) {
 	return (fabs(A - B) < epsilon);
 }
 
-void gen::imageTesting(cv::Mat imageMat, std::string filename) {
+void gen::imageTesting(cv::Mat imageMat, string filename) {
 	time_t now = time(0);
 	tm* ltm = localtime(&now);
 
 	boost::filesystem::create_directory("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/test/" + std::to_string(1900 + ltm->tm_year) + "-"
 		+ std::to_string(1 + ltm->tm_mon) + "-" + std::to_string(ltm->tm_mday) + "/");
-	std::string stroper = "C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/test/" + std::to_string(1900 + ltm->tm_year) + "-" 
+	string stroper = "C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/test/" + std::to_string(1900 + ltm->tm_year) + "-" 
 		+ std::to_string(1 + ltm->tm_mon) + "-" + std::to_string(ltm->tm_mday) + "/"  + std::to_string(ltm->tm_hour) + "-"
 		+ std::to_string(ltm->tm_min) + "-" + std::to_string(1 + ltm->tm_sec) + "--" 
 		+ filename + ".jpg";	
 	cv::imwrite(stroper, imageMat);
+}
+
+cv::Mat gen::realNormalize(cv::Mat operand, int bins) {
+	cv::Mat newMat = cv::Mat::zeros(operand.rows, operand.cols, CV_32FC1);
+	double max;
+	cv::minMaxLoc(operand, nullptr, &max);
+	for (int j = 0; j < operand.total(); j++) {
+		double binSize = max / static_cast<double>(bins);
+		for (int k = 0; k < bins; k++) {
+			if (operand.at<float>(j) >= binSize * k && operand.at<float>(j) <= binSize * (k + 1)) {
+				newMat.at<float>(j) = k + 1;
+				break;
+			}
+		}
+	}
+	return newMat;
 }
 
 //ONLY FOR STORAGE MOVE TO SOMEWHERE ELSE
@@ -52,7 +68,7 @@ void gen::imageTesting(cv::Mat imageMat, std::string filename) {
 //	};
 //
 //	enum conv_flag { CONV_NORMAL, CONV_SPRABLE, CONV_HELIX, CONV_FFT };
-//	std::vector<std::string> convVec{ "NORMAL", "SEPARABLE", "HELIX", "FFT" };
+//	std::vector<string> convVec{ "NORMAL", "SEPARABLE", "HELIX", "FFT" };
 //
 //	auto operation = [&resize](cv::Mat image, int flag, cv::Mat kernel) {
 //		switch (flag) {
@@ -71,9 +87,9 @@ void gen::imageTesting(cv::Mat imageMat, std::string filename) {
 //		}
 //	};
 //
-//	std::function<bool(std::vector<float>, int)>varianceControl;
-//	varianceControl = [](std::vector<float> vec, int maxCheck)->bool {
-//		auto varianceCheck = [](std::vector<float> vec) {
+//	std::function<bool(vecf, int)>varianceControl;
+//	varianceControl = [](vecf vec, int maxCheck)->bool {
+//		auto varianceCheck = [](vecf vec) {
 //			float sum = 0, max = 0, min = std::numeric_limits<float>::infinity();
 //			for (auto a : vec) {
 //				sum += a;
@@ -115,11 +131,11 @@ void gen::imageTesting(cv::Mat imageMat, std::string filename) {
 //
 //	int X = 35;
 //	int tryAgain = 3;
-//	std::map<std::pair<std::string, std::pair<int, int>>, float> benchMarkMap;
+//	std::map<std::pair<string, std::pair<int, int>>, float> benchMarkMap;
 //	std::vector<cv::Mat> imgVec = createMatVector();
 //	for (int i = 0; i < imgVec.size(); i++) {
 //		cv::Mat currMat = imgVec[i];
-//		std::vector<float> benchmarkVec;
+//		vecf benchmarkVec;
 //		logFile << currMat.rows << " x " << currMat.rows << " IMAGE" << "\n";
 //		for (int j = 0; j < convVec.size(); j++) {
 //			logFile << convVec[j] << " METHOD" << "\n";
@@ -186,7 +202,7 @@ void gen::imageTesting(cv::Mat imageMat, std::string filename) {
 	img::Image imc("C:/desired/path/to/Images/static_outdoor_il_giocco_lucca_italy/IMG_9129.jpg", cv::IMREAD_COLOR);
 	cv::Mat kernely;
 	feat::Corner::Harris cdh;
-	std::vector<float> xdddddd;
+	vecf xdddddd;
 	for (auto a : xdddddd)
 		a++;
 	for(int i = 0; i < 100; i++)
@@ -239,7 +255,7 @@ void gen::imageTesting(cv::Mat imageMat, std::string filename) {
 			<< "\t" << "crocor"
 			<< "\t" << "CVcsqdist"
 			<< std::endl;
-		std::vector<float> xdg;
+		vecf xdg;
 		for (int i = 0; i < asd.size(); i++) {
 			xdg.push_back(iop::calculateHistogramSimilarity(asd[i], ima, 4, 4, 4, HIST_HSV, SIM_COSSIM));
 			xdg.push_back(iop::calculateHistogramSimilarity(asd[i], ima, 4, 4, 4, HIST_HSV, SIM_EUCDIST));
@@ -281,9 +297,9 @@ void gen::imageTesting(cv::Mat imageMat, std::string filename) {
 
 
 
-/*std::vector<std::string> histVec{ "SIM_COSSIM", "SIM_MANDIST", "SIM_EUCDIST", "SIM_MINKDIST", "SIM_JACSIM", "SIM_HISINTR", "SIM_CROCOR", "SIM_CSQDIST" };
+/*std::vector<string> histVec{ "SIM_COSSIM", "SIM_MANDIST", "SIM_EUCDIST", "SIM_MINKDIST", "SIM_JACSIM", "SIM_HISINTR", "SIM_CROCOR", "SIM_CSQDIST" };
 	for (int i = 0; i < 8; i++) {
-		std::vector<std::pair<std::string, std::pair<float, bool>>> comparisonVec;
+		std::vector<std::pair<string, std::pair<float, bool>>> comparisonVec;
 		for (auto a : scannedVec) {
 			if (a.getImageMat().total() == 0)
 				continue;
@@ -292,7 +308,7 @@ void gen::imageTesting(cv::Mat imageMat, std::string filename) {
 			comparisonVec.push_back(std::make_pair(pf, ps));
 		}
 		std::sort(comparisonVec.begin(), comparisonVec.end(),
-			[](std::pair<std::string, std::pair<float, bool>> lh, std::pair<std::string, std::pair<float, bool>> rh) {
+			[](std::pair<string, std::pair<float, bool>> lh, std::pair<string, std::pair<float, bool>> rh) {
 				if (lh.second.second != rh.second.second) throw std::exception("Nonono");
 				return lh.second.second ? lh.second.first > rh.second.first : lh.second.first < rh.second.first;
 			}
@@ -343,7 +359,7 @@ void gen::imageTesting(cv::Mat imageMat, std::string filename) {
 					task(diriter(entry.path().u8string()), i, threadVec, true);
 				else if (entry.is_regular_file() && sum < maxSize) {
 					auto pathString = entry.path().u8string();
-					if (pathString.find(".jpg") != std::string::npos) {
+					if (pathString.find(".jpg") != string::npos) {
 						auto imgOper = img::Image::Image(entry.path().u8string(), cv::IMREAD_COLOR);
 						size_t sizeInBytes = imgOper.getImageMat().step[0] * imgOper.getImageMat().rows;
 						sum += static_cast<float>(sizeInBytes);
@@ -395,3 +411,63 @@ void gen::imageTesting(cv::Mat imageMat, std::string filename) {
 	};
 	img::Image ima("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench/full/ukbench09100.jpg", cv::IMREAD_COLOR);
 	auto scannedVec = recurSpanner(diriter("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/iaprtc12/images"), 10);*/
+
+
+
+/*std::fstream logFile("C:/Users/ASUS/source/repos/bpv2/bpv2/logFile.txt", std::ios::in);
+	std::ofstream finalLog("C:/Users/ASUS/source/repos/bpv2/bpv2/finalLog.txt", std::ios::out);
+	if (finalLog.is_open())
+		std::cout << "bravo";
+	Log log_arr[14];
+	string line;
+	stringstream line_stream;
+	for (int i = 0; i < 14; i++) {
+		line_stream.str(string());
+		int img_size;
+		std::getline(logFile, line);		
+		line_stream << line;
+		line_stream >> img_size;
+		log_arr[i].img_size = img_size;
+		finalLog << img_size << " x " << img_size << " IMAGE" << std::endl;
+		if (img_size > 1400)
+			throw std::exception();
+		line_stream.clear();
+		for (int j = 0; j < 4; j++) {
+			line_stream.str(string());
+			string method;
+			std::getline(logFile, line);
+			line_stream << line;
+			line_stream >> method;
+			log_arr[i].method[j] = method.substr(0, method.find(" METHOD"));
+			finalLog << method << "\n";
+			line_stream.clear();
+			for (int k = 0; k < 5; k++) {
+				line_stream.str(string());
+				int ker_size;
+				std::getline(logFile, line);
+				line_stream << line;
+				line_stream >> ker_size;
+				log_arr[i].kernel_size[k] = ker_size;
+				finalLog << ker_size << " x " << ker_size << " KERNEL" << "\n";
+				if (ker_size > 9)
+					throw std::exception();
+				float sum = 0;
+				line_stream.clear();
+				for (int l = 0; l < 35; l++) {
+					line_stream.str(string());
+					float data;
+					std::getline(logFile, line);
+					line_stream << line;
+					line_stream >> data;
+					log_arr[i].data[l] = data;
+					sum += data;
+					line_stream.clear();
+				}
+				finalLog << sum / 35 << std::endl;
+				std::cout << img_size << "x" << img_size << " " << method.substr(0,7) << " " << ker_size << "x" << ker_size << " "
+					<< sum / 35 << std::endl;
+				
+			}
+		}
+	}
+	finalLog.close();*/

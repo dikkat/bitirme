@@ -9,8 +9,8 @@
 namespace dbop {
 	class Database {
 	public:
-		Database(std::string dbName);
-		void insert_Image(std::string dir);
+		Database(string dbName);
+		void insert_Image(string dir);
 		void insert_Image(img::Image image);
 		void insert_SourceImage(img::Image image);
 		void insert_Histogram(int flag, int fb, int sb, int tb);
@@ -30,12 +30,12 @@ namespace dbop {
 		void insert_ImageIcon(XXH64_hash_t imHash, XXH64_hash_t iconHash);
 		void insert_EdgeCanny(feat::Edge::Canny canny);
 		void insert_EdgeCanny(int gaussKernelSize, float thigh, float tlow, float sigma, cv::Mat kernelx, cv::Mat kernely);
-		std::vector<std::vector<std::string>> select_GENERAL(std::vector<std::vector<std::string>> paramVec);
-		std::vector<std::string> select_Hash(std::string hashAbb, std::string className, std::string condition = "");
+		std::vector<std::vector<string>> select_GENERAL(std::vector<std::vector<string>> paramVec);
+		std::vector<string> select_Hash(string hashAbb, string className, string condition = "");
 		img::Image Database::select_SourceImage();
-		void delete_GENERAL(std::vector<std::string> tableVec, std::string condition = "");
+		void delete_GENERAL(std::vector<string> tableVec, string condition = "");
 	private:
-		void initializeDatabase(std::string dbName);
+		void initializeDatabase(string dbName);
 		void errorCheck(int rc, char* zErrMsg);
 		static int callback(void* NotUsed, int argc, char** argv, char** azColName);
 		static int callbackSELECT(void* data, int argc, char** argv, char** azColName);
@@ -44,6 +44,6 @@ namespace dbop {
 		char* zErrMsg = 0;
 	};
 
-	std::string serializeMat(cv::Mat operand);
-	cv::Mat deserializeMat(std::string operand);
+	string serializeMat(cv::Mat operand);
+	cv::Mat deserializeMat(string operand);
 }

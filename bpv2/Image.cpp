@@ -1,13 +1,13 @@
 #include "image.h"
 
-img::Image::Image(std::string imgdir, int flag) {
+img::Image::Image(string imgdir, int flag) {
 	imageMat = readImageFile(imgdir, flag);
     name = buildImageName(imgdir);
     dir = imgdir;
-    hash = feat::Hash::setHash(std::vector<std::string>{dir});
+    hash = feat::Hash::setHash(std::vector<string>{dir});
 }
 
-const std::string img::Image::getImageName() {
+const string img::Image::getImageName() {
     return name;
 }
 
@@ -16,31 +16,31 @@ cv::Mat img::Image::getImageMat() {
 }
 
 //NAME, DIR
-std::vector<std::string> img::Image::getVariablesString() {
-    return std::vector<std::string>{name, dir};
+std::vector<string> img::Image::getVariablesString() {
+    return std::vector<string>{name, dir};
 }
 
 XXH64_hash_t img::Image::getHash() {
     return hash;
 }
 
-std::string img::buildImageName(std::string imgdir) {
+string img::buildImageName(string imgdir) {
     int j = 0;
     for (int i = 0; i < imgdir.size(); i++) {
         if (imgdir[i] == '/' || imgdir[i] == '\\') {
             j = i;
         }
     }
-    std::string imnm = imgdir.substr(j + 1);
+    string imnm = imgdir.substr(j + 1);
     return imnm;
 }
 
-void img::Image::setImageDirectory(std::string imgdir) {
+void img::Image::setImageDirectory(string imgdir) {
     name = buildImageName(imgdir);
     dir = imgdir;
 }
 
-cv::Mat img::Image::readImageFile(std::string imgdir, int flag) {
+cv::Mat img::Image::readImageFile(string imgdir, int flag) {
 	if (flag != cv::IMREAD_UNCHANGED && flag != cv::IMREAD_COLOR && flag != cv::IMREAD_GRAYSCALE)
 		throw std::exception("Illegal image read flag.1");
 	cv::Mat matoperator;
@@ -69,13 +69,13 @@ XXH64_hash_t img::Icon::getHash() {
     return hash;
 }
 
-std::vector<img::Image> img::readImageFolder(std::string imageFolderDirectory, int flag, bool all, int number) {
-    if (imageFolderDirectory.find(".") != std::string::npos)
+std::vector<img::Image> img::readImageFolder(string imageFolderDirectory, int flag, bool all, int number) {
+    if (imageFolderDirectory.find(".") != string::npos)
         throw std::exception("Illegal folder path.");
     else if (flag != cv::IMREAD_UNCHANGED && flag != cv::IMREAD_COLOR && flag != cv::IMREAD_GRAYSCALE)
         throw std::exception("Illegal image read flag.2");
     img::Image imgoperator;
-    std::string pathstring;
+    string pathstring;
     std::vector<img::Image> vecoperator;
     int iter = 0;
     for (const auto& entry : std::filesystem::directory_iterator(imageFolderDirectory)) {
@@ -92,8 +92,8 @@ std::vector<img::Image> img::readImageFolder(std::string imageFolderDirectory, i
     return vecoperator;
 }
 
-std::string img::typeToString(int type) {
-    std::string r;
+string img::typeToString(int type) {
+    string r;
 
     uchar depth = type & CV_MAT_DEPTH_MASK;
     uchar chans = 1 + (type >> CV_CN_SHIFT);

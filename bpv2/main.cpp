@@ -10,6 +10,7 @@
 #include <chrono>
 #include <thread>
 #include <algorithm>
+
 /*
 	---------ROADMAP FOR THE PROJECT-------------
 	MOVE EDGE DETECTION METHODS TO FEAT.H -- DONE
@@ -43,16 +44,14 @@
 	FINISH LIFE
 */
 
-
 int main(int argc, char* argv[])
 {
 	AllocConsole();
 	auto ohye = freopen("conin$", "r", stdin);
 	ohye = freopen("conout$", "w", stdout);  //DELETE IN FINAL BUILD THIS WHOLE SEGMENT
 	ohye = freopen("conout$", "w", stderr);
-
 	/*
-	std::vector<float> timeVec;
+	vecf timeVec;
 	for (int i = 0; i < 100; i++) {
 		auto t1 = std::chrono::steady_clock::now(); //COMPLETE THE CONVOLUTION OPERATION THEN TEST CONVOLUTION2D FUNCTION TIME COMPLEXITY
 		cv::Mat xd = ima.getImageMat().clone();
@@ -81,162 +80,39 @@ int main(int argc, char* argv[])
 		sum += timeVec[i];
 	 << sum / timeVec.size() << std::endl;
 	*/
+	img::Image ima("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench/full/ukbench05661.jpg", cv::IMREAD_COLOR);
 	dbop::Database db("bitirme.db");
 	iop::setDatabaseClass(db);
 	lnkr::setDatabaseClass(db);
 
 	using diriter = std::filesystem::directory_iterator;
 	using direntry = std::filesystem::directory_entry;
+	//-------------------------------------------------------------------
+	
+	img::Image imb("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/audi.jpg", cv::IMREAD_COLOR);
+	img::Image imc("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/audiclipped.jpg", cv::IMREAD_COLOR);
 
-	auto resize = [](cv::Mat mat, int size) {
-		cv::Mat matOper = mat.clone();
-		int maximumWidth = size;
-		int maximumHeight = size;
-		cv::resize(matOper, matOper, cv::Size(maximumWidth, maximumHeight));
-		return matOper;
-	};
+	feat::Histogram hist(imb.getImageMat(), HIST_HSV, 255, 255, 255);
 
-	auto createMatVector = [&resize]() {
-		img::Image image("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/waterfalls.jpg", cv::IMREAD_COLOR);
+	feat::Edge edgea(imb.getImageMat(), EDGE_SOBEL, &feat::Edge::Canny(31,3.6), 400);
+	feat::Edge edgeb(imc.getImageMat(), EDGE_SOBEL, &feat::Edge::Canny(31,3.6), 400);
 
-		cv::Mat matOper = image.getImageMat().clone();
-		cv::cvtColor(matOper, matOper, cv::COLOR_BGR2GRAY);
+	iop::FeatureVector fva(&imb, nullptr, &edgea);
+	iop::FeatureVector fvb(&imc, nullptr, &edgeb);
+	iop::WeightVector wv(&vecf{ 0.6, 0.4 });
+	iop::Comparison compVal(&fva, &fvb, &wv); //IT SEEMS WE COOL TEST IT ON LOOP WITH IMAGEREADING
+	
 
-		std::vector<cv::Mat> matVec;
-
-		for (int i = 1; i < 15; i++) {
-			matVec.push_back(resize(matOper, i * 100));
-		}
-
-		return matVec;
-	};
-
-	enum conv_flag { CONV_NORMAL, CONV_SPRABLE, CONV_HELIX, CONV_FFT };
-	std::vector<std::string> convVec{ "NORMAL", "SEPARABLE", "HELIX", "FFT" };
-
-	auto operation = [&resize](cv::Mat image, int flag, cv::Mat kernel) {
-		switch (flag) {
-		case CONV_NORMAL:
-			sim::convolution2DNormal(image, kernel);
-			break;
-		case CONV_SPRABLE:
-			sim::convolution2DSeparable(image, kernel);
-			break;
-		case CONV_HELIX:
-			sim::convolution2DHelix(image, kernel);
-			break;
-		case CONV_FFT:
-			sim::convolution2DopenCV(image, kernel);
-			break;
-		}
-	};
-
-	std::function<bool(std::vector<float>, int)>varianceControl;
-	varianceControl = [](std::vector<float> vec, int maxCheck)->bool {
-		auto varianceCheck = [](std::vector<float> vec) {
-			float sum = 0, max = 0, min = std::numeric_limits<float>::infinity();
-			for (auto a : vec) {
-				sum += a;
-				if (a > max) max = a;
-				if (a < min) min = a;
-			}
-			float avg = sum / vec.size(), range = max - min;
-			float maxVar = pow(range / 2, 2);
-			for (auto a : vec) {
-				if (a > avg + maxVar) return a;
-				if (a < avg - maxVar) return a;
-			}
-			return static_cast<float>(-1);
-		};
-		auto temp = vec;
-		int check = maxCheck;
-		while (check != 0) {
-			float returned = varianceCheck(temp);
-			if (std::roundf(returned) != -1) {
-				temp.erase(std::remove(temp.begin(), temp.end(), returned), temp.end());
-				check--;
-			}
-			else {
-				return true;
-			}
-		}
-		return false;
-	};
-
-	std::vector<cv::Mat> kernelVec{
-		sim::gaussKernel(1, 1.4, 0), sim::gaussKernel(3, 1.4, 0), sim::gaussKernel(5, 1.4, 0), sim::gaussKernel(7, 1.4, 0) };
-
-	for (auto i : kernelVec) {
-		std::cout << i << "\n";
-	}
-
-	std::fstream logFile;
-	logFile.open("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/logFile.txt", std::ios::out);
-
-	int X = 35;
-	int tryAgain = 3;
-	std::map<std::pair<std::string, std::pair<int, int>>, float> benchMarkMap;
-	std::vector<cv::Mat> imgVec = createMatVector();
-	for (int i = 0; i < imgVec.size(); i++) {
-		cv::Mat currMat = imgVec[i];
-		std::vector<float> benchmarkVec;
-		logFile << currMat.rows << " x " << currMat.rows << " IMAGE" << "\n";
-		for (int j = 0; j < convVec.size(); j++) {
-			logFile << convVec[j] << " METHOD" << "\n";
-			for (int k = 0; k < kernelVec.size(); k++) {
-				cv::Mat currKer = kernelVec[k];
-				logFile << currKer.rows << " x " << currKer.rows << " KERNEL" << "\n";
-				bool errCheck = false;
-				for (int l = 0; l < X; l++) {
-					auto t1 = std::chrono::steady_clock::now();
-					try {
-						operation(currMat, j, currKer);
-					}
-					catch (std::exception e) {
-						errCheck = true;
-						benchmarkVec.push_back(-10000000);
-						continue;
-					}
-					auto t2 = std::chrono::steady_clock::now();
-					float d_micro = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
-					logFile << d_micro << "\n";
-					benchmarkVec.push_back(d_micro);
-				}
-				float sum = 0;
-				for (auto a : benchmarkVec) {
-					sum += a;
-				}
-				if (!varianceControl(benchmarkVec, roundf(static_cast<float>(X) / 9))) {
-					logFile << "There was a variance breach here.\n";
-					if (tryAgain == 0) {
-						continue;
-					}
-					else {
-						tryAgain--;
-						k--;
-						continue;
-					}
-					sum = -10000000;
-				}
-				tryAgain = 3;
-				benchMarkMap[std::make_pair(convVec[j], std::make_pair(currMat.total(), currKer.total()))] = sum / benchmarkVec.size();
-			}
-		}
-	}
-	std::fstream finalLogFile;
-	finalLogFile.open("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/finalLog.txt", std::ios::out);
-	for (auto i : kernelVec) {
-		std::cout << i << "\n";
-		finalLogFile << i << "\n";
-	}
-
-	for (auto it = benchMarkMap.cbegin(); it != benchMarkMap.cend(); ++it) {
-		std::cout << it->first.first << "\t\t" << it->first.second.first << "\t" << it->first.second.second << "\t" << it->second << "\n";
-		finalLogFile << it->first.first << "\t\t" << it->first.second.first << "\t" << it->first.second.second << "\t" << it->second << "\n";
-	}
-
-	logFile.close();
-	finalLogFile.close();
+	auto temp = edgea.getEdgeMat();
+	temp = temp * 4;
+	auto tempb = edgeb.getEdgeMat();
+	tempb = tempb * 4;
+	
+	
+	/*feat::Corner::Harris cdh = feat::Corner::Harris(3,3,2.4,1.9);
+	feat::Corner corner(imb.getImageMat(), &cdh, CORNER_HARLAP, 7);
+	auto temp = corner.getCornerMarkedMat();
+	gen::imageTesting(temp, "test");*/
 
 
 	//--------------------------------------------------------------------

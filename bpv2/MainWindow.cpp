@@ -32,20 +32,20 @@ QVariant TableModel::data(const QModelIndex& index, int role) const {
 	if (col == 0) {
 		if (role == Qt::DecorationRole) {
 			QString imhash = QSqlRelationalTableModel::data(index.sibling(index.row(), fieldIndex("hash"))).toString();
-			std::string condition = "imhash='" + imhash.toStdString() + "'";
+			string condition = "imhash='" + imhash.toStdString() + "'";
 
-			std::vector<std::vector<std::string>> hashVec = mw_dbPtr->select_GENERAL(
-				std::vector<std::vector<std::string>>{ {"iconhash"}, { "imageicon" }, { condition }});
+			std::vector<std::vector<string>> hashVec = mw_dbPtr->select_GENERAL(
+				std::vector<std::vector<string>>{ {"iconhash"}, { "imageicon" }, { condition }});
 
 			bool check = true;		
 			if (hashVec[0].size() == 0) {
 				check = false;
 			}
 			else if (hashVec[0].size() == 1) {
-				std::string condition = "hash='" + hashVec[0][0] + "'";
+				string condition = "hash='" + hashVec[0][0] + "'";
 
-				std::vector<std::vector<std::string>> hashVec_inner = mw_dbPtr->select_GENERAL(
-					std::vector<std::vector<std::string>>{ {"mat"}, { "icon" }, { condition }});
+				std::vector<std::vector<string>> hashVec_inner = mw_dbPtr->select_GENERAL(
+					std::vector<std::vector<string>>{ {"mat"}, { "icon" }, { condition }});
 				if (hashVec_inner.size() == 0) {
 					check = false;
 				}
@@ -67,10 +67,10 @@ QVariant TableModel::data(const QModelIndex& index, int role) const {
 	else if (col == 2) {
 		QString srchash = QSqlRelationalTableModel::data(index.sibling(index.row(), fieldIndex("hash"))).toString();
 		
-		std::string condition = "srchash='" + srchash.toStdString() + "'";
+		string condition = "srchash='" + srchash.toStdString() + "'";
 
-		std::vector<std::vector<std::string>> hashVec = mw_dbPtr->select_GENERAL(
-			std::vector<std::vector<std::string>>{ {"desthash"}, { "similarity" }, { condition }});
+		std::vector<std::vector<string>> hashVec = mw_dbPtr->select_GENERAL(
+			std::vector<std::vector<string>>{ {"desthash"}, { "similarity" }, { condition }});
 
 		if (hashVec[0].size() == 0) {
 			return QVariant(QString("N/A"));
@@ -194,7 +194,7 @@ MainWindow::MainWindow(dbop::Database dbObj, QWidget *parent)	: QMainWindow(pare
 }
 
 MainWindow::~MainWindow(){
-	mw_dbPtr->delete_GENERAL(std::vector<std::string>{"sourceimage"});
+	mw_dbPtr->delete_GENERAL(std::vector<string>{"sourceimage"});
 }
 
 void MainWindow::showError(const QSqlError& err) {
@@ -272,13 +272,13 @@ void MainWindow::displayHash(img::Image* src) {
 		throw std::exception("Unable to locate source image. Load image to source first.");
 	}
 	else {
-		std::string srcDHash = feat::Hash::imageHashing_dHash(QImageToCvMat(ui.label_imgSrc->pixmap()->toImage())).to_string();
-		ui.label_imHash->setText(srcDHash.c_str());
+		/*string srcDHash = feat::Hash::imageHashing_dHash(QImageToCvMat(ui.label_imgSrc->pixmap()->toImage())).to_string();
+		ui.label_imHash->setText(srcDHash.c_str());*/
 	}
 
 	if (!ui.label_imgDest->pixmap()->isNull()) {		
-		std::string destDHash = feat::Hash::imageHashing_dHash(QImageToCvMat(ui.label_imgDest->pixmap()->toImage())).to_string();
-		ui.label_destHash->setText(destDHash.c_str());
+		/*string destDHash = feat::Hash::imageHashing_dHash(QImageToCvMat(ui.label_imgDest->pixmap()->toImage())).to_string();
+		ui.label_destHash->setText(destDHash.c_str());*/ //TODO: FIX THESE
 	}
 	else {
 		throw std::exception("Unable to locate comparison image. Load image to compare first.");
@@ -327,8 +327,8 @@ void MainWindow::displayHistogram(img::Image* src, bool source){
 			plotSrc->removeGraph(plotSrc->graph(0));
 			plotSrc->removePlottable(plotSrc->plottable(0));
 		}
-
 		plotSrc->replot();
+
 		//QCPBars* barSrc = new QCPBars(plotSrc->xAxis, plotSrc->yAxis); TODO: BAR OR GRAPH DECIDE
 		QCPGraph* graphPtr = new QCPGraph(plotSrc->xAxis, plotSrc->yAxis);
 		graphPtr->setData(keys, data);

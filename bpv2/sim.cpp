@@ -9,13 +9,13 @@ bool sim::vectorSizeEqualityCheck(std::vector<T> lefthand, std::vector<T> righth
 	return true;
 }
 
-template bool sim::vectorSizeEqualityCheck<float>(std::vector<float> lefthand, std::vector<float> righthand);
+template bool sim::vectorSizeEqualityCheck<float>(vecf lefthand, vecf righthand);
 template bool sim::vectorSizeEqualityCheck<cf>(std::vector<cf> lefthand, std::vector<cf> righthand);
 
-float sim::similarityCosine(std::vector<float> lefthand, std::vector<float> righthand) {
+float sim::similarityCosine(vecf lefthand, vecf righthand) {
 	vectorSizeEqualityCheck(lefthand, righthand);
 
-	std::vector<float> prdvec, lsqvec, rsqvec;
+	vecf prdvec, lsqvec, rsqvec;
 	float vecoperator = 0;
 
 	for (int i = getI(lefthand); i < lefthand.size(); i++) {
@@ -36,7 +36,7 @@ float sim::similarityCosine(std::vector<float> lefthand, std::vector<float> righ
 	return cosoperator;
 }
 
-float sim::similarityJaccard(std::vector<float> lefthand, std::vector<float> righthand) {
+float sim::similarityJaccard(vecf lefthand, vecf righthand) {
 	vectorSizeEqualityCheck(lefthand, righthand);
 
 	float numerator = 0;
@@ -52,7 +52,7 @@ float sim::similarityJaccard(std::vector<float> lefthand, std::vector<float> rig
 	return jacoperator;
 }
 
-float sim::distanceManhattan(std::vector<float> lefthand, std::vector<float> righthand) {
+float sim::distanceManhattan(vecf lefthand, vecf righthand) {
 	vectorSizeEqualityCheck(lefthand, righthand);
 	
 	float dstoperator = 0;
@@ -63,7 +63,7 @@ float sim::distanceManhattan(std::vector<float> lefthand, std::vector<float> rig
 	return dstoperator;
 }
 
-float sim::distanceEuclidean(std::vector<float> lefthand, std::vector<float> righthand) {
+float sim::distanceEuclidean(vecf lefthand, vecf righthand) {
 	vectorSizeEqualityCheck(lefthand, righthand);
 
 	float dstoperator = 0;
@@ -74,7 +74,7 @@ float sim::distanceEuclidean(std::vector<float> lefthand, std::vector<float> rig
 	return sqrt(dstoperator);
 }
 
-float sim::distanceMinkowski(std::vector<float> lefthand, std::vector<float> righthand, int order) {
+float sim::distanceMinkowski(vecf lefthand, vecf righthand, int order) {
 	vectorSizeEqualityCheck(lefthand, righthand);
 
 	float dstoperator = 0;
@@ -85,7 +85,7 @@ float sim::distanceMinkowski(std::vector<float> lefthand, std::vector<float> rig
 	return dstoperator;
 }
 
-float sim::distanceChiSquared(std::vector<float> lefthand, std::vector<float> righthand) {
+float sim::distanceChiSquared(vecf lefthand, vecf righthand) {
 	vectorSizeEqualityCheck(lefthand, righthand);
 
 	float numerator = 0;
@@ -102,7 +102,7 @@ float sim::distanceChiSquared(std::vector<float> lefthand, std::vector<float> ri
 	return dcsoperator;
 }
 
-float sim::histogramIntersection(std::vector<float> lefthand, std::vector<float> righthand) {
+float sim::histogramIntersection(vecf lefthand, vecf righthand) {
 	vectorSizeEqualityCheck(lefthand, righthand);
 
 	float numerator = 0, denominator;
@@ -116,7 +116,7 @@ float sim::histogramIntersection(std::vector<float> lefthand, std::vector<float>
 	return hintroperator;
 }
 
-float sim::crossCorrelation(std::vector<float> lefthand, std::vector<float> righthand) {
+float sim::crossCorrelation(vecf lefthand, vecf righthand) {
 	vectorSizeEqualityCheck(lefthand, righthand);
 
 	float numerator = 0, meanlh, meanrh, devoperatorlh, devoperatorrh, crcooperator, denominatorlh = 0, denominatorrh = 0;
@@ -155,7 +155,7 @@ std::vector<T> sim::matToVector(cv::Mat operand) {   //https://stackoverflow.com
 	return vecoper;
 }
 
-template std::vector<float> sim::matToVector<float>(cv::Mat operand);
+template vecf sim::matToVector<float>(cv::Mat operand);
 template std::vector<std::complex<float>> sim::matToVector<std::complex<float>>(cv::Mat operand);
 template std::vector<uchar> sim::matToVector<uchar>(cv::Mat operand);
 
@@ -184,14 +184,13 @@ cv::Mat sim::vectorToMat(std::vector<T> operand) { //PARALLELLISE
 	return matoper;
 }
 
-template cv::Mat sim::vectorToMat<float>(std::vector<float> operand);
+template cv::Mat sim::vectorToMat<float>(vecf operand);
 template cv::Mat sim::vectorToMat<uchar>(std::vector<uchar> operand);
 
 template <typename T>
 std::vector<T> sim::matElementsToVector(cv::Mat operand) {
 	std::vector<T> vecOper;
 	int cn = operand.channels();
-	int lele = operand.total();
 	for (int i = 0; i < operand.total(); i++) {
 		if (cn == 1)
 			vecOper.push_back(operand.at<cv::Vec<T, 1>>(i)[0]);
@@ -206,12 +205,12 @@ std::vector<T> sim::matElementsToVector(cv::Mat operand) {
 		}
 		else if (cn == 3)
 			for (int k = 0; k < cn; k++)
-				vecOper.push_back(operand.at<cv::Vec<T,3>>(i)[k]);
+				vecOper.push_back(operand.at<cv::Vec<T, 3>>(i)[k]);
 	}
 	return vecOper;
 }
 
-template std::vector<float> sim::matElementsToVector<float>(cv::Mat operand);
+template vecf sim::matElementsToVector<float>(cv::Mat operand);
 template std::vector<uchar> sim::matElementsToVector<uchar>(cv::Mat operand);
 template std::vector<cf> sim::matElementsToVector<cf>(cv::Mat operand);
 
@@ -224,7 +223,7 @@ cv::Mat sim::vectorToMatElementsRowMajor(std::vector<T> operand, int mrows, int 
 	return matoper;
 }
 
-template cv::Mat sim::vectorToMatElementsRowMajor<float>(std::vector<float> operand, int mrows, int mcols, int mtype);
+template cv::Mat sim::vectorToMatElementsRowMajor<float>(vecf operand, int mrows, int mcols, int mtype);
 template cv::Mat sim::vectorToMatElementsRowMajor<cf>(std::vector<cf> operand, int mrows, int mcols, int mtype);
 /*
 cv::Mat sim::fastFourierTransform_2D(cv::Mat const image) { //Introduction to Algorithms, 2009
@@ -584,8 +583,8 @@ cv::Mat sim::convolution2DSeparable(cv::Mat const imageMat, cv::Mat const kernel
 
 	cv::Mat matOperY = cv::Mat::zeros(imageMat.rows, imageMat.cols, CV_32FC1);
 
-	cv::Mat imgOper;
-	imageMat.convertTo(imgOper, CV_32FC1);
+	cv::Mat imgOper = channelCheck(imageMat);	
+	imgOper.convertTo(imgOper, CV_32FC1);
 
 	for (int i = 0; i < matOperY.rows; i++) {
 		for (int j = 0; j < matOperY.cols; j++) {
@@ -614,12 +613,16 @@ cv::Mat sim::convolution2DSeparable(cv::Mat const imageMat, cv::Mat const kernel
 	return matOperX;
 }
 
-cv::Mat sim::convolution2DNormal(cv::Mat const oper, cv::Mat kernel) {  // CPU INTENSIVE FUNCTION -- PARALLELISE
-	double kx = kernel.rows, ky = kernel.cols;
-	int ix1 = oper.rows, iy1 = oper.cols;
-	int ix2 = ix1 + ceil(kx / 2);
-	int iy2 = iy1 + ceil(ky / 2);
-	cv::Mat convmat = cv::Mat::zeros(ix2, iy2, CV_32FC1);
+cv::Mat sim::convolution2DNormal(cv::Mat const imageMat, cv::Mat const kernel) {  // CPU INTENSIVE FUNCTION -- PARALLELISE
+	cv::Mat imgOper = channelCheck(imageMat);
+	imgOper.convertTo(imgOper, CV_32FC1);
+
+	double const kx = kernel.rows, const ky = kernel.cols;
+	int const ix1 = imgOper.rows, const iy1 = imgOper.cols;
+	int const ix2 = ix1 + ceil(kx / 2);
+	int const iy2 = iy1 + ceil(ky / 2);
+
+	cv::Mat convMat = cv::Mat::zeros(ix2, iy2, CV_32FC1);
 	for (int i = 0; i < ix2; i++)
 		for (int j = 0; j < iy2; j++){
 			for (int m = 0; m < kx; m++) {
@@ -630,50 +633,37 @@ cv::Mat sim::convolution2DNormal(cv::Mat const oper, cv::Mat kernel) {  // CPU I
 						j - floor(ky / 2) + n >= iy1)
 						continue;
 					else {
-						uchar uop;
-						float fop1;
-						if (oper.elemSize() == 1) {
-							uop = oper.at<uchar>(i - floor(kx / 2) + m, j - floor(ky / 2) + n);
-							fop1 = (float)(uop);
-						}
-
-						else
-							fop1 = oper.at<float>(i - floor(kx / 2) + m, j - floor(ky / 2) + n);
-
+						float fop1 = imgOper.at<float>(i - floor(kx / 2) + m, j - floor(ky / 2) + n);
 						float fop2 = kernel.at<float>(m, n);
-						convmat.at<float>(i, j) = convmat.at<float>(i, j) + fop1 * fop2;
+						convMat.at<float>(i, j) = convMat.at<float>(i, j) + fop1 * fop2;
 					}
 				}
 			}
-			convmat.at<float>(i, j) += 1;
+			convMat.at<float>(i, j) += 1;
 		}
-	return convmat;
+	return convMat;
 }
 
 cv::Mat sim::convolution2DHelix(cv::Mat const imageMat, cv::Mat kernel) { //https://sites.ualberta.ca/~mostafan/Files/Papers/md_convolution_TLE2009.pdf
-	cv::Mat imageOper = imageMat.clone();
+	cv::Mat imgOper = channelCheck(imageMat);
+	imgOper.convertTo(imgOper, CV_32FC1);
 	
-	float RSIZE = imageOper.rows + kernel.rows - 1;
-	float CSIZE = imageOper.cols + kernel.cols - 1;
+	float const RSIZE = imgOper.rows + kernel.rows - 1;
+	float const CSIZE = imgOper.cols + kernel.cols - 1;
 
-	cv::Mat imOper = cv::Mat::zeros(RSIZE, CSIZE, CV_32FC1);
-	for (int i = 0; i < imageOper.rows; i++) {
-		for (int j = 0; j < imageOper.cols; j++) {
-			if (imageOper.elemSize() == 1)
-				imOper.at<float>(i, j) = (float)imageOper.at<uchar>(i, j);
-			else if (imageOper.elemSize() == 4)
-				imOper.at<float>(i, j) = imageOper.at<float>(i, j);
-			else
-				throw std::exception("Illegal imageMat element size.");
+	cv::Mat helixOper = cv::Mat::zeros(RSIZE, CSIZE, CV_32FC1);
+	for (int i = 0; i < imgOper.rows; i++) {
+		for (int j = 0; j < imgOper.cols; j++) {
+			helixOper.at<float>(i, j) = imgOper.at<float>(i, j);
 		}
 	}
 	
-	std::vector<float> imVec;
+	vecf imgVec;
 	for (int i = 0; i < CSIZE; i++) {
 		for (int j = 0; j < RSIZE; j++) {
-			if (j == imageOper.rows && i == imageOper.cols - 1)
+			if (j == imgOper.rows && i == imgOper.cols - 1)
 				break;
-			imVec.push_back(imOper.at<float>(j, i));
+			imgVec.push_back(helixOper.at<float>(j, i));
 		}
 	}
 
@@ -684,7 +674,7 @@ cv::Mat sim::convolution2DHelix(cv::Mat const imageMat, cv::Mat kernel) { //http
 		}
 	}
 
-	std::vector<float> kerVec;
+	vecf kerVec;
 	std::vector<int> nonZeroKerVec;
 	bool check = false;
 	float k = 0;
@@ -697,28 +687,27 @@ cv::Mat sim::convolution2DHelix(cv::Mat const imageMat, cv::Mat kernel) { //http
 				break;
 			}
 			kerVec.push_back(kerOper.at<float>(j, i));
-			if (kerOper.at<float>(j, i) != 0)
+			if (!gen::cmpf(kerOper.at<float>(j, i), 0.0))
 				nonZeroKerVec.push_back(k);
 			k++;
 		}
 	}
-	std::vector<float> convVec;
-	for (int i = 0; i < imVec.size() + kerVec.size() - 1; i++) {
-		int kmin, kmax;
-
+	vecf convVec;
+	for (int i = 0; i < imgVec.size() + kerVec.size() - 1; i++) {
+		int kmax;
 		convVec.push_back(0);
 
-		kmax = (i < imVec.size() - 1) ? i : imVec.size() - 1;
+		kmax = (i < imgVec.size() - 1) ? i : imgVec.size() - 1;
 		for (float k : nonZeroKerVec) {
-			if ((i - k) < 0 || (i - k) >= imVec.size())
+			if ((i - k) < 0 || (i - k) >= imgVec.size())
 				continue;
 			if (k > kmax)
 				break;
-			convVec[i] += imVec[i - k] * kerVec[k];
+			convVec[i] += imgVec[i - k] * kerVec[k];
 		}
 	}
 
-	cv::Mat convMat(imageMat.rows + kernel.rows - 1, imageMat.cols + kernel.cols - 1, CV_32FC1);
+	cv::Mat convMat = cv::Mat::zeros(imageMat.rows + kernel.rows - 1, imageMat.cols + kernel.cols - 1, CV_32FC1);
 
 	for (int i = 0; i < convMat.cols; i++) {
 		for (int j = 0; j < convMat.rows; j++) {
@@ -726,14 +715,16 @@ cv::Mat sim::convolution2DHelix(cv::Mat const imageMat, cv::Mat kernel) { //http
 		}
 	}
 
-	convMat(cv::Range(ceil(kernel.rows/2), convMat.rows - ceil(kernel.rows / 2)), cv::Range(ceil(kernel.cols / 2), convMat.cols - ceil(kernel.cols / 2))).copyTo(convMat);
+	convMat(cv::Range(ceil(kernel.rows / 2), convMat.rows - ceil(kernel.rows / 2)), 
+		cv::Range(ceil(kernel.cols / 2), convMat.cols - ceil(kernel.cols / 2))).copyTo(convMat);
 	return convMat;
 }
 
-cv::Mat sim::convolution2DopenCV(cv::Mat const imageMat, cv::Mat kernel) {
+cv::Mat sim::convolution2DOpenCV(cv::Mat const imageMat, cv::Mat const kernel) {
 	cv::Mat paddedImage, paddedKernel, imgOper, kerOper;
 
 	imgOper = channelCheck(imageMat);
+	imgOper.convertTo(imgOper, CV_32FC1);
 
 	kerOper = kernel.clone();
 
@@ -759,7 +750,12 @@ cv::Mat sim::convolution2DopenCV(cv::Mat const imageMat, cv::Mat kernel) {
 	cv::idft(convMat, convMat);
 	cv::split(convMat, planes);
 
-	return planes[0];
+	auto temp = planes[0];
+	temp(cv::Range(floor(kernel.rows / 2), temp.rows - floor(kernel.rows / 2)), 
+		cv::Range(floor(kernel.cols / 2), temp.cols - floor(kernel.cols / 2))).copyTo(temp);
+	cv::normalize(temp, temp, 0, 255, cv::NORM_MINMAX);
+
+	return temp;
 }
 
 cv::Mat sim::rotateMatrix180(cv::Mat srcmat)
@@ -779,6 +775,72 @@ cv::Mat sim::rotateMatrix180(cv::Mat srcmat)
 }
 
 cv::Mat sim::filterGauss(cv::Mat const operand, int ksize, float sigma, float mu, bool openCV) {
+	auto gaussKernel = [](float kernel_size, float sigma, float mu) {
+		auto erf = [](float x) {
+			float a1 = 0.254829592;
+			float a2 = -0.284496736;
+			float a3 = 1.421413741;
+			float a4 = -1.453152027;
+			float a5 = 1.061405429;
+			float p = 0.3275911;
+
+			float sign = 1;
+			if (x < 0)
+				sign = -1;
+			x = abs(x);
+
+			float t = 1.0 / (1.0 + p * x);
+			float y = 1.0 - (((((a5 * t + a4) * t) + a3) * t + a2) * t + a1) * t * exp(-x * x);
+
+			return sign * y;
+		};
+
+		float sqrt_2 = sqrt(2);
+
+		auto def_int_gaussian = [&erf, &sqrt_2](float x, float mu, float sigma) {
+			return 0.5 * erf((x - mu) / (sqrt_2 * sigma));
+		};
+
+		auto start_x = -(kernel_size / 2);
+		auto end_x = (kernel_size / 2);
+		int step = 1;
+
+		vecf coeff;
+		float last_int = def_int_gaussian(start_x, mu, sigma);
+
+		for (float i = start_x; i < end_x; i += step) {
+			float new_int = def_int_gaussian(i + step, mu, sigma);
+			coeff.push_back(new_int - last_int);
+			last_int = new_int;
+		}
+
+		float sum = 0;
+		for (float const i : coeff) {
+			sum += i;
+		}
+
+		for (float& i : coeff) {
+			i /= sum;
+		}
+
+		cv::Mat gaussMat(kernel_size, kernel_size, CV_32FC1);
+
+		cv::Mat xvec(kernel_size, 1, CV_32F);
+		cv::Mat yvec(1, kernel_size, CV_32F);
+		float sumofVec = 0;
+
+		for (int i = 0; i < kernel_size; i++) {
+			xvec.at<float>(i, 0) = yvec.at<float>(0, i) = coeff[i];
+			sumofVec += coeff[i];
+		}
+
+		gaussMat = xvec * yvec;
+
+		gaussMat = gaussMat * sumofVec;
+
+		return gaussMat;
+	};
+
 	if (mu != 0) {
 		throw std::exception("Mu value must be zero.");
 	}
@@ -790,11 +852,11 @@ cv::Mat sim::filterGauss(cv::Mat const operand, int ksize, float sigma, float mu
 	cv::Mat filterOper;
 
 	if (openCV) {
-		filterOper = sim::convolution2DopenCV(operand, gaussmat);
-		filterOper(cv::Range(floor(ksize / 2), filterOper.rows - floor(ksize / 2)), cv::Range(floor(ksize / 2), filterOper.cols - floor(ksize / 2))).copyTo(filterOper);
+		filterOper = sim::convolution2DOpenCV(operand, gaussmat);
+		cv::normalize(filterOper, filterOper, 0, 255, cv::NORM_MINMAX);
 	}
 	else
-		filterOper = sim::convolution2D(operand, gaussmat);
+		filterOper = sim::convolution2DHelix(operand, gaussmat);
 
 
 	return filterOper;
@@ -830,7 +892,7 @@ cv::Mat sim::gaussKernel(float kernel_size, float sigma, float mu) {  //http://d
 	auto end_x = (kernel_size / 2);
 	int step = 1;
 
-	std::vector<float> coeff;
+	vecf coeff;
 	float last_int = def_int_gaussian(start_x, mu, sigma);
 
 	for (float i = start_x; i < end_x; i += step) {
@@ -859,25 +921,19 @@ cv::Mat sim::gaussKernel(float kernel_size, float sigma, float mu) {  //http://d
 		sumofVec += coeff[i];
 	}
 
-	std::cout << xvec << "\n" << yvec << "\n";
-
 	gaussMat = xvec * yvec;
 
-	std::cout << gaussMat << "\n";
-
 	gaussMat = gaussMat * sumofVec;
-
-	std::cout << gaussMat << "\n";
 
 	return gaussMat;
 }
 
-float sim::sumOfVectorMembers(std::vector<float> operand, int offset) {
-	float vecoperator = 0;
+float sim::sumOfVectorMembers(vecf operand, int offset) {
+	float vecOper = 0;
 	for (int i = offset; i < operand.size(); i++) {
-		vecoperator += operand[i];
+		vecOper += operand[i];
 	}
-	return vecoperator;
+	return vecOper;
 }
 
 
@@ -934,10 +990,11 @@ int sim::rankOfMatrix(cv::Mat const mat) { //https://www.geeksforgeeks.org/progr
 
 template <typename T>
 int sim::getI(std::vector<T> operand) {
-	return operand[0] + 2 - 1; //num of dims + dim + type - offset
+	return 0;
+	// return operand[0] + 2 - 1; //num of dims + dim + type - offset
 }
 
-template int sim::getI<float>(std::vector<float> operand);
+template int sim::getI<float>(vecf operand);
 template int sim::getI<uchar>(std::vector<uchar> operand);
 
 /*float castTouchar(uchar x) {
@@ -952,18 +1009,4 @@ cv::Mat sim::channelCheck(cv::Mat const imageMat) {
 	else
 		oper = imageMat.clone();
 	return oper;
-}
-
-template <typename T>
-std::vector<T> operator+(const std::vector<T>& a, const std::vector<T>& b) {
-	if (a.size() != b.size()) {
-		throw std::exception("Vectors are not equal to each other.");
-	}
-
-	std::vector<T> result;
-	result.reserve(a.size());
-
-	std::transform(a.begin(), a.end(), b.begin(),
-		std::back_inserter(result), std::plus<T>());
-	return result;
 }

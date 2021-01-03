@@ -1,8 +1,8 @@
 #include "MainWindow.h"
 
-int row = 0;
-
 QSqlDatabase qDB = QSqlDatabase();
+
+constexpr int maximum = 16777215;
 
 cv::Mat QImageToCvMat(const QImage& operand) {
 	cv::Mat mat = cv::Mat(operand.height(), operand.width(), CV_8UC4, (uchar*)operand.bits(), operand.bytesPerLine());
@@ -25,81 +25,386 @@ QImage cvMatToQImage(cv::Mat& operand) {
 	return imgIn;
 }
 
-TableModel::TableModel(QObject* parent)	: QSqlRelationalTableModel(parent) {}
+TableModel::TableModel(QObject* parent)	: QSqlQueryModel(parent) {}
 
 QVariant TableModel::data(const QModelIndex& index, int role) const {
 	int col = index.column();
 	if (col == 0) {
 		if (role == Qt::DecorationRole) {
-			QString imhash = QSqlRelationalTableModel::data(index.sibling(index.row(), fieldIndex("hash"))).toString();
-			string condition = "imhash='" + imhash.toStdString() + "'";
-
-			std::vector<std::vector<string>> hashVec = mw_dbPtr->select_GENERAL(
-				std::vector<std::vector<string>>{ {"iconhash"}, { "imageicon" }, { condition }});
-
-			bool check = true;		
-			if (hashVec[0].size() == 0) {
-				check = false;
-			}
-			else if (hashVec[0].size() == 1) {
-				string condition = "hash='" + hashVec[0][0] + "'";
-
-				std::vector<std::vector<string>> hashVec_inner = mw_dbPtr->select_GENERAL(
-					std::vector<std::vector<string>>{ {"mat"}, { "icon" }, { condition }});
-				if (hashVec_inner.size() == 0) {
-					check = false;
-				}
-				else if (hashVec_inner[0].size() == 1) {
-					img::Icon imgIcon(dbop::deserializeMat(hashVec_inner[0][0]));
-					return QIcon(QPixmap::fromImage(cvMatToQImage(imgIcon.getIconMat())));
-				}
-			}
-			if (!check) {
-				QString imgdir = QSqlRelationalTableModel::data(index.sibling(index.row(), fieldIndex("dir"))).toString();
-				img::Icon imgIcon(cv::imread(imgdir.toStdString(), cv::IMREAD_COLOR));
-				return QIcon(QPixmap::fromImage(cvMatToQImage(imgIcon.getIconMat())));
-			}
-		}
-	}
-	else if (col == 1) {
-		return QSqlRelationalTableModel::data(index.sibling(index.row(), fieldIndex("name")), role);
-	}
-	else if (col == 2) {
-		QString srchash = QSqlRelationalTableModel::data(index.sibling(index.row(), fieldIndex("hash"))).toString();
-		
-		string condition = "srchash='" + srchash.toStdString() + "'";
-
-		std::vector<std::vector<string>> hashVec = mw_dbPtr->select_GENERAL(
-			std::vector<std::vector<string>>{ {"desthash"}, { "similarity" }, { condition }});
-
-		if (hashVec[0].size() == 0) {
-			return QVariant(QString("N/A"));
+			QString imcode = QSqlQueryModel::data(index).toString();
+			string condition = "imhash='" + imcode.toStdString() + "'";
+			img::Icon imgIcon(dbop::deserializeMat(imcode.toStdString()));
+			int height = imgIcon.getIconMat().rows;
+			auto mat = imgIcon.getIconMat();
+			std::vector<uchar> buffer;
+			cv::imencode(".jpg", mat, buffer, { cv::IMWRITE_JPEG_QUALITY, 85 });
+			auto compressed = cv::imdecode(buffer, cv::IMREAD_COLOR);
+			auto icon = QIcon(QPixmap::fromImage(cvMatToQImage(compressed)));
+			return icon;
 		}
 		else {
-			return QString(hashVec[0][0].c_str());
+			return QString("N/A");
 		}
 	}
-	else
-		return QSqlRelationalTableModel::data(index, role);
-	return QVariant();
+	
+	return QSqlQueryModel::data(index, role);
 }
 
-//void TableModel::populateData(std::vector<img::Image> data) {
-//	columnImage.clear();
-//	for (int i = 0; i < data.size(); i++) {
-//		//columnImage.push_back(data[i]);
-//		//std::cout << modelData[i]->getImageMat().data;
-//	}
-//	return;
-//}
-//
-//void TableModel::insertImage(img::Image* data) {
-//	columnName.push_back(QString(data->getImageName().c_str()));
-//	columnSimilarity.push_back("N/A");
-//}
-
-MainWindow::MainWindow(dbop::Database dbObj, QWidget *parent)	: QMainWindow(parent) {
+SortDialog::SortDialog(QWidget* parent) {
 	ui.setupUi(this);
+	current = new float(0);
+	enableVec = std::vector<bool>(3, false);
+	bgrEnableVec = std::vector<std::vector<bool>>(3, std::vector<bool>(3, true));
+	binVec = std::vector<vecf>(3, vecf(3, 0));
+	weightVec = std::vector<vecf>(3, vecf(3, 0));
+	ui.checkBox_B->setVisible(false);
+	ui.checkBox_G->setVisible(false);
+	ui.checkBox_R->setVisible(false);
+	initlineedit_arr = {ui.lineEdit_18, ui.lineEdit_19, ui.lineEdit_gradirbin, 
+		ui.lineEdit_gramagbin, ui.lineEdit_weightgradir, ui.lineEdit_weightgramag, ui.lineEdit_weighthistf,
+		ui.lineEdit_weighthists, ui.lineEdit_weighthistt};
+	lineedit_hist_arr = { ui.lineEdit_weighthistf, ui.lineEdit_weighthists, ui.lineEdit_weighthistt };
+	QDoubleValidator* validator = new QDoubleValidator(0.0001, 100.0, 1000);
+	ui.lineEdit_2->setValidator(validator);
+	lineedit_arr = initlineedit_arr;
+	for (int i = 0; i < lineedit_arr.size(); i++)
+		lineedit_arr[i]->setValidator(validator);
+
+	//KEEP BGR AND HSV TICKS SEPARATE
+	//BGR AND HSV SHOULD DISABLE BINS
+	//WEIGHT SHOULD SET TO VALUE AT NEW INDEX WHEN COMBOBOX CHANGE INDEX
+	//BINS SHOULD TOO
+
+	lineedit_arr.erase(lineedit_arr.begin() + 2, lineedit_arr.begin() + 4);
+
+	QObject MWObject;
+	parent_ptr = (MainWindow*)parent;
+	MWObject.connect(ui.buttonBox->button(QDialogButtonBox::Ok), SIGNAL(clicked()), this, SLOT(buildFeatureVector()));
+	MWObject.connect(ui.buttonBox->button(QDialogButtonBox::Ok), SIGNAL(clicked()), this, SLOT(buildFeatureVector()));
+	MWObject.connect(ui.checkBox_B, &QCheckBox::toggled, [&](bool enable){enableBGR(enable, 0); });
+	MWObject.connect(ui.checkBox_G, &QCheckBox::toggled, [&](bool enable) {enableBGR(enable, 1); });
+	MWObject.connect(ui.checkBox_R, &QCheckBox::toggled, [&](bool enable) {enableBGR(enable, 2); });
+	MWObject.connect(ui.checkBox_sortHash, SIGNAL(toggled(bool)), this, SLOT(enableHash(bool)));
+	MWObject.connect(ui.checkBox_sorthistg, SIGNAL(toggled(bool)), this, SLOT(enableHistG(bool)));
+	MWObject.connect(ui.checkBox_sorthistb, SIGNAL(toggled(bool)), this, SLOT(enableHistB(bool)));
+	MWObject.connect(ui.checkBox_sorthisth, SIGNAL(toggled(bool)), this, SLOT(enableHistH(bool)));
+	MWObject.connect(ui.checkBox_sortEdge, SIGNAL(toggled(bool)), this, SLOT(enableEdge(bool)));
+	MWObject.connect(ui.checkBox, SIGNAL(toggled(bool)), this, SLOT(equaliseWeights(bool)));
+	MWObject.connect(ui.comboBox_histFlag, SIGNAL(currentIndexChanged(int)), this, SLOT(displayButtons_BGR(int)));
+	for (int i = 0; i < lineedit_arr.size(); i++) {
+		MWObject.connect(lineedit_arr[i], SIGNAL(textChanged(QString)), this, SLOT(remainingPercentage(QString)));
+	}
+	MWObject.connect(ui.horizontalSlider_fbin, &QSlider::sliderMoved,
+		[&](int value) {
+			QToolTip::showText(QCursor::pos(), QString("%1").arg(value), nullptr);
+			binVec[ui.comboBox_histFlag->currentIndex()][0] = value;
+		});
+	MWObject.connect(ui.horizontalSlider_sbin, &QSlider::sliderMoved,
+		[&](int value) {
+			QToolTip::showText(QCursor::pos(), QString("%1").arg(value), nullptr);
+			binVec[ui.comboBox_histFlag->currentIndex()][1] = value;
+		});
+	MWObject.connect(ui.horizontalSlider_tbin, &QSlider::sliderMoved,
+		[&](int value) {
+			QToolTip::showText(QCursor::pos(), QString("%1").arg(value), nullptr);
+			binVec[ui.comboBox_histFlag->currentIndex()][2] = value;
+		});
+	lineedit_arr.erase(lineedit_arr.end() - 3, lineedit_arr.end());
+}
+
+void SortDialog::equaliseWeights(bool enable) {
+	iop::WeightVector wv(true);
+	auto ftoq = [](float f) {
+		return QString::fromStdString(gen::format(f));
+	};
+	ui.lineEdit_18->setText(ftoq(wv.wv_hash[0] * 100));
+	ui.lineEdit_19->setText(ftoq(wv.wv_hash[1] * 100));
+	ui.lineEdit_weightgramag->setText(ftoq(wv.wv_grad[0] * 100));
+	ui.lineEdit_weightgradir->setText(ftoq(wv.wv_grad[1] * 100));
+	weightVec[0][0] = wv.w_hgray * 100;
+	weightVec[1][0] = wv.wv_hbgr[0] * 100;
+	weightVec[1][1] = wv.wv_hbgr[1] * 100;
+	weightVec[1][2] = wv.wv_hbgr[2] * 100;
+	weightVec[2][0] = wv.wv_hhsv[0] * 100;
+	weightVec[2][1] = wv.wv_hhsv[1] * 100;
+	weightVec[2][2] = wv.wv_hhsv[2] * 100;
+	binVec[0][0] = 10;
+	binVec[1][0] = 5;
+	binVec[1][1] = 5;
+	binVec[1][2] = 5;
+	binVec[2][0] = 5;
+	binVec[2][1] = 5;
+	binVec[2][2] = 5;
+	for (auto& i : bgrEnableVec)
+		for (auto& j : i)
+			j = true;
+	ui.comboBox_edgeFlag->setCurrentIndex(0);
+	ui.lineEdit_gradirbin->setText(ftoq(8));
+	ui.lineEdit_gramagbin->setText(ftoq(10));
+	enableVec[0] = true;
+	ui.checkBox_sorthistg->setChecked(true);
+	ui.checkBox_sorthistb->setChecked(true);
+	ui.checkBox_sorthisth->setChecked(true);
+	enableVec[1] = true;
+	enableVec[2] = true;
+	ui.checkBox_sortEdge->setChecked(true);
+	ui.checkBox_sortHash->setChecked(true);
+	emit displayButtons_BGR(ui.comboBox_histFlag->currentIndex());
+	emit remainingPercentage("", true);
+}
+
+void SortDialog::enableBGR(bool enable, int index) {
+	QCheckBox* checkbox = (QCheckBox*)sender();
+	if (index == 0) {
+		ui.horizontalSlider_fbin->setEnabled(enable);
+		ui.lineEdit_weighthistf->setEnabled(enable);
+		if (ui.comboBox_histFlag->currentIndex() == 1) {
+			binVec[1][0] = enable ? ui.horizontalSlider_fbin->value() : 0;
+			bgrEnableVec[1][0] = enable;
+		}
+		else if (ui.comboBox_histFlag->currentIndex() == 2) {
+			binVec[2][0] = enable ? ui.horizontalSlider_fbin->value() : 0;
+			bgrEnableVec[2][0] = enable;
+		}
+	}
+	else if (index == 1) {
+		ui.horizontalSlider_sbin->setEnabled(enable);
+		ui.lineEdit_weighthists->setEnabled(enable);
+		if (ui.comboBox_histFlag->currentIndex() == 1) {
+			binVec[1][1] = enable ? ui.horizontalSlider_sbin->value() : 0;
+			bgrEnableVec[1][1] = enable;
+		}
+		else if (ui.comboBox_histFlag->currentIndex() == 2) {
+			binVec[2][1] = enable ? ui.horizontalSlider_sbin->value() : 0;
+			bgrEnableVec[2][1] = enable;
+		}
+	}
+	else if (index == 2) {
+		ui.horizontalSlider_tbin->setEnabled(enable);
+		ui.lineEdit_weighthistt->setEnabled(enable);
+		if (ui.comboBox_histFlag->currentIndex() == 1) {
+			binVec[1][2] = enable ? ui.horizontalSlider_tbin->value() : 0;
+			bgrEnableVec[1][2] = enable;
+		}
+		else if (ui.comboBox_histFlag->currentIndex() == 2) {
+			binVec[2][2] = enable ? ui.horizontalSlider_tbin->value() : 0;
+			bgrEnableVec[2][2] = enable;
+		}
+	}
+	emit remainingPercentage("", true);
+}
+
+void SortDialog::remainingPercentage(QString sent, bool disabled) {
+	float initial = ui.lineEdit_2->text().toFloat();
+	QLineEdit* lineedit = (QLineEdit*)sender();
+	int iter = -1;
+	if(!disabled)
+		for (int i = 0; i < lineedit_hist_arr.size(); i++) {
+			if (lineedit_hist_arr[i]->objectName() == lineedit->objectName()) {
+				iter = i;
+				break;
+			}
+		}
+	if (iter != -1) {
+		int index = ui.comboBox_histFlag->currentIndex();
+		weightVec[index][iter] = sent.toFloat();
+	}
+	float currentPerc = 0;
+	for (auto i : lineedit_arr) {
+		if (i->isEnabled())
+			currentPerc += i->text().toFloat();
+	}
+	for (int i = 0; i < weightVec.size(); i++)
+		for (int j = 0; j < weightVec[i].size(); j++)
+			currentPerc += enableVec[i] && bgrEnableVec[i][j] ? weightVec[i][j] : 0;
+	ui.lineEdit_2->setText(QString::fromStdString(std::to_string(100 - currentPerc)));
+	if (!gen::cmpf(currentPerc, 100)) {
+		ui.buttonBox->button(QDialogButtonBox::Ok)->setEnabled(false);
+		ui.buttonBox->button(QDialogButtonBox::Ok)->setToolTip("Weight percentage must be 100.");
+	}
+	else {
+		ui.buttonBox->button(QDialogButtonBox::Ok)->setEnabled(true);
+	}
+	if (!gen::cmpf(100 - currentPerc, initial))
+		ui.checkBox->setChecked(false);
+}
+
+void SortDialog::enableHash(bool enable) {
+	ui.lineEdit_18->setEnabled(enable);
+	ui.lineEdit_19->setEnabled(enable);
+	emit remainingPercentage("h", true);
+}
+
+void SortDialog::enableHistG(bool enable) {
+	ui.checkBox_B->setVisible(false);
+	ui.checkBox_G->setVisible(false);
+	ui.checkBox_R->setVisible(false);
+	ui.horizontalSlider_fbin->setEnabled(enable && bgrEnableVec[0][0]);
+	ui.horizontalSlider_sbin->setEnabled(false);
+	ui.horizontalSlider_tbin->setEnabled(false);
+	ui.horizontalSlider_fbin->setValue(binVec[0][0]);
+	ui.horizontalSlider_sbin->setValue(binVec[0][1]);
+	ui.horizontalSlider_tbin->setValue(binVec[0][2]);
+	ui.lineEdit_weighthistf->setEnabled(enable && bgrEnableVec[0][0]);
+	ui.lineEdit_weighthists->setEnabled(false);
+	ui.lineEdit_weighthistt->setEnabled(false);
+	ui.lineEdit_weighthistf->setText(QString::fromStdString(gen::format(weightVec[0][0])));
+	ui.lineEdit_weighthists->setText(QString::fromStdString(gen::format(weightVec[0][1])));
+	ui.lineEdit_weighthistt->setText(QString::fromStdString(gen::format(weightVec[0][2])));
+	ui.horizontalSlider_fbin->setMaximum(255);
+	ui.label_bMax->setText("255");
+	enableVec[0] = enable;
+	emit remainingPercentage("g", true);
+}
+
+void SortDialog::enableHistB(bool enable) {
+	ui.checkBox_B->setText("B");
+	ui.checkBox_B->setVisible(true);
+	ui.checkBox_B->setEnabled(enable);
+	ui.checkBox_G->setText("G");
+	ui.checkBox_G->setVisible(true);
+	ui.checkBox_G->setEnabled(enable);
+	ui.checkBox_R->setText("R");
+	ui.checkBox_R->setVisible(true);
+	ui.checkBox_R->setEnabled(enable);
+	ui.horizontalSlider_fbin->setEnabled(enable && bgrEnableVec[1][0]);
+	ui.horizontalSlider_sbin->setEnabled(enable && bgrEnableVec[1][1]);
+	ui.horizontalSlider_tbin->setEnabled(enable && bgrEnableVec[1][2]);
+	ui.horizontalSlider_fbin->setMaximum(255);
+	ui.label_bMax->setText("255");
+	ui.horizontalSlider_fbin->setValue(binVec[1][0]);
+	ui.horizontalSlider_sbin->setValue(binVec[1][1]);
+	ui.horizontalSlider_tbin->setValue(binVec[1][2]);
+	ui.lineEdit_weighthistf->setEnabled(enable && bgrEnableVec[1][0]);
+	ui.lineEdit_weighthists->setEnabled(enable && bgrEnableVec[1][1]);
+	ui.lineEdit_weighthistt->setEnabled(enable && bgrEnableVec[1][2]);
+	ui.lineEdit_weighthistf->setText(QString::fromStdString(gen::format(weightVec[1][0])));
+	ui.lineEdit_weighthists->setText(QString::fromStdString(gen::format(weightVec[1][1])));
+	ui.lineEdit_weighthistt->setText(QString::fromStdString(gen::format(weightVec[1][2])));
+	enableVec[1] = enable;
+	emit remainingPercentage("b", true);
+}
+
+void SortDialog::enableHistH(bool enable) {
+	ui.checkBox_B->setText("H");
+	ui.checkBox_B->setVisible(true);
+	ui.checkBox_B->setEnabled(enable);
+	ui.checkBox_G->setText("S");
+	ui.checkBox_G->setVisible(true);
+	ui.checkBox_G->setEnabled(enable);
+	ui.checkBox_R->setText("V");
+	ui.checkBox_R->setVisible(true);
+	ui.checkBox_R->setEnabled(enable);
+	ui.horizontalSlider_fbin->setEnabled(enable && bgrEnableVec[2][0]);
+	ui.horizontalSlider_sbin->setEnabled(enable && bgrEnableVec[2][1]);
+	ui.horizontalSlider_tbin->setEnabled(enable && bgrEnableVec[2][2]);
+	ui.horizontalSlider_fbin->setMaximum(180);
+	ui.label_bMax->setText("180");
+	ui.horizontalSlider_fbin->setValue(binVec[2][0]);
+	ui.horizontalSlider_sbin->setValue(binVec[2][1]);
+	ui.horizontalSlider_tbin->setValue(binVec[2][2]);
+	ui.lineEdit_weighthistf->setEnabled(enable && bgrEnableVec[2][0]);
+	ui.lineEdit_weighthists->setEnabled(enable && bgrEnableVec[2][1]);
+	ui.lineEdit_weighthistt->setEnabled(enable && bgrEnableVec[2][2]);
+	ui.lineEdit_weighthistf->setText(QString::fromStdString(gen::format(weightVec[2][0])));
+	ui.lineEdit_weighthists->setText(QString::fromStdString(gen::format(weightVec[2][1])));
+	ui.lineEdit_weighthistt->setText(QString::fromStdString(gen::format(weightVec[2][2])));
+	enableVec[2] = enable;
+	emit remainingPercentage("s", true);
+}
+
+void SortDialog::enableEdge(bool enable) {
+	ui.comboBox_edgeFlag->setEnabled(enable);
+	ui.lineEdit_weightgramag->setEnabled(enable);
+	ui.lineEdit_weightgradir->setEnabled(enable);
+	ui.lineEdit_gramagbin->setEnabled(enable);
+	ui.lineEdit_gradirbin->setEnabled(enable);
+	emit remainingPercentage("e", true);
+}
+
+void SortDialog::buildFeatureVector() {
+	iop::WeightVector wv(true);
+	wv.wv_hash[0] = ui.lineEdit_18->text().toFloat() / 100;
+	wv.wv_hash[1] = ui.lineEdit_19->text().toFloat() / 100;
+	wv.wv_grad[0] = ui.lineEdit_weightgramag->text().toFloat() / 100;
+	wv.wv_grad[1] = ui.lineEdit_weightgradir->text().toFloat() / 100;
+	wv.w_hgray = weightVec[0][0] / 100;
+	wv.wv_hbgr[0] = weightVec[1][0] / 100;
+	wv.wv_hbgr[1] = weightVec[1][1] / 100;
+	wv.wv_hbgr[2] = weightVec[1][2] / 100;
+	wv.wv_hhsv[0] = weightVec[2][0] / 100;
+	wv.wv_hhsv[1] = weightVec[2][1] / 100;
+	wv.wv_hhsv[2] = weightVec[2][2] / 100;
+
+	feat::Histogram hist_g;
+	if(enableVec[0])
+		hist_g = feat::Histogram(cv::Mat(), HIST_GRAY, binVec[0][0]);
+	else
+		hist_g = feat::Histogram(cv::Mat(), HIST_GRAY, 0);
+
+	feat::Histogram hist_bgr;
+	if (enableVec[1])
+		hist_bgr = feat::Histogram(cv::Mat(), HIST_BGR, bgrEnableVec[1][0] ? binVec[1][0] : 0, 
+			bgrEnableVec[1][1] ? binVec[1][1] : 0, 
+			bgrEnableVec[1][2] ? binVec[1][2] : 0);
+	else
+		hist_bgr = feat::Histogram(cv::Mat(), HIST_BGR, 0, 0, 0);
+
+	feat::Histogram hist_hsv;
+	if (enableVec[2])
+		hist_hsv = feat::Histogram(cv::Mat(), HIST_HSV, bgrEnableVec[2][0] ? binVec[2][0] : 0,
+			bgrEnableVec[2][1] ? binVec[2][1] : 0,
+			bgrEnableVec[2][2] ? binVec[2][2] : 0);
+	else
+		hist_hsv = feat::Histogram(cv::Mat(), HIST_HSV, 0, 0, 0);
+
+	feat::Edge edge;
+	if (ui.checkBox_sortEdge)
+		edge = feat::Edge(cv::Mat(), ui.comboBox_edgeFlag->currentIndex(), nullptr,
+			-1, ui.lineEdit_gramagbin->text().toFloat(), ui.lineEdit_gradirbin->text().toFloat());
+	else
+		edge = feat::Edge(cv::Mat(), 0, nullptr, -1, 0, 0);
+	
+	feat::Hash hash;
+	if (ui.checkBox_sortHash)
+		hash = feat::Hash(cv::Mat(), std::make_pair(true, true));
+
+	iop::FeatureVector fv(nullptr, &edge, &hist_g, &hist_bgr, &hist_hsv, &hash);
+
+	emit parent_ptr->setFeatureVector(fv, wv);
+}
+
+void SortDialog::displayButtons_BGR(int state) {
+	if (state == 0) {
+		enableHistG(enableVec[0]);
+		ui.stackedWidget->setCurrentIndex(0);
+	}
+	else if (state == 1) {
+		ui.stackedWidget->setCurrentIndex(1);
+		ui.checkBox_B->setChecked(bgrEnableVec[1][0]);
+		ui.checkBox_G->setChecked(bgrEnableVec[1][1]);
+		ui.checkBox_R->setChecked(bgrEnableVec[1][2]);
+		enableHistB(enableVec[1]);
+	}
+	else if (state == 2) {
+		ui.stackedWidget->setCurrentIndex(2);
+		ui.checkBox_B->setChecked(bgrEnableVec[2][0]);
+		ui.checkBox_G->setChecked(bgrEnableVec[2][1]);
+		ui.checkBox_R->setChecked(bgrEnableVec[2][2]);
+		enableHistH(enableVec[2]);
+	}
+	if (binstate != nullptr)
+		delete(binstate);
+	binstate = new int(state);
+}
+
+MainWindow::MainWindow(dbop::Database dbObj, QWidget *parent) : QMainWindow(parent) {
+	ui.setupUi(this);
+
+	setIcons();
+	screenSize = new QSize(QApplication::desktop()->screenGeometry().width(), QApplication::desktop()->screenGeometry().height());
+
+	QResource::registerResource("Resource.rcc");
 
 	mw_dbPtr = &dbObj;
 
@@ -109,28 +414,53 @@ MainWindow::MainWindow(dbop::Database dbObj, QWidget *parent)	: QMainWindow(pare
 	if (!qDB.open())
 		showError(qDB.lastError());
 
-	TableModel* model = new TableModel(ui.mainTableView);
-
-	model->setEditStrategy(QSqlTableModel::OnManualSubmit);
-	model->setTable("image");
-	model->setHeaderData(0, Qt::Horizontal, tr("Thumbnail"), Qt::DecorationRole);
-	model->setHeaderData(1, Qt::Horizontal, tr("Name"), Qt::DisplayRole);
-	model->setHeaderData(2, Qt::Horizontal, tr("Similarity"), Qt::DisplayRole);
+	resultModel = new TableModel;
+	resultModel->setQuery("SELECT DISTINCT icon.mat, b.name, similarity.similarity"
+		" FROM icon, image a, image b"
+		" INNER JOIN imageicon"
+		" ON imageicon.imhash = b.hash and imageicon.iconhash = icon.hash"
+		" INNER JOIN similarity"
+		" ON similarity.srchash = a.hash and similarity.desthash = b.hash", qDB);
+	ui.resultTableView->setModel(resultModel);
+	resultModel->setHeaderData(0, Qt::Horizontal, tr("Thumbnail"), Qt::DecorationRole);
+	resultModel->setHeaderData(1, Qt::Horizontal, tr("Name"));
+	resultModel->setHeaderData(2, Qt::Horizontal, tr("Similarity"));
 	
+	ui.resultTableView->verticalHeader()->setSectionResizeMode(QHeaderView::Fixed);
+	ui.resultTableView->verticalHeader()->setDefaultSectionSize(100);
+	ui.resultTableView->verticalHeader()->setVisible(false);
+
+	ui.resultTableView->horizontalHeader()->setModel(resultModel);
+	ui.resultTableView->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Fixed);
+	ui.resultTableView->verticalHeader()->setDefaultSectionSize(100);
+	ui.resultTableView->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
+	ui.resultTableView->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+
+	mainModel = new TableModel;
+	mainModel->setQuery("SELECT DISTINCT icon.mat, a.name, a.hash"
+		" FROM icon, image a"
+		" INNER JOIN imageicon"
+		" ON imageicon.imhash = a.hash and imageicon.iconhash = icon.hash", qDB);
+	ui.mainTableView->setModel(mainModel);
+	mainModel->setHeaderData(0, Qt::Horizontal, tr("Thumbnail"), Qt::DecorationRole);
+	mainModel->setHeaderData(1, Qt::Horizontal, tr("Name"));
+	mainModel->setHeaderData(2, Qt::Horizontal, tr("Hash"));
+	
+	ui.mainTableView->setColumnHidden(2, true);
+
 	ui.mainTableView->verticalHeader()->setSectionResizeMode(QHeaderView::Fixed);
 	ui.mainTableView->verticalHeader()->setDefaultSectionSize(100);
 	ui.mainTableView->verticalHeader()->setVisible(false);
 
-	ui.mainTableView->setModel(model);
-	ui.mainTableView->horizontalHeader()->setModel(model);
-	ui.mainTableView->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+	ui.mainTableView->horizontalHeader()->setModel(mainModel);
+	ui.mainTableView->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Fixed);
+	ui.mainTableView->verticalHeader()->setDefaultSectionSize(100);
 	ui.mainTableView->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
-	ui.mainTableView->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+
+	ui.mainTableView->setContextMenuPolicy(Qt::CustomContextMenu);
 
 	ui.label_imgSrc->setBackgroundRole(QPalette::Base);
 	ui.label_imgSrc->setScaledContents(true);
-
-	ui.textEdit->hide();
 
 	QDoubleValidator* validator = new QDoubleValidator(0.0001, 100.0, 1000);
 	ui.lineEdit_alpha->setValidator(validator);
@@ -163,38 +493,73 @@ MainWindow::MainWindow(dbop::Database dbObj, QWidget *parent)	: QMainWindow(pare
 
 	ui.stackedWidget_src->setCurrentIndex(0);
 	ui.stackedWidget_dest->setCurrentIndex(0);
-	
-	img::Image srcImg("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench00140.jpg", cv::IMREAD_COLOR);
-	ui.label_imgSrc->setPixmap(QPixmap::fromImage(cvMatToQImage(
-		srcImg.getImageMat())).scaled(ui.label_imgSrc->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
-	lnkr::setSourceImage(srcImg);
 
-	ui.gridLayout_9->setAlignment(ui.verticalSlider_TL, Qt::AlignHCenter);
-	ui.gridLayout_10->setAlignment(ui.verticalSlider_TR, Qt::AlignHCenter);
-	ui.gridLayout_6->setAlignment(ui.verticalSlider_BL, Qt::AlignHCenter);
-	ui.gridLayout_11->setAlignment(ui.verticalSlider_BR, Qt::AlignHCenter);
-
-	/*printToScreen("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/testbridge.txt", true);
-
-	img::Image imb("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/testImage.jpg", cv::IMREAD_COLOR);
-	setImage(ui.imageLabel, cvMatToQImage(imb.getImageMat()));
-	
-	std::vector<img::Image> xd;
-	for (int i = 0; i < 6; i++) {
-		img::Image ima("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench/full/ukbench0000" + std::to_string(i) + ".jpg", cv::IMREAD_COLOR);
-		xd.push_back(ima);
-		addToMainTable(&xd[i]);
-	}*/
+	ui.comboBox_kernelFlag->setEnabled(false);
+	ui.lineEdit_gauss->setEnabled(false);
+	ui.lineEdit_tlow->setEnabled(false);
+	ui.lineEdit_thigh->setEnabled(false);
+	ui.lineEdit_sigma->setEnabled(false);
 
 	QObject MWObject;
 	MWObject.connect(ui.pushButton_srcImgLabel, SIGNAL(clicked()), this, SLOT(openImageLabel()));
-	MWObject.connect(ui.consoleButton, SIGNAL(clicked()), this, SLOT(hideConsole()));
+	MWObject.connect(ui.comboBox_edgeFlag, SIGNAL(currentIndexChanged(int)), this, SLOT(enableCanny(int)));
+	MWObject.connect(ui.pushButton_sort, SIGNAL(clicked()), this, SLOT(compareImages()));
+	MWObject.connect(ui.pushButton_loadImgs, SIGNAL(clicked()), this, SLOT(openList()));
 	MWObject.connect(ui.pushButton_dispInDet, SIGNAL(clicked()), this, SLOT(displayFeature()));
 	MWObject.connect(ui.comboBox_histFlag, SIGNAL(currentIndexChanged(int)), this, SLOT(displayButtons_BGR()));
+	MWObject.connect(ui.mainTableView, SIGNAL(customContextMenuRequested(QPoint)), this, SLOT(customMenuRequested(QPoint)));
+	MWObject.connect(ui.toolButton_settings, SIGNAL(clicked()), this, SLOT(openSortDialog()));
+	MWObject.connect(ui.checkBox_icon, SIGNAL(toggled(bool)), this, SLOT(showIcons(bool)));
+	MWObject.connect(ui.horizontalSlider_fbin, &QSlider::sliderMoved,
+		[&](int value) {
+#if 0 // not so nice -> delayed
+			qSlider.setToolTip(QString("%1").arg(value));
+#else // better
+			QToolTip::showText(QCursor::pos(), QString("%1").arg(value), nullptr);
+#endif // 0
+		});
+	MWObject.connect(ui.horizontalSlider_sbin, &QSlider::sliderMoved,
+		[&](int value) {
+#if 0 // not so nice -> delayed
+			qSlider.setToolTip(QString("%1").arg(value));
+#else // better
+			QToolTip::showText(QCursor::pos(), QString("%1").arg(value), nullptr);
+#endif // 0
+		});
+	MWObject.connect(ui.horizontalSlider_sbin, &QSlider::sliderMoved,
+		[&](int value) {
+#if 0 // not so nice -> delayed
+			qSlider.setToolTip(QString("%1").arg(value));
+#else // better
+			QToolTip::showText(QCursor::pos(), QString("%1").arg(value), nullptr);
+#endif // 0
+		});
+	
 }
 
 MainWindow::~MainWindow(){
 	mw_dbPtr->delete_GENERAL(std::vector<string>{"sourceimage"});
+}
+
+void MainWindow::setIcons() {
+	ui.toolButton_settings->setIcon(QIcon(":/new/prefix1/Resources/qt resources/settings.png"));
+	ui.pushButton_switch->setIcon(QIcon(":/new/prefix1/Resources/qt resources/swap.png"));
+	ui.pushButton_sort->setIcon(QIcon(":/new/prefix1/Resources/qt resources/sort.png"));
+	ui.pushButton_6->setIcon(QIcon(":/new/prefix1/Resources/qt resources/magnifying-glass.png"));
+	ui.pushButton_10->setIcon(QIcon(":/new/prefix1/Resources/qt resources/magnifying-glass.png"));
+	ui.pushButton_14->setIcon(QIcon(":/new/prefix1/Resources/qt resources/magnifying-glass.png"));
+	ui.pushButton_18->setIcon(QIcon(":/new/prefix1/Resources/qt resources/magnifying-glass.png"));
+	ui.pushButton_5->setIcon(QIcon(":/new/prefix1/Resources/qt resources/magnifying-glass(1).png"));
+	ui.pushButton_9->setIcon(QIcon(":/new/prefix1/Resources/qt resources/magnifying-glass(1).png"));
+	ui.pushButton_13->setIcon(QIcon(":/new/prefix1/Resources/qt resources/magnifying-glass(1).png"));
+	ui.pushButton_17->setIcon(QIcon(":/new/prefix1/Resources/qt resources/magnifying-glass(1).png"));
+	ui.pushButton_dispInDet->setIcon(QIcon(":/new/prefix1/Resources/qt resources/compare.png"));
+	ui.pushButton_dispInDet_2->setIcon(QIcon(":/new/prefix1/Resources/qt resources/compare.png"));
+}
+
+void MainWindow::openSortDialog() {
+	SortDialog sortDialog(this);
+	sortDialog.exec();
 }
 
 void MainWindow::showError(const QSqlError& err) {
@@ -208,6 +573,27 @@ void MainWindow::showError(QString err) {
 
 Ui::MainWindow MainWindow::getUI() {
 	return ui;
+}
+
+void MainWindow::setFeatureVector(iop::FeatureVector returnfv, iop::WeightVector returnwv) {
+	if (currentfv)
+		delete(currentfv);
+	currentfv = new iop::FeatureVector(returnfv);
+
+	if (currentwv)
+		delete(currentwv);
+	currentwv = new iop::WeightVector(returnwv);
+}
+
+void MainWindow::showIcons(bool show) {
+	if (show) {
+		ui.mainTableView->setColumnHidden(0, false);
+		ui.resultTableView->setColumnHidden(0, false);
+	}
+	else {
+		ui.mainTableView->setColumnHidden(0, true);
+		ui.resultTableView->setColumnHidden(0, true);
+	}
 }
 
 void MainWindow::displayButtons_BGR() {
@@ -246,23 +632,56 @@ void MainWindow::displayButtons_BGR() {
 	}
 }
 
+void MainWindow::scaleImage(QImage& image, QLabel* imlabel, QWidget* frame) {
+	float width, height;
+	if (image.width() >= image.height()) {
+		width = frame->width() > screenSize->width() * 6 / 20 ? screenSize->width() * 6 / 20 : frame->width();
+		height = width * image.height() / image.width();
+		imlabel->setMaximumHeight(height);
+		imlabel->setMaximumWidth(maximum);
+	}
+	else if (image.height() >= image.width()) {
+		height = frame->height() > screenSize->height() * 6 / 20 ? screenSize->height() * 6 / 20 : frame->height();
+		width = height * image.height() / image.width();
+		imlabel->setMaximumWidth(width);
+		imlabel->setMaximumHeight(maximum);
+	}
+	image = image.scaled(width, height, Qt::KeepAspectRatio);
+}
+
 void MainWindow::displayFeature() {
 	int index = ui.tabWidget_comparison->currentIndex();
 	img::Image srcImg = mw_dbPtr->select_SourceImage();
+	img::Image destImg = mw_dbPtr->select_DestinationImage();
+
+	QImage srcImgScaled = cvMatToQImage(srcImg.getImageMat());
+	QImage destImgScaled = cvMatToQImage(destImg.getImageMat());
+
+	scaleImage(srcImgScaled, ui.label_imgSrcBig, ui.frame_src);
+	scaleImage(destImgScaled, ui.label_imgDestBig, ui.frame_dest);
 
 	if (index == 0) {
 		displayHash(&srcImg);
 	}
 	else if (index == 1) {
+		ui.label_imgSrcBig->setPixmap(QPixmap::fromImage(srcImgScaled));
+		ui.label_imgDestBig->setPixmap(QPixmap::fromImage(destImgScaled));
 		displayHistogram(&srcImg, true);
+		displayHistogram(&destImg, false);
 		ui.mainTabWidget->setCurrentIndex(1);
 	}
 	else if (index == 2) {
+		ui.label_imgSrcBig->setPixmap(QPixmap::fromImage(srcImgScaled));
+		ui.label_imgDestBig->setPixmap(QPixmap::fromImage(destImgScaled));
 		displayEdge(&srcImg, true);
+		displayEdge(&destImg, false);
 		ui.mainTabWidget->setCurrentIndex(1);
 	}
 	else if (index == 3) {
+		ui.label_imgSrcBig->setPixmap(QPixmap::fromImage(srcImgScaled));
+		ui.label_imgDestBig->setPixmap(QPixmap::fromImage(destImgScaled));
 		displayCorner(&srcImg, true);
+		displayCorner(&destImg, false);
 		ui.mainTabWidget->setCurrentIndex(1);
 	}
 }
@@ -273,7 +692,7 @@ void MainWindow::displayHash(img::Image* src) {
 	}
 	else {
 		/*string srcDHash = feat::Hash::imageHashing_dHash(QImageToCvMat(ui.label_imgSrc->pixmap()->toImage())).to_string();
-		ui.label_imHash->setText(srcDHash.c_str());*/
+		ui.label_imHash->setText(srcDHash.c_str());*/ //TODO: COM BACK 'ER
 	}
 
 	if (!ui.label_imgDest->pixmap()->isNull()) {		
@@ -440,6 +859,8 @@ void MainWindow::displayHistogram(img::Image* src, bool source){
 		plotSrc->replot();
 	}
 
+	switchDisplayWidgets(false, source);
+
 	delete(srcHist);
 }
 
@@ -467,23 +888,27 @@ void MainWindow::displayEdge(img::Image* src, bool source) {
 			throw std::exception("Illegal kernel flag.");
 			break;
 		}
-		feat::Edge::Canny* canny = new feat::Edge::Canny(edgeVals[1], edgeVals[4], edgeVals[2], edgeVals[3], kernelX, kernelY);
+		feat::Edge::Canny* canny = new feat::Edge::Canny(edgeVals[1], edgeVals[4], edgeVals[3], edgeVals[2], kernelX, kernelY);
 		srcEdge = lnkr::setEdge(src, edgeVals[0], canny);
+		delete(canny);
 	}
 
 	else {
 		srcEdge = lnkr::setEdge(src, edgeVals[0]);
 	}
-
+	QImage image = cvMatToQImage(srcEdge->getEdgeMat());
 	if (source) {
-		switchDisplayWidgets(true, true);
-		ui.label_derSrcBig->setPixmap(QPixmap::fromImage(QImage(cvMatToQImage(srcEdge->getEdgeMat()))));
+		QLabel* imlabel = ui.label_derSrcBig;
+		scaleImage(image, imlabel, ui.stackedWidget_src);
+		ui.label_derSrcBig->setPixmap(QPixmap::fromImage(image));
 	}
 	else {
-		switchDisplayWidgets(true, false);
-		ui.label_derDestBig->setPixmap(QPixmap::fromImage(QImage(cvMatToQImage(srcEdge->getEdgeMat()))));
+		QLabel* imlabel = ui.label_derDestBig;
+		scaleImage(image, imlabel, ui.stackedWidget_dest);
+		ui.label_derDestBig->setPixmap(QPixmap::fromImage(image));
 	}
 
+	switchDisplayWidgets(true, source);
 	delete(srcEdge);
 }
 //cornerFlag, radius, squareSize, alpha, sigmai, sigmad
@@ -579,22 +1004,6 @@ QList<float> MainWindow::prepareCorner() {
 	return cornerVals;
 }
 
-void MainWindow::printToScreen(QString fileName, bool filecheck) {
-	QFile file(fileName);
-	if (!file.open(QIODevice::ReadOnly | QFile::Text)) {
-		QMessageBox::warning(this, "Warning", "Cannot open file: " + file.errorString());
-		return;
-	}
-	QTextStream in(&file);
-	QString text = in.readAll();
-	ui.textEdit->append(text);
-	file.close();
-}
-
-void MainWindow::printToScreen(QString text) {
-	ui.textEdit->append(text);
-}
-
 bool MainWindow::loadFiles(const QStringList& fileNames) {
 	std::vector<img::Image> imgVec;
 	for (int i = 0; i < fileNames.size(); i++) {
@@ -615,7 +1024,7 @@ bool MainWindow::loadFiles(const QStringList& fileNames) {
 	return true;
 }
 
-bool MainWindow::loadFile(const QString& fileName)
+bool MainWindow::loadFile(const QString& fileName, bool source)
 {
 	QImageReader reader(fileName);
 	reader.setAutoTransform(true);
@@ -626,12 +1035,23 @@ bool MainWindow::loadFile(const QString& fileName)
 			.arg(QDir::toNativeSeparators(fileName), reader.errorString()));
 		return false;
 	}
+	setImage(source ? ui.label_imgSrc : ui.label_imgDest, newImage);
 
-	setImage(ui.label_imgSrc, newImage);
 	setWindowFilePath(fileName);
-	lnkr::setSourceImage(QDir::cleanPath(fileName).toStdString(), cv::IMREAD_COLOR);
+	source ? lnkr::setSourceImage(QDir::cleanPath(fileName).toStdString(), cv::IMREAD_COLOR) 
+		: lnkr::setDestinationImage(QDir::cleanPath(fileName).toStdString(), cv::IMREAD_COLOR);
 
 	return true;
+}
+
+void MainWindow::setImage(QLabel* imlabel, const QImage& newImage) {
+	QImage image = newImage;
+	if (image.colorSpace().isValid())
+		image.convertToColorSpace(QColorSpace::SRgb);
+
+	float width, height;
+	scaleImage(image, imlabel, ui.frame);
+	imlabel->setPixmap(QPixmap::fromImage(image));
 }
 
 static void initializeImageFileDialog(QFileDialog& dialog, QFileDialog::AcceptMode acceptMode)
@@ -643,6 +1063,7 @@ static void initializeImageFileDialog(QFileDialog& dialog, QFileDialog::AcceptMo
 		dialog.setDirectory(picturesLocations.isEmpty() ? QDir::currentPath() : picturesLocations);
 	}
 	dialog.setFileMode(QFileDialog::ExistingFile);
+	dialog.setOption(QFileDialog::DontUseNativeDialog, true);
 
 	QStringList mimeTypeFilters;
 	const QByteArrayList supportedMimeTypes = acceptMode == QFileDialog::AcceptOpen
@@ -676,29 +1097,10 @@ void MainWindow::openImageLabel()
 	while (dialog.exec() == QDialog::Accepted && !loadFile(dialog.selectedFiles().first())) {}
 }
 
-void MainWindow::hideConsole() {
-	if (ui.textEdit->isHidden())
-		ui.textEdit->show();
-	else
-		ui.textEdit->hide(); 
-}
-
-void MainWindow::setImage(QLabel* imlabel, const QImage& newImage) {
-	QImage image = newImage;
-	/*if (imageList.size() == 0) {
-		imageList.push_back(QImageToimgImage(image));
-	}
-	else
-		imageList[0] = QImageToimgImage(image);
-	std::cout << imageList.size();*/
-	if (image.colorSpace().isValid())
-		image.convertToColorSpace(QColorSpace::SRgb);
-	imlabel->setMaximumHeight(MIN(imlabel->maximumWidth() * image.height() / image.width(), imlabel->maximumWidth()));
-	//imlabel->setMinimumHeight(MIN(imlabel->maximumWidth() * image.height() / image.width(), imlabel->maximumWidth()));
-	imlabel ->setPixmap(QPixmap::fromImage(image));
-}
-
 void MainWindow::addToMainTable(img::Image* image) {
+	lnkr::addToMainTable(image);
+	mainModel->query().exec();
+	mainModel->setQuery(mainModel->query());
 }
 
 
@@ -707,4 +1109,104 @@ void MainWindow::createActions()
 //! [17] //! [18]
 {
 	
+}
+
+void MainWindow::customMenuRequested(QPoint pos) {
+	QModelIndex index = ui.mainTableView->indexAt(pos);
+	auto hash = mainModel->data(index.siblingAtColumn(2));
+	QSqlQuery query("SELECT dir FROM image WHERE hash='" + hash.toString() + "'", qDB);
+	query.exec();
+	while (query.next()) {
+		if(dir) delete(dir);
+		dir = new QString(query.value(0).toString());
+	}
+
+	QMenu* menu = new QMenu(this);
+	QAction* action1 = new QAction("Pick as source image", menu);
+	QAction* action2 = new QAction("Pick as comparison image", menu);
+	QAction* action3 = new QAction("Delete from table(will also delete from database)", menu);
+	QAction* action4 = new QAction("Copy full path to clipboard", menu);
+	QAction* action5 = new QAction("Copy folder path to clipboard", menu);
+
+	menu->addAction(action1);
+	menu->addAction(action2);
+	menu->addAction(action3);
+	menu->addAction(action4);
+	menu->popup(ui.mainTableView->viewport()->mapToGlobal(pos));
+
+	QObject::connect(action1, &QAction::triggered, this, [this] { loadFile(*dir); });
+	QObject::connect(action2, &QAction::triggered, this, [this] { loadFile(*dir, false); });
+	QObject::connect(action3, &QAction::triggered, this, [this] { deleteImage(*dir); });
+	QObject::connect(action4, &QAction::triggered, this, [this] { copyToClipboard(*dir); });
+	QObject::connect(action5, &QAction::triggered, this, [this] { copyToClipboard(*dir, true); });
+}
+
+void MainWindow::copyToClipboard(QString& str, bool folder) {
+	QClipboard* clipboard = QApplication::clipboard();
+
+	if (folder) {
+		QString folderPath;
+		int j = 0;
+		for (int i = 0; i < dir->size(); i++) {
+			if (dir[i] == '/' || dir[i] == '\\') {
+				j = i;
+			}
+		}
+		folderPath = str.toStdString().substr(0, j + 1).c_str();
+		clipboard->setText(folderPath);
+		statusBar()->showMessage("Directory " + folderPath + " copied to clipboard.", 5000);
+	}
+	else {
+		clipboard->setText(str);
+		statusBar()->showMessage("Directory " + str + " copied to clipboard.", 5000);
+	}
+}
+
+void MainWindow::deleteImage(QString& fileName) {
+	auto image = lnkr::createImage(fileName.toStdString(), cv::IMREAD_COLOR);
+	lnkr::deleteImage(&image);
+	mainModel->query().exec();
+	mainModel->setQuery(mainModel->query());
+}
+
+void MainWindow::refreshTable(TableModel* table, bool main) {
+	QString query = table->query().executedQuery();
+	table->clear();
+	table->query().clear();
+	table->setQuery(query);
+	if (main) {
+		mainModel->setHeaderData(0, Qt::Horizontal, tr("Thumbnail"), Qt::DecorationRole);
+		mainModel->setHeaderData(1, Qt::Horizontal, tr("Name"));
+		mainModel->setHeaderData(2, Qt::Horizontal, tr("Hash"));
+
+		ui.mainTableView->setColumnHidden(2, true);
+
+		ui.mainTableView->verticalHeader()->setSectionResizeMode(QHeaderView::Fixed);
+		ui.mainTableView->verticalHeader()->setDefaultSectionSize(100);
+		ui.mainTableView->verticalHeader()->setVisible(false);
+
+		ui.mainTableView->horizontalHeader()->setModel(mainModel);
+		ui.mainTableView->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Fixed);
+		ui.mainTableView->verticalHeader()->setDefaultSectionSize(100);
+		ui.mainTableView->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
+
+		ui.mainTableView->setContextMenuPolicy(Qt::CustomContextMenu);
+	}
+}
+
+void MainWindow::enableCanny(int state) {
+	if (state == 3) {
+		ui.comboBox_kernelFlag->setEnabled(true);
+		ui.lineEdit_gauss->setEnabled(true);
+		ui.lineEdit_tlow->setEnabled(true);
+		ui.lineEdit_thigh->setEnabled(true);
+		ui.lineEdit_sigma->setEnabled(true);
+	}
+	else {
+		ui.comboBox_kernelFlag->setEnabled(false);
+		ui.lineEdit_gauss->setEnabled(false);
+		ui.lineEdit_tlow->setEnabled(false);
+		ui.lineEdit_thigh->setEnabled(false);
+		ui.lineEdit_sigma->setEnabled(false);
+	}
 }

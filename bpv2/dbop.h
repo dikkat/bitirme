@@ -3,6 +3,7 @@
 #include <iostream>
 #include "feat.h"
 #include "image.h"
+#include "iop.h"
 #include <sqlite3.h>
 #include <xxhash.h>
 
@@ -13,6 +14,7 @@ namespace dbop {
 		void insert_Image(string dir);
 		void insert_Image(img::Image image);
 		void insert_SourceImage(img::Image image);
+		void insert_DestinationImage(img::Image image);
 		void insert_Histogram(int flag, int fb, int sb, int tb);
 		void insert_Histogram(feat::Histogram hist);
 		void insert_Edge(int flag, feat::Edge::Canny* edcOper = nullptr);
@@ -30,9 +32,12 @@ namespace dbop {
 		void insert_ImageIcon(XXH64_hash_t imHash, XXH64_hash_t iconHash);
 		void insert_EdgeCanny(feat::Edge::Canny canny);
 		void insert_EdgeCanny(int gaussKernelSize, float thigh, float tlow, float sigma, cv::Mat kernelx, cv::Mat kernely);
+		void insert_Similarity(iop::Comparison comp);
+
 		std::vector<std::vector<string>> select_GENERAL(std::vector<std::vector<string>> paramVec);
 		std::vector<string> select_Hash(string hashAbb, string className, string condition = "");
 		img::Image Database::select_SourceImage();
+		img::Image Database::select_DestinationImage();
 		void delete_GENERAL(std::vector<string> tableVec, string condition = "");
 	private:
 		void initializeDatabase(string dbName);

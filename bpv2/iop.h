@@ -2,9 +2,8 @@
 #include "image.h"
 #include "sim.h"
 #include "feat.h"
-#include "dbop.h"
-#include "linker.h"
 #include <QList>
+#include <mutex>
 
 enum cmpr_flag { SIM_COSSIM, SIM_MANDIST, SIM_EUCDIST, SIM_MINKDIST, SIM_JACSIM, SIM_HISINTR, SIM_CROCOR, SIM_CSQDIST };
 
@@ -12,12 +11,7 @@ namespace img {
 	class Image;
 }
 
-static QList<img::Image> imageList;
-
-static dbop::Database* iop_dbPtr;
-
 namespace iop {
-	void setDatabaseClass(dbop::Database dbObj);
 	bool checkVectorEmpty(vecf operand);
 	std::pair<float, bool> calculateVectorSimilarity(vecf const lh, vecf const rh, int flag);
 	int getMinkowskiOrder();
@@ -27,11 +21,9 @@ namespace iop {
 	class FeatureVector {
 	public:
 		FeatureVector() {}
-		FeatureVector(img::Image* image, std::vector<bool>* enabler = nullptr, feat::Edge* edge = nullptr, feat::Histogram* hist_gray = nullptr,
+		FeatureVector(bool def_fv);
+		FeatureVector(img::Image* image, feat::Edge* edge = nullptr, feat::Histogram* hist_gray = nullptr,
 			feat::Histogram* hist_bgr = nullptr, feat::Histogram* hist_hsv = nullptr, feat::Hash* perc_hash = nullptr);
-	private:
-		friend class Comparator;
-		friend class Comparison;
 		img::Image* image;
 		std::vector<bool>* enabler;
 		feat::Edge* edge;
@@ -42,12 +34,13 @@ namespace iop {
 	class WeightVector {
 	public:
 		WeightVector() {}
+		WeightVector(bool equal) : WeightVector(&equalf, &equalf, &equalf, &equalf, &equalf) {}
 		WeightVector(std::vector<vecf> wvv_total);
 		WeightVector(vecf* wv_grad = nullptr, float* w_hgray = nullptr, vecf* wv_hbgr = nullptr, 
 			vecf* wv_hhsv = nullptr, vecf* wv_hash = nullptr);
-	private:
-		friend class Comparator;
-		friend class Comparison;
+		WeightVector(float* w_grad = nullptr, float* w_hgray = nullptr, float* w_hbgr = nullptr,
+			float* w_hhsv = nullptr, float* w_hash = nullptr);
+		float equalf = 0.2;
 		float w_hgray = 0;
 		vecf wv_grad, wv_hbgr, wv_hhsv, wv_hash;
 		std::vector<vecf> wvv_total;
@@ -56,7 +49,8 @@ namespace iop {
 	class Comparison {
 	public:
 		Comparison(FeatureVector* source, FeatureVector* rhand, WeightVector* wvec);
-	private:
+		std::pair<string, string> getDirValues();
+		float getEuclideanDistance();
 		friend class Comparator;
 		FeatureVector* source;
 		FeatureVector* rhand;
@@ -75,8 +69,10 @@ namespace iop {
 
 	class Comparator {
 	public:
-		Comparator(FeatureVector* source) : source(source) {};
-		void beginMultiCompare(std::vector<FeatureVector*> destVec, WeightVector* wvec);
+		Comparator() {}
+		std::vector<Comparison> beginMultiCompare(FeatureVector* source, std::vector<std::vector<string>> destVec,
+			WeightVector* wvec, int cmpNum);
+		std::vector<Comparison> getComparisonVector(bool sorted);
 	private:
 		FeatureVector* source;
 		std::vector<Comparison> dest;

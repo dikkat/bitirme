@@ -5,29 +5,60 @@ void lnkr::setDatabaseClass(dbop::Database dbObj) {
 }
 
 img::Image lnkr::createImage(string dir, int flag) {
+	for (auto &i : dir)
+		if (i == '\\')
+			i = '/';
 	img::Image image(dir,flag);
 	lnkr_dbPtr->insert_Image(image);
 	return image;
 }
 
+void lnkr::addToMainTable(img::Image* image) {
+	auto returned = createImage(image->getVariablesString()[1], cv::IMREAD_COLOR);
+	setIcon(&returned);
+}
+
 img::Image lnkr::setSourceImage(string dir, int flag) {
+	for (auto& i : dir)
+		if (i == '\\')
+			i = '/';
 	img::Image image(dir, flag);
 
 	lnkr_dbPtr->delete_GENERAL(std::vector<string>{"sourceimage"});
 	string condition = "hash='" + std::to_string(image.getHash()) + "'";
-	lnkr_dbPtr->delete_GENERAL(std::vector<string>{"image"}, condition);
 
 	lnkr_dbPtr->insert_SourceImage(image);
 	return image;
 }
 
 img::Image lnkr::setSourceImage(img::Image src) {
-
 	lnkr_dbPtr->delete_GENERAL(std::vector<string>{"sourceimage"});
 	string condition = "hash='" + std::to_string(src.getHash()) + "'";
 	lnkr_dbPtr->delete_GENERAL(std::vector<string>{"image"}, condition);
 
 	lnkr_dbPtr->insert_SourceImage(src);
+	return src;
+}
+
+img::Image lnkr::setDestinationImage(string dir, int flag) {
+	for (auto& i : dir)
+		if (i == '\\')
+			i = '/';
+	img::Image image(dir, flag);
+
+	lnkr_dbPtr->delete_GENERAL(std::vector<string>{"destimage"});
+	string condition = "hash='" + std::to_string(image.getHash()) + "'";
+
+	lnkr_dbPtr->insert_DestinationImage(image);
+	return image;
+}
+
+img::Image lnkr::setDestinationImage(img::Image src) {
+	lnkr_dbPtr->delete_GENERAL(std::vector<string>{"destimage"});
+	string condition = "hash='" + std::to_string(src.getHash()) + "'";
+	lnkr_dbPtr->delete_GENERAL(std::vector<string>{"image"}, condition);
+
+	lnkr_dbPtr->insert_DestinationImage(src);
 	return src;
 }
 
@@ -148,6 +179,10 @@ void lnkr::setIcon(img::Image* image_ptr) {
 
 	lnkr_dbPtr->insert_Icon(imgIcon.getIconMat());
 	lnkr_dbPtr->insert_ImageIcon(image_ptr->getHash(), imgIcon.getHash());
+}
+
+void lnkr::setSimilarity(iop::Comparison* cmp_ptr) {
+	lnkr_dbPtr->insert_Similarity(*cmp_ptr);	
 }
 
 feat::Histogram* lnkr::getImageHist(img::Image* image_ptr, XXH64_hash_t histHash) {
@@ -355,3 +390,112 @@ feat::Corner::Harris* lnkr::getCornerHarris(img::Image* image_ptr, XXH64_hash_t 
 	}
 }
 
+float lnkr::getSimilarity(img::Image* lhand, img::Image* rhand) {
+	string condition = "srchash='" +std::to_string(lhand->getHash()) +
+		"' and desthash='" + std::to_string(rhand->getHash()) + "'";
+	auto simVec = lnkr_dbPtr->select_GENERAL({ {"similarity"}, {"similarity"}, {condition} });
+	if (simVec[0].size() != 0)
+		return std::stof(simVec[0][0]);
+	else
+		return -1;
+}
+
+void lnkr::insertDirectoryToDB(diriter dir, int max) {
+	auto thrNum = std::thread::hardware_concurrency();
+
+	std::vector<std::thread> threadVec;
+	for (int i = 0; i < thrNum; i++) threadVec.push_back(std::thread());
+
+	std::vector<bool> thrCond;
+	for (int i = 0; i < thrNum; i++) thrCond.push_back(true);
+
+	int num = -1;
+	auto threadCounter = [&num, &thrNum]() {
+		if (num == thrNum - 1)
+			num = 0;
+		else
+			num++;
+		return num;
+	};
+	float sum = 0;
+
+	std::mutex m;
+
+	std::function<void(diriter, int, std::vector<std::thread>&, bool)> task;
+	task = [&task, &max, &m, &thrCond, &threadVec, &sum](diriter dir, int i, std::vector<std::thread>& threadVec, bool calledRecurr = false)->void {
+		if (sum > max) {
+			thrCond[i] = true;
+			return;
+		}
+		for (auto& entry : dir) {
+			if (sum > max)
+				break;
+			if (entry.is_directory())
+				task(diriter(entry.path().u8string()), i, threadVec, true);
+			else if (entry.is_regular_file() && sum < max) {
+				auto pathString = entry.path().u8string();
+				if (pathString.find(".jpg") != string::npos) {
+					m.lock();
+					sum++;
+					lnkr::createImage(pathString, cv::IMREAD_COLOR);
+					m.unlock();
+				}
+			}
+		}
+		if (!calledRecurr) {
+			thrCond[i] = true;
+		}
+		return;
+
+	};
+
+	std::vector<img::Image> imgVec;
+	for (auto& entry : dir) {
+		if (entry.is_directory()) {
+			while (true) {
+				int i = threadCounter();
+				if (thrCond[i] == true) {
+					thrCond[i] = false;
+					if (threadVec[i].joinable())
+						threadVec[i].join();
+					threadVec[i] = std::thread{ task, diriter(entry.path().u8string()), i, std::ref(threadVec), false };
+					break;
+				}
+			}
+		}
+		else if (entry.is_regular_file()) {
+			auto pathString = entry.path().u8string();
+			if (pathString.find(".jpg") != string::npos) {
+				m.lock();
+				lnkr::createImage(pathString, cv::IMREAD_COLOR);
+				m.unlock();
+			}
+		}
+	}
+
+	for (int i = 0; i < thrCond.size(); i++)
+		if (thrCond[i] != true)
+			i = 0;
+
+	for (int i = 0; i < thrNum; i++) {
+		if (threadVec[i].joinable()) {
+			threadVec[i].join();
+		}
+	}
+
+	return;
+}
+
+void lnkr::deleteImage(img::Image* image_ptr) {
+	auto hash = std::to_string(image_ptr->getHash());
+	auto iconHashes = lnkr_dbPtr->select_GENERAL({ {"iconhash"},{"imageicon"},{"imhash=" + hash} })[0];
+	for (auto i : iconHashes) {
+		lnkr_dbPtr->delete_GENERAL({ "icon" }, "hash='" + i + "'");
+		lnkr_dbPtr->delete_GENERAL({ "imageicon" }, "iconhash='" + i + "'");
+	}
+	lnkr_dbPtr->delete_GENERAL({ "imagecorner" }, "imhash='" + hash + "'");
+	lnkr_dbPtr->delete_GENERAL({ "imageedge" }, "imhash='" + hash + "'");
+	lnkr_dbPtr->delete_GENERAL({ "imagehistogram" }, "imhash='" + hash + "'");
+	lnkr_dbPtr->delete_GENERAL({ "similarity" }, "srcHash='" + hash + "' or destHash='" + hash + "'");
+	lnkr_dbPtr->delete_GENERAL({ "image" }, "hash='" + hash + "'");
+}

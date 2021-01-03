@@ -101,6 +101,7 @@ namespace feat {
 		cv::Mat getEdgeMat();
 		Canny* getCannyPtr();
 		Gradient* getGradientPtr();
+		std::vector<int> getComparisonValues();
 	private:
 		XXH64_hash_t hash;
 		XXH64_hash_t* edcHash = nullptr;
@@ -109,6 +110,7 @@ namespace feat {
 		int edgeFlag = -1;
 		int magbin = 10;
 		int dirbin = 8;
+		int recommendedWidth;
 		cv::Mat edgeMat;
 		cv::Mat edgeDetectionSobel(cv::Mat const imageMat);
 		cv::Mat edgeDetectionPrewitt(cv::Mat const imageMat);

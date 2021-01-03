@@ -244,11 +244,13 @@ cv::Mat feat::Histogram::createHistogramDisplayImage(int hist_w, int hist_h) { /
 }
 */
 feat::Edge::Edge(cv::Mat imageMat, int flag, feat::Edge::Canny* edc, float recommendedWidth, int magbin, int dirbin) 
-	: magbin(magbin), dirbin(dirbin) {
+	: magbin(magbin), dirbin(dirbin), recommendedWidth(recommendedWidth) {
 	cv::Mat oper;
-	if(recommendedWidth != -1)
-		cv::resize(imageMat, oper, cv::Size(recommendedWidth, 
+	if (recommendedWidth != -1)
+		cv::resize(imageMat, oper, cv::Size(recommendedWidth,
 			static_cast<float>(imageMat.rows) / static_cast<float>(imageMat.cols) * recommendedWidth));
+	else
+		oper = imageMat.clone();
 
 	switch (flag) {
 	case EDGE_SOBEL:
@@ -314,6 +316,10 @@ feat::Edge::Canny* feat::Edge::getCannyPtr() {
 
 feat::Gradient* feat::Edge::getGradientPtr() {
 	return grad;
+}
+
+std::vector<int> feat::Edge::getComparisonValues() {
+	return { recommendedWidth, magbin, dirbin };
 }
 
 cv::Mat feat::Edge::edgeDetectionSobel(cv::Mat const imageMat) {
@@ -496,8 +502,8 @@ cv::Mat feat::Edge::Canny::calculate(cv::Mat const imageMat) { //Computer Vision
 	cv::Mat cannyoper = sim::channelCheck(imageMat);																							 //https://towardsdatascience.com/canny-edge-detection-step-by-step-in-python-computer-vision-b49c3a2d8123
 	cannyoper = sim::filterGauss(cannyoper, gaussKernelSize, sigma, 0, true);
 
-	cv::Mat kernelx = (cv::Mat_<float>(3, 3) << -1, 0, 1, -2, 0, 2, -1, 0, 1);
-	cv::Mat kernely = (cv::Mat_<float>(3, 3) << 1, 2, 1, 0, 0, 0, -1, -2, -1);
+	cv::Mat kernelx = this->kernelx;
+	cv::Mat kernely = this->kernely;
 
 	parent->grad = new Gradient(cannyoper, kernelx, kernely);
 	std::pair<cv::Mat, cv::Mat> pair = parent->grad->getGradientMats();
@@ -1064,6 +1070,7 @@ XXH64_hash_t feat::Hash::setHash(std::vector<cv::Mat>* matVec, vecf* floatVec) {
 	cv::Mat1f hashMat;
 	if (matVec != nullptr)
 		for (cv::Mat iter : *matVec) {
+			iter.convertTo(iter, CV_32FC3);
 			iter = iter.reshape(1, iter.total());
 			hashMat.push_back(iter);
 		}

@@ -74,6 +74,11 @@
       <AdditionalOptions>/VERBOSE %(AdditionalOptions)</AdditionalOptions>
       <Profile>true</Profile>
     </Link>
+    <CustomBuildStep>
+      <Command>$(QTDIR)\bin\rcc.exe -name Resource res\Resource.qrc -o ApplicationResources.cpp</Command>
+      <Outputs>
+      </Outputs>
+    </CustomBuildStep>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
@@ -104,6 +109,12 @@
     <ClCompile Include="MainWindow.cpp" />
     <ClCompile Include="gen.cpp" />
     <ClCompile Include="sim.cpp" />
+    <ClCompile Include="x64\Debug\rcc\qrc_Resources.cpp">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+      </PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+      </PrecompiledHeader>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <QtMoc Include="..\..\..\..\..\..\Qt\5.14.1\msvc2017_64\include\QCustomPlot\qcustomplot.h" />
@@ -111,16 +122,35 @@
     <ClInclude Include="feat.h" />
     <ClInclude Include="iop.h" />
     <ClInclude Include="linker.h" />
+    <ClInclude Include="resource.h" />
     <ClInclude Include="sim.h" />
     <QtMoc Include="MainWindow.h" />
     <ClInclude Include="image.h" />
     <ClInclude Include="gen.h" />
   </ItemGroup>
   <ItemGroup>
+    <QtUic Include="DialogSort.ui" />
     <QtUic Include="MainWindow.ui" />
   </ItemGroup>
   <ItemGroup>
-    <QtRcc Include="Resource.qrc" />
+    <None Include="Resources\iaprtc12\images\00\53.jpg" />
+    <QtRcc Include="Resource.qrc">
+      <ExecutionDescription Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">rcc Resource.qrc</ExecutionDescription>
+      <QtRccFileName Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">qrc_Resources.cpp</QtRccFileName>
+    </QtRcc>
+    <None Include="Resources\qt" />
+    <None Include="resources\settings.svg" />
+    <None Include="resources\sort.svg" />
+    <None Include="resources\swap.svg" />
+    <None Include="resources\zoom(1).svg" />
+    <None Include="resources\zoom.png" />
+    <None Include="resources\zoom.svg" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="Resource.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="Resources\qt resources\zoom.png" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Condition="Exists('$(QtMsBuild)\qt.targets')">

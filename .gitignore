@@ -7,3 +7,12 @@ bpv2/Resources/imageclef/
 *.txt
 *.db
 bitirme.db
+*.sql
+build-bpv2-Desktop_Qt_5_14_1_MSVC2017_64bit-Debug/
+/bpv2/debug
+/bpv2/release
+/bpv2/.qmake.stash
+/bpv2/bpv2.pro
+/bpv2/bpv2.pri
+/bpv2/bpv2.pro.user
+/bpv2/DialogSort2.ui

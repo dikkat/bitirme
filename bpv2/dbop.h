@@ -33,12 +33,15 @@ namespace dbop {
 		void insert_EdgeCanny(feat::Edge::Canny canny);
 		void insert_EdgeCanny(int gaussKernelSize, float thigh, float tlow, float sigma, cv::Mat kernelx, cv::Mat kernely);
 		void insert_Similarity(iop::Comparison comp);
+		void insert_WeightVector(iop::WeightVector wvec);
 
+		/*[0]ATTRIBUTES [1]TABLES [2]CONDITIONS*/
 		std::vector<std::vector<string>> select_GENERAL(std::vector<std::vector<string>> paramVec);
 		std::vector<string> select_Hash(string hashAbb, string className, string condition = "");
 		img::Image Database::select_SourceImage();
 		img::Image Database::select_DestinationImage();
-		void delete_GENERAL(std::vector<string> tableVec, string condition = "");
+
+		void delete_GENERAL(string table, string condition = "");
 	private:
 		void initializeDatabase(string dbName);
 		void errorCheck(int rc, char* zErrMsg);

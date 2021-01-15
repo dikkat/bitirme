@@ -34,13 +34,18 @@
 		GO BACK TO LINKER.CPP LINE 29 AND INSERT TO ICONIMAGE
 	ADD UHMMMMM WHAT WAS IT YES EDGE COMPARISON METHODS AND MAYBE CORNER ASWELL -- SKIP BUT MUST COME BACK YOU HEAR? MUST
 	CHANGE RESIZE PARAMETERS AT DBOP::INSERT_IMAGE FUNCTION -- DONE
-	LETS NOT FORGET MULTI THREADING
-	CHECK IF POINTERS BE CRAZY AT CORNER HARRIS LAPLACE
-	MAKE CORNER COLOR AND RADIUS CUSTOMIZABLE
-	ADD ZOOMER FUNC TO PAGE 2
+	LETS NOT FORGET MULTI THREADING -- DONE AND DUSTED
+	CHECK IF POINTERS BE CRAZY AT CORNER HARRIS LAPLACE -- DONE
+	MAKE CORNER COLOR AND RADIUS CUSTOMIZABLE -- NAH
+	IF GRAY DISABLE SECOND AND THIRD BIN -- DONE
+	IF NOT ENABLED DISABLE ALL WIDGETS -- DONEY
+	PUT RAW COMPARISON VALUES INTO DATABASE !!!!!!!!!!!!!!!HIGH PRIORITY --DONE
+	MAKE DIR AN ALTERNATE COLUMN TO ICONS !!!!!!!!!! -- LOL SO IMPORTANT
+
+	ADD ZOOMER FUNC TO PAGE 2 --EVENTUALLY
 	CHANGE SERIALIZATION TO CV MAT'S
-	IF GRAY DISABLE SECOND AND THIRD BIN
-	IF NOT ENABLED DISABLE ALL WIDGETS
+	MAKE IT POSSIBLE THAT CHANGING FEATURE VECTOR ELEMENTS DONT NEED COMPLETE RECALCULATION
+	NORMALIZE DIFFERENCE VALUES
 
 	FINISH UNIVERSITY
 	GET A 15K DOLLAR PER MONTH JOB
@@ -97,18 +102,18 @@ int main(int argc, char* argv[])
 		auto image = img::Image(strvec[i], cv::IMREAD_COLOR);
 		lnkr::setIcon(&image);
 	}*/
-	//iop::Comparator cmp;
-	//{
-	//	auto tedge = feat::Edge(imb.getImageMat(), EDGE_SOBEL, nullptr);
-	//	auto thgray = feat::Histogram(imb.getImageMat(), HIST_GRAY, 10);
-	//	auto thbgr = feat::Histogram(imb.getImageMat(), HIST_BGR, 10, 10, 10);
-	//	auto thhsv = feat::Histogram(imb.getImageMat(), HIST_HSV, 10, 10, 10);
-	//	auto thash = feat::Hash(imb.getImageMat(), std::make_pair(true, true));
-	//	iop::FeatureVector fva(&imb, nullptr, &tedge, &thgray, &thbgr, &thhsv, &thash);
-	//	iop::FeatureVector* source = &fva;
-	//	iop::WeightVector wv(true);
-	//	//lnkr::insertDirectoryToDB(diriter("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench/full"), 2000);
-	//	auto vec2D = db.select_GENERAL({ {"dir"}, {"image"}, {} });
+	iop::Comparator cmp;
+	{
+		auto tedge = feat::Edge(imb.getImageMat(), EDGE_SOBEL, nullptr);
+		auto thgray = feat::Histogram(imb.getImageMat(), HIST_GRAY, 10);
+		auto thbgr = feat::Histogram(imb.getImageMat(), HIST_BGR, 10, 10, 10);
+		auto thhsv = feat::Histogram(imb.getImageMat(), HIST_HSV, 10, 10, 10);
+		auto thash = feat::Hash(imb.getImageMat(), std::make_pair(true, true));
+		iop::FeatureVector fva(&imb, &tedge, &thgray, &thbgr, &thhsv, &thash);
+		iop::FeatureVector* source = &fva;
+		iop::WeightVector wv(true);
+		//lnkr::insertDirectoryToDB(diriter("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench/full"), 2000);
+	}
 	//	int j = 0;
 	//	std::vector<string> strVec{
 	//			"C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench/full/ukbench00288.jpg",

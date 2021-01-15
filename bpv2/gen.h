@@ -21,6 +21,7 @@ namespace gen {
 	void imageTesting(cv::Mat imageMat, string filename);
 	void printTesting(std::ostringstream &osoperator);
 	bool cmpf(float A, float B, float epsilon = 0.005f);
+	bool cmpMat(cv::Mat lh, cv::Mat rh);
 	cv::Mat realNormalize(cv::Mat operand, int bins);
 	string format(float f);
 }

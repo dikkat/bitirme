@@ -198,6 +198,19 @@ void dbop::Database::initializeTables() {
         sql = "CREATE TABLE Similarity(" \
             "srcHash TEXT NOT NULL," \
             "destHash TEXT NOT NULL," \
+			"srcDir TEXT NOT NULL," \
+			"destDir TEXT NOT NULL," \
+			"diff_gradm REAL," \
+			"diff_gradd REAL," \
+			"diff_hgray REAL," \
+			"diff_hbgrb REAL," \
+			"diff_hbgrg REAL," \
+			"diff_hbgrr REAL," \
+			"diff_hhsvh REAL," \
+			"diff_hhsvs REAL," \
+			"diff_hhsvv REAL," \
+			"diff_hashd REAL," \
+			"diff_hashp REAL," \
             "similarity REAL," \
             "FOREIGN KEY (srcHash)" \
             "REFERENCES Image(hash)" \
@@ -251,6 +264,26 @@ void dbop::Database::initializeTables() {
         rc = sqlite3_exec(db, sql, callback, 0, &zErrMsg);
         errorCheck(rc, zErrMsg);
     }
+
+	sql = "SELECT name FROM sqlite_master WHERE type='table' and name = 'WeightVector';";
+	rc = sqlite3_get_table(db, sql, &resultp, &row, &col, &zErrMsg);
+	errorCheck(rc, zErrMsg);
+	if (row == 0) {
+		sql = "CREATE TABLE WeightVector(" \
+			"w_gradm REAL," \
+			"w_gradd REAL," \
+			"w_hgray REAL," \
+			"w_hbgrb REAL," \
+			"w_hbgrg REAL," \
+			"w_hbgrr REAL," \
+			"w_hhsvh REAL," \
+			"w_hhsvs REAL," \
+			"w_hhsvv REAL," \
+			"w_hashd REAL," \
+			"w_hashp REAL);";
+		rc = sqlite3_exec(db, sql, callback, 0, &zErrMsg);
+		errorCheck(rc, zErrMsg);
+	}
 }
 
 int dbop::Database::callback(void* data, int argc, char** argv, char** azColName) {
@@ -609,13 +642,42 @@ void dbop::Database::insert_Similarity(iop::Comparison comp) {
 	img::Image rhand(comp.rhand_dir, cv::IMREAD_COLOR);
 	string srchash_str = std::to_string(lhand.getHash());
 	string desthash_str = std::to_string(rhand.getHash());
+	string srcdir = lhand.getVariablesString()[1];
+	string destdir = rhand.getVariablesString()[1];
+	double diff_gradm = static_cast<double>(comp.diff_gradm);
+	double diff_gradd = static_cast<double>(comp.diff_gradd);
+	double diff_hgray = static_cast<double>(comp.diff_hgray);
+	double diff_hbgrb = static_cast<double>(comp.diff_hbgrb);
+	double diff_hbgrg = static_cast<double>(comp.diff_hbgrg);
+	double diff_hbgrr = static_cast<double>(comp.diff_hbgrr);
+	double diff_hhsvh = static_cast<double>(comp.diff_hhsvh);
+	double diff_hhsvs = static_cast<double>(comp.diff_hhsvs);
+	double diff_hhsvv = static_cast<double>(comp.diff_hhsvv);
+	double diff_hashd = static_cast<double>(comp.diff_hashd);
+	double diff_hashp = static_cast<double>(comp.diff_hashp);
 	double similarity = static_cast<double>(comp.euc_dist);
 
 	sqlite3_stmt* strQuery = NULL;
-	int rc = sqlite3_prepare_v2(db, "INSERT INTO similarity(srchash, desthash, similarity) VALUES (?, ?, ?)", -1, &strQuery, NULL);
+	int rc = sqlite3_prepare_v2(db, "INSERT INTO Similarity(srchash, desthash, srcdir, destdir," \
+		"diff_gradm, diff_gradd, diff_hgray, diff_hbgrb, diff_hbgrg, diff_hbgrr, diff_hhsvh," \
+		"diff_hhsvs, diff_hhsvv, diff_hashd, diff_hashp, similarity)" \
+		"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", -1, &strQuery, NULL);
 	sqlite3_bind_text(strQuery, 1, srchash_str.c_str(), srchash_str.size(), SQLITE_STATIC);
 	sqlite3_bind_text(strQuery, 2, desthash_str.c_str(), desthash_str.size(), SQLITE_STATIC);
-	sqlite3_bind_double(strQuery, 3, similarity);
+	sqlite3_bind_text(strQuery, 3, srcdir.c_str(), srcdir.size(), SQLITE_STATIC);
+	sqlite3_bind_text(strQuery, 4, destdir.c_str(), destdir.size(), SQLITE_STATIC);
+	sqlite3_bind_double(strQuery, 5, diff_gradm);
+	sqlite3_bind_double(strQuery, 6, diff_gradd);
+	sqlite3_bind_double(strQuery, 7, diff_hgray);
+	sqlite3_bind_double(strQuery, 8, diff_hbgrb);
+	sqlite3_bind_double(strQuery, 9, diff_hbgrg);
+	sqlite3_bind_double(strQuery, 10, diff_hbgrr);
+	sqlite3_bind_double(strQuery, 11, diff_hhsvh);
+	sqlite3_bind_double(strQuery, 12, diff_hhsvs);
+	sqlite3_bind_double(strQuery, 13, diff_hhsvv);
+	sqlite3_bind_double(strQuery, 14, diff_hashd);
+	sqlite3_bind_double(strQuery, 15, diff_hashp);
+	sqlite3_bind_double(strQuery, 16, similarity);
 	rc = sqlite3_step(strQuery);
 	errorCheck(rc, const_cast<char*>(sqlite3_errmsg(db)));
 }
@@ -634,7 +696,38 @@ void dbop::Database::insert_DestinationImage(img::Image image) {
 	errorCheck(rc, const_cast<char*>(sqlite3_errmsg(db)));
 }
 
-/*[0]ATTRIBUTES [1]TABLES [2]CONDITIONS*/
+void dbop::Database::insert_WeightVector(iop::WeightVector wvec) {
+	double w_gradm = static_cast<double>(wvec.wv_grad[0]);
+	double w_gradd = static_cast<double>(wvec.wv_grad[1]);
+	double w_hgray = static_cast<double>(wvec.w_hgray);
+	double w_hbgrb = static_cast<double>(wvec.wv_hbgr[0]);
+	double w_hbgrg = static_cast<double>(wvec.wv_hbgr[1]);
+	double w_hbgrr = static_cast<double>(wvec.wv_hbgr[2]);
+	double w_hhsvh = static_cast<double>(wvec.wv_hhsv[0]);
+	double w_hhsvs = static_cast<double>(wvec.wv_hhsv[1]);
+	double w_hhsvv = static_cast<double>(wvec.wv_hhsv[2]);
+	double w_hashd = static_cast<double>(wvec.wv_hash[0]);
+	double w_hashp = static_cast<double>(wvec.wv_hash[1]);
+
+	sqlite3_stmt* strQuery = NULL;
+	int rc = sqlite3_prepare_v2(db, "INSERT INTO WeightVector(w_gradm, w_gradd, w_hgray," \
+		"w_hbgrb, w_hbgrg, w_hbgrr, w_hhsvh, w_hhsvs, w_hhsvv, w_hashd, w_hashp) " \
+		"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", -1, &strQuery, NULL);
+	sqlite3_bind_double(strQuery, 1, w_gradm);
+	sqlite3_bind_double(strQuery, 2, w_gradd);
+	sqlite3_bind_double(strQuery, 3, w_hgray);
+	sqlite3_bind_double(strQuery, 4, w_hbgrb);
+	sqlite3_bind_double(strQuery, 5, w_hbgrg);
+	sqlite3_bind_double(strQuery, 6, w_hbgrr);
+	sqlite3_bind_double(strQuery, 7, w_hhsvh);
+	sqlite3_bind_double(strQuery, 8, w_hhsvs);
+	sqlite3_bind_double(strQuery, 9, w_hhsvv);
+	sqlite3_bind_double(strQuery, 10, w_hashd);
+	sqlite3_bind_double(strQuery, 11, w_hashp);
+	rc = sqlite3_step(strQuery);
+	errorCheck(rc, const_cast<char*>(sqlite3_errmsg(db)));
+}
+
 std::vector<std::vector<string>> dbop::Database::select_GENERAL(std::vector<std::vector<string>> paramVec) {
     sqlite3_stmt* strQuery = NULL;
     
@@ -758,7 +851,7 @@ img::Image dbop::Database::select_SourceImage() {
         }
     }
     if (row > 1) {
-        delete_GENERAL(std::vector<string>{"SourceImage"});
+        delete_GENERAL("SourceImage");
         throw std::exception("Multiple source images, somehow. Pretty much impossible error. Source image table cleared, load source image again even if it's still there.");
     }
     else if (row == 0) {
@@ -794,7 +887,7 @@ img::Image dbop::Database::select_DestinationImage() {
 		}
 	}
 	if (row > 1) {
-		delete_GENERAL(std::vector<string>{"SourceImage"});
+		delete_GENERAL("SourceImage");
 		throw std::exception("Multiple right hand images, somehow. Pretty much impossible error. Right hand image table cleared, load right hand image again even if it's still there.");
 	}
 	else if (row == 0) {
@@ -805,21 +898,14 @@ img::Image dbop::Database::select_DestinationImage() {
 	}
 }
 
-void dbop::Database::delete_GENERAL(std::vector<string> tableVec, string conditions) {
+void dbop::Database::delete_GENERAL(string table, string conditions) {
     sqlite3_stmt* strQuery = NULL;
-
-    string tables = "";
-    for (string i : tableVec) {
-        tables.append(i);
-        tables.append(",");
-    }
-    tables.erase(tables.end() - 1);
 
     string statement;
     if (conditions != "")
-        statement = "DELETE FROM " + tables + " WHERE " + conditions + ";";
+        statement = "DELETE FROM " + table + " WHERE " + conditions + ";";
     else
-        statement = "DELETE FROM " + tables + ";";
+        statement = "DELETE FROM " + table + ";";
     int rc = sqlite3_prepare_v2(db, statement.c_str(), -1, &strQuery, NULL);
     errorCheck(rc, const_cast<char*>(sqlite3_errmsg(db)));
     rc = sqlite3_step(strQuery);

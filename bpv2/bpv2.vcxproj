@@ -129,6 +129,7 @@
     <ClInclude Include="gen.h" />
   </ItemGroup>
   <ItemGroup>
+    <QtUic Include="DialogDetail.ui" />
     <QtUic Include="DialogSort.ui" />
     <QtUic Include="MainWindow.ui" />
   </ItemGroup>

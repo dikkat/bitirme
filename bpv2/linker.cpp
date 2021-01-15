@@ -24,17 +24,14 @@ img::Image lnkr::setSourceImage(string dir, int flag) {
 			i = '/';
 	img::Image image(dir, flag);
 
-	lnkr_dbPtr->delete_GENERAL(std::vector<string>{"sourceimage"});
-	string condition = "hash='" + std::to_string(image.getHash()) + "'";
+	lnkr_dbPtr->delete_GENERAL("sourceimage");
 
 	lnkr_dbPtr->insert_SourceImage(image);
 	return image;
 }
 
 img::Image lnkr::setSourceImage(img::Image src) {
-	lnkr_dbPtr->delete_GENERAL(std::vector<string>{"sourceimage"});
-	string condition = "hash='" + std::to_string(src.getHash()) + "'";
-	lnkr_dbPtr->delete_GENERAL(std::vector<string>{"image"}, condition);
+	lnkr_dbPtr->delete_GENERAL("sourceimage");
 
 	lnkr_dbPtr->insert_SourceImage(src);
 	return src;
@@ -46,17 +43,14 @@ img::Image lnkr::setDestinationImage(string dir, int flag) {
 			i = '/';
 	img::Image image(dir, flag);
 
-	lnkr_dbPtr->delete_GENERAL(std::vector<string>{"destimage"});
-	string condition = "hash='" + std::to_string(image.getHash()) + "'";
+	lnkr_dbPtr->delete_GENERAL("destimage");
 
 	lnkr_dbPtr->insert_DestinationImage(image);
 	return image;
 }
 
 img::Image lnkr::setDestinationImage(img::Image src) {
-	lnkr_dbPtr->delete_GENERAL(std::vector<string>{"destimage"});
-	string condition = "hash='" + std::to_string(src.getHash()) + "'";
-	lnkr_dbPtr->delete_GENERAL(std::vector<string>{"image"}, condition);
+	lnkr_dbPtr->delete_GENERAL("destimage");
 
 	lnkr_dbPtr->insert_DestinationImage(src);
 	return src;
@@ -179,6 +173,11 @@ void lnkr::setIcon(img::Image* image_ptr) {
 
 	lnkr_dbPtr->insert_Icon(imgIcon.getIconMat());
 	lnkr_dbPtr->insert_ImageIcon(image_ptr->getHash(), imgIcon.getHash());
+}
+
+void lnkr::setWeightVector(iop::WeightVector* wvec_ptr) {
+	lnkr_dbPtr->delete_GENERAL({ "weightvector" });
+	lnkr_dbPtr->insert_WeightVector(*wvec_ptr);
 }
 
 void lnkr::setSimilarity(iop::Comparison* cmp_ptr) {
@@ -498,4 +497,79 @@ void lnkr::deleteImage(img::Image* image_ptr) {
 	lnkr_dbPtr->delete_GENERAL({ "imagehistogram" }, "imhash='" + hash + "'");
 	lnkr_dbPtr->delete_GENERAL({ "similarity" }, "srcHash='" + hash + "' or destHash='" + hash + "'");
 	lnkr_dbPtr->delete_GENERAL({ "image" }, "hash='" + hash + "'");
+}
+
+void lnkr::deleteFromSimAndWV() {
+	lnkr_dbPtr->delete_GENERAL({ "similarity" });
+	lnkr_dbPtr->delete_GENERAL({ "weightvector" });
+}
+
+std::vector<string> lnkr::getImageDirs() {
+	return lnkr_dbPtr->select_GENERAL({ {"dir"}, {"image"}, {} })[0];
+}
+
+string lnkr::getImageDir(string hash) {
+	string condition = "hash='" + hash +"'";
+	auto returnedVec = lnkr_dbPtr->select_GENERAL({ {"dir"}, {"image"}, {condition} });
+	if (returnedVec[0].size() == 0)
+		throw std::exception("That image has no database record which should not be possible, " \
+			"props if you get this message, you caught me.");
+	else
+		return returnedVec[0][0];
+}
+
+iop::Comparison lnkr::getRawComparison(string hash, bool source) {
+	string condition = "";
+	if (source)
+		condition = "srchash='" + hash + "'";
+	else if (!source)
+		condition = "desthash='" + hash + "'";
+	auto returned = lnkr_dbPtr->select_GENERAL({ {"diff_gradm", "diff_gradd", "diff_hgray", "diff_hbgrb", "diff_hbgrg", "diff_hbgrr",
+		"diff_hhsvh", "diff_hhsvs", "diff_hhsvv", "diff_hashd", "diff_hashp", "similarity"}, {"similarity"}, {condition} });
+
+	if (returned[0].size() == 0)
+		throw std::exception("No similarity record for image.");
+	else if (returned[0].size() > 1) {
+		lnkr_dbPtr->delete_GENERAL("similarity", condition);
+		throw std::exception("Multiple similarity records for image. All records removed for that image. "\
+			"Do the comparison operation again.");
+	}
+
+	iop::Comparison comp;
+	auto &compVec = comp.diff_total;
+	for (int i = 0; i < returned.size(); i++) {
+		*compVec[i] = std::stof(returned[i][0]);
+	}
+
+	return comp;
+}
+
+iop::WeightVector lnkr::getWeightVector() {
+	auto returned = lnkr_dbPtr->select_GENERAL({ {"w_gradm", "w_gradd", "w_hgray", "w_hbgrb", "w_hbgrg", "w_hbgrr",
+		"w_hhsvh", "w_hhsvs", "w_hhsvv", "w_hashd", "w_hashp"}, {"weightvector"}, {} });
+
+	if (returned[0].size() == 0)
+		throw std::exception("No weight vector defined currently.");
+	else if (returned[0].size() > 1) {
+		lnkr_dbPtr->delete_GENERAL("weightvector");
+		throw std::exception("Multiple weight vector records in program. All records removed in weight vector table. "\
+			"Do the comparison operation again.");
+	}
+	float* temp = nullptr;
+	iop::WeightVector wvec(static_cast<float*>(nullptr));
+	auto& wvec_total = wvec.wvv_total;
+	int k = 0;
+	for (int i = 0; i < returned.size(); i++) {
+		for (int j = 0; j < 3; j++) {
+			try {
+				wvec_total.at(i)->at(j) = std::stof(returned[k][0]);
+				k++;
+			}
+			catch (std::out_of_range e) {
+				continue;
+			}
+		}
+	}
+
+	return wvec;
 }

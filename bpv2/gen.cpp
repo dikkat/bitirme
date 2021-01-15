@@ -43,7 +43,7 @@ cv::Mat gen::realNormalize(cv::Mat operand, int bins) {
 }
 
 string gen::format(float f) {
-	float error = 0.00005;
+	float error = 0.002;
 	if (abs(f - roundf(f)) < error) {
 		int i = roundf(f);
 		return std::to_string(i);
@@ -53,6 +53,10 @@ string gen::format(float f) {
 		stream << std::fixed << std::setprecision(3) << f;
 		return stream.str();
 	}
+}
+
+bool gen::cmpMat(cv::Mat lh, cv::Mat rh) {
+	return cv::countNonZero(lh != rh) == 0;
 }
 
 //ONLY FOR STORAGE MOVE TO SOMEWHERE ELSE

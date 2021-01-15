@@ -27,6 +27,8 @@
 
 #include "ui_MainWindow.h"
 #include "ui_DialogSort.h"
+#include "ui_DialogDetail.h"
+
 #include "iop.h"
 #include "dbop.h"
 #include "linker.h"
@@ -46,28 +48,46 @@ class TableModel : public QSqlQueryModel {
 public:
 	TableModel(QObject* parent = nullptr);
 	QVariant data(const QModelIndex& index, int role = Qt::DisplayRole) const override;
+	//void sort(int column, Qt::SortOrder order) override;
 };
 
 static dbop::Database* mw_dbPtr;
 
 class MainWindow;
 
+class DetailDialog : public QDialog {
+	Q_OBJECT
+public:
+	DetailDialog(QWidget* parent, iop::Comparison* comp = nullptr, iop::WeightVector* wv = nullptr);
+private:
+	Ui::DialogDetail ui;
+	MainWindow* parent_ptr = nullptr;
+	iop::Comparison* current_comp;
+};
+
 class SortDialog : public QDialog {
 	Q_OBJECT
 public:
-	SortDialog(QWidget* parent = Q_NULLPTR);
+	SortDialog(QWidget* parent = Q_NULLPTR, iop::FeatureVector* fv = nullptr, iop::WeightVector* wv = nullptr);
 private:
-	Ui::Dialog ui;
-	MainWindow *parent_ptr = nullptr;
+	Ui::DialogSort ui;
+	MainWindow* parent_ptr = nullptr;
 	float* current = nullptr;
-	int* binstate = nullptr;
 	std::vector<vecf> binVec;
 	std::vector<vecf> weightVec;
 	std::vector<bool> enableVec;
 	std::vector<std::vector<bool>> bgrEnableVec;
-	std::vector<QLineEdit*> lineedit_arr;
-	std::vector<QLineEdit*> initlineedit_arr;
-	std::vector<QLineEdit*> lineedit_hist_arr;
+	std::vector<QLineEdit*> initlineedit_vec;
+	std::vector<std::vector<QLineEdit*>> lineedit_hist_vec;
+	std::vector<QLineEdit*> lineedit_hist_g;
+	std::vector<QLineEdit*> lineedit_hist_bgr;
+	std::vector<QLineEdit*> lineedit_hist_hsv;
+	std::vector<std::vector<QSlider*>> slider_hist_vec;
+	std::vector<QSlider*> slider_hist_g;
+	std::vector<QSlider*> slider_hist_bgr;
+	std::vector<QSlider*> slider_hist_hsv;
+	std::vector<QCheckBox*> checkbox_vec;
+	std::vector<std::vector<QCheckBox*>> checkbox_vec_bgr;
 private slots:
 	void buildFeatureVector();
 	void remainingPercentage(QString sent, bool disabled = false);
@@ -77,8 +97,10 @@ private slots:
 	void enableHistH(bool enable);
 	void enableEdge(bool enable);
 	void displayButtons_BGR(int state);
-	void enableBGR(bool enable, int index);
+	void enableBGR(bool enable, int combobox, int index);
 	void equaliseWeights(bool enable);
+private:
+	void initialiseWeights(iop::FeatureVector* fv, iop::WeightVector* wv);
 signals:
 	void returnFeatureVector(iop::FeatureVector fv, iop::WeightVector wv);
 };
@@ -92,7 +114,8 @@ public:
 	Ui::MainWindow getUI();
 	~MainWindow();
 private slots:
-	void customMenuRequested(QPoint pos);
+	void customMenuRequested_main(QPoint pos);
+	void customMenuRequested_result(QPoint pos);
 	void openImageLabel();
 	void openList();
 	void displayFeature();
@@ -101,19 +124,27 @@ private slots:
 	void deleteImage(QString& fileName);
 	void showIcons(bool show);
 	void openSortDialog();
+	void openDetailDialog(iop::Comparison* comp, iop::WeightVector* wvec);
 	//void enableHistComp(bool enable);
 	void enableCanny(int state);
 	void setFeatureVector(iop::FeatureVector returnfv, iop::WeightVector returnwv);
 	void copyToClipboard(QString& str, bool folder = false);
+	void compareMain();
+	void switchTables();
 private:
 	friend class SortDialog;
 	Ui::MainWindow ui;
 	iop::FeatureVector* currentfv = nullptr;
 	iop::WeightVector* currentwv = nullptr;
+	iop::Comparator* comparator;
+	iop::Comparison* currentcomp = nullptr;
 	TableModel* mainModel;
 	TableModel* resultModel;
+	QSortFilterProxyModel* proxyModel_result;
 	QString* dir = nullptr;
 	QSize* screenSize;
+	img::Image* source_img = nullptr;
+	img::Image* dest_img = nullptr;
 	int iconIdx, simValIdx = 2;
 	void scaleImage(QImage& image, QLabel* imlabel, QWidget* frame);
 	void switchDisplayWidgets(bool toLabel, bool source);
@@ -129,5 +160,5 @@ private:
 	bool loadFiles(const QStringList& fileNames);
 	void setImage(QLabel* imlabel, const QImage& newImage);
 	void addToMainTable(img::Image* image);
-	void refreshTable(TableModel* table, bool main);
+	void refreshTable(TableModel* table);
 };

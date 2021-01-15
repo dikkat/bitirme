@@ -31,7 +31,7 @@ QVariant TableModel::data(const QModelIndex& index, int role) const {
 	int col = index.column();
 	if (col == 0) {
 		if (role == Qt::DecorationRole) {
-			QString imcode = QSqlQueryModel::data(index).toString();
+			/*QString imcode = QSqlQueryModel::data(index).toString();
 			string condition = "imhash='" + imcode.toStdString() + "'";
 			img::Icon imgIcon(dbop::deserializeMat(imcode.toStdString()));
 			int height = imgIcon.getIconMat().rows;
@@ -40,50 +40,142 @@ QVariant TableModel::data(const QModelIndex& index, int role) const {
 			cv::imencode(".jpg", mat, buffer, { cv::IMWRITE_JPEG_QUALITY, 85 });
 			auto compressed = cv::imdecode(buffer, cv::IMREAD_COLOR);
 			auto icon = QIcon(QPixmap::fromImage(cvMatToQImage(compressed)));
-			return icon;
+			return icon;*/
+			QString imdir = QSqlQueryModel::data(index).toString();
+			auto mat = cv::imread(imdir.toStdString(), cv::IMREAD_COLOR);
+			auto width = mat.cols;
+			auto height = mat.rows;
+			auto recommended = 100;
+			if (height > width) {
+				width = recommended * width / height;
+				height = recommended;
+			}
+			else {
+				height = recommended * height / width;
+				width = recommended;
+			}
+			
+			cv::resize(mat, mat, cv::Size(width, height));
+			QPixmap pixmap = QPixmap::fromImage(cvMatToQImage(mat));
+			return QIcon(pixmap);
 		}
 		else {
-			return QString("N/A");
+			return QVariant();
 		}
 	}
 	
 	return QSqlQueryModel::data(index, role);
 }
 
-SortDialog::SortDialog(QWidget* parent) {
+//void TableModel::sort(int column, Qt::SortOrder order) {
+//	if(this->headerData(2, Qt::Horizontal))
+//}
+
+DetailDialog::DetailDialog(QWidget* parent, iop::Comparison* comp, iop::WeightVector* wvec) {
 	ui.setupUi(this);
-	current = new float(0);
-	enableVec = std::vector<bool>(3, false);
-	bgrEnableVec = std::vector<std::vector<bool>>(3, std::vector<bool>(3, true));
-	binVec = std::vector<vecf>(3, vecf(3, 0));
-	weightVec = std::vector<vecf>(3, vecf(3, 0));
-	ui.checkBox_B->setVisible(false);
-	ui.checkBox_G->setVisible(false);
-	ui.checkBox_R->setVisible(false);
-	initlineedit_arr = {ui.lineEdit_18, ui.lineEdit_19, ui.lineEdit_gradirbin, 
-		ui.lineEdit_gramagbin, ui.lineEdit_weightgradir, ui.lineEdit_weightgramag, ui.lineEdit_weighthistf,
-		ui.lineEdit_weighthists, ui.lineEdit_weighthistt};
-	lineedit_hist_arr = { ui.lineEdit_weighthistf, ui.lineEdit_weighthists, ui.lineEdit_weighthistt };
+	auto ftoq = [](float f) {
+		return QString::fromStdString(gen::format(f));
+	};
+	parent_ptr = (MainWindow*)parent;
+	if (comp) {
+		ui.lineEdit_gm->setText(ftoq(comp->diff_gradm));
+		ui.lineEdit_gd->setText(ftoq(comp->diff_gradd));
+		ui.lineEdit_hg->setText(ftoq(comp->diff_hgray));
+		ui.lineEdit_hbb->setText(ftoq(comp->diff_hbgrb));
+		ui.lineEdit_hbg->setText(ftoq(comp->diff_hbgrg));
+		ui.lineEdit_hbr->setText(ftoq(comp->diff_hbgrr));
+		ui.lineEdit_hhh->setText(ftoq(comp->diff_hhsvh));
+		ui.lineEdit_hhs->setText(ftoq(comp->diff_hhsvs));
+		ui.lineEdit_hhv->setText(ftoq(comp->diff_hhsvv));
+		ui.lineEdit_hd->setText(ftoq(comp->diff_hashd));
+		ui.lineEdit_hp->setText(ftoq(comp->diff_hashp));
+		ui.lineEdit_ed->setText(ftoq(comp->euc_dist));
+	}
+
+	if (wvec) {
+		ui.lineEdit_gm_2->setText(ftoq(wvec->wv_grad[0]));
+		ui.lineEdit_gd_2->setText(ftoq(wvec->wv_grad[1]));
+		ui.lineEdit_hg_2->setText(ftoq(wvec->w_hgray));
+		ui.lineEdit_hbb_2->setText(ftoq(wvec->wv_hbgr[0]));
+		ui.lineEdit_hbg_2->setText(ftoq(wvec->wv_hbgr[1]));
+		ui.lineEdit_hbr_2->setText(ftoq(wvec->wv_hbgr[2]));
+		ui.lineEdit_hhh_2->setText(ftoq(wvec->wv_hhsv[0]));
+		ui.lineEdit_hhs_2->setText(ftoq(wvec->wv_hhsv[1]));
+		ui.lineEdit_hhv_2->setText(ftoq(wvec->wv_hhsv[2]));
+		ui.lineEdit_hd_2->setText(ftoq(wvec->wv_hash[0]));
+		ui.lineEdit_hp_2->setText(ftoq(wvec->wv_hash[1]));
+	}
+
+	current_comp = comp;
+}
+
+SortDialog::SortDialog(QWidget* parent, iop::FeatureVector* fv, iop::WeightVector* wv) {
+	ui.setupUi(this);
+	ui.lineEdit_2->setText("100");
+	
+	ui.checkBox_B_3->setVisible(false);
+	ui.checkBox_G_3->setVisible(false);
+	ui.checkBox_R_3->setVisible(false);
+
+	ui.stackedWidget->setCurrentIndex(0);
+	ui.stackedWidget_fbin->setCurrentIndex(0);
+	ui.stackedWidget_sbin->setCurrentIndex(0);
+	ui.stackedWidget_tbin->setCurrentIndex(0);
+
+	ui.stackedWidget_fw->setCurrentIndex(0);
+	ui.stackedWidget_sw->setCurrentIndex(0);
+	ui.stackedWidget_tw->setCurrentIndex(0);
+
+	ui.stackedWidget_bgr->setCurrentIndex(0);
+
+	checkbox_vec = { ui.checkBox_sorthistg, ui.checkBox_sorthistb, ui.checkBox_sorthisth };
+
+	checkbox_vec_bgr = { {ui.checkBox_B_3, ui.checkBox_G_3, ui.checkBox_R_3}, {ui.checkBox_B, ui.checkBox_G, ui.checkBox_R},
+		{ui.checkBox_B_2, ui.checkBox_G_2, ui.checkBox_R_2} };
+
+	lineedit_hist_g = { ui.lineEdit_weighthistf, ui.lineEdit_weighthists, ui.lineEdit_weighthistt };
+	lineedit_hist_bgr = { ui.lineEdit_weighthistf_1, ui.lineEdit_weighthists_1, ui.lineEdit_weighthistt_1 };
+	lineedit_hist_hsv = { ui.lineEdit_weighthistf_2, ui.lineEdit_weighthists_2, ui.lineEdit_weighthistt_2 };
+
+	lineedit_hist_vec.push_back(lineedit_hist_g);
+	lineedit_hist_vec.push_back(lineedit_hist_bgr);
+	lineedit_hist_vec.push_back(lineedit_hist_hsv);
+
+	slider_hist_g = { ui.horizontalSlider_fbin, ui.horizontalSlider_sbin, ui.horizontalSlider_tbin };
+	slider_hist_bgr = { ui.horizontalSlider_fbin_1, ui.horizontalSlider_sbin_1, ui.horizontalSlider_tbin_1 };
+	slider_hist_hsv = { ui.horizontalSlider_fbin_2, ui.horizontalSlider_sbin_2, ui.horizontalSlider_tbin_2 };
+
+	slider_hist_vec.push_back(slider_hist_g);
+	slider_hist_vec.push_back(slider_hist_bgr);
+	slider_hist_vec.push_back(slider_hist_hsv);
+
+	initlineedit_vec = {ui.lineEdit_18, ui.lineEdit_19, ui.lineEdit_gradirbin, 
+		ui.lineEdit_gramagbin, ui.lineEdit_weightgradir, ui.lineEdit_weightgramag };
+	initlineedit_vec.insert(initlineedit_vec.end(), lineedit_hist_vec[0].begin(), lineedit_hist_vec[0].end());
+	initlineedit_vec.insert(initlineedit_vec.end(), lineedit_hist_vec[1].begin(), lineedit_hist_vec[1].end());
+	initlineedit_vec.insert(initlineedit_vec.end(), lineedit_hist_vec[2].begin(), lineedit_hist_vec[2].end());
+
 	QDoubleValidator* validator = new QDoubleValidator(0.0001, 100.0, 1000);
 	ui.lineEdit_2->setValidator(validator);
-	lineedit_arr = initlineedit_arr;
-	for (int i = 0; i < lineedit_arr.size(); i++)
-		lineedit_arr[i]->setValidator(validator);
+	for (int i = 0; i < initlineedit_vec.size(); i++) {
+		initlineedit_vec[i]->setValidator(validator);
+		initlineedit_vec[i]->setText("0");
+	}
 
-	//KEEP BGR AND HSV TICKS SEPARATE
-	//BGR AND HSV SHOULD DISABLE BINS
-	//WEIGHT SHOULD SET TO VALUE AT NEW INDEX WHEN COMBOBOX CHANGE INDEX
-	//BINS SHOULD TOO
-
-	lineedit_arr.erase(lineedit_arr.begin() + 2, lineedit_arr.begin() + 4);
-
+	initlineedit_vec.erase(initlineedit_vec.begin() + 2, initlineedit_vec.begin() + 4);
+	
 	QObject MWObject;
 	parent_ptr = (MainWindow*)parent;
 	MWObject.connect(ui.buttonBox->button(QDialogButtonBox::Ok), SIGNAL(clicked()), this, SLOT(buildFeatureVector()));
-	MWObject.connect(ui.buttonBox->button(QDialogButtonBox::Ok), SIGNAL(clicked()), this, SLOT(buildFeatureVector()));
-	MWObject.connect(ui.checkBox_B, &QCheckBox::toggled, [&](bool enable){enableBGR(enable, 0); });
-	MWObject.connect(ui.checkBox_G, &QCheckBox::toggled, [&](bool enable) {enableBGR(enable, 1); });
-	MWObject.connect(ui.checkBox_R, &QCheckBox::toggled, [&](bool enable) {enableBGR(enable, 2); });
+	MWObject.connect(ui.checkBox_B_3, &QCheckBox::toggled, [&](bool enable) {enableBGR(enable, 0, 0); });
+	MWObject.connect(ui.checkBox_G_3, &QCheckBox::toggled, [&](bool enable) {enableBGR(enable, 0, 1); });
+	MWObject.connect(ui.checkBox_R_3, &QCheckBox::toggled, [&](bool enable) {enableBGR(enable, 0, 2); });
+	MWObject.connect(ui.checkBox_B, &QCheckBox::toggled, [&](bool enable) {enableBGR(enable, 1, 0); });
+	MWObject.connect(ui.checkBox_G, &QCheckBox::toggled, [&](bool enable) {enableBGR(enable, 1, 1); });
+	MWObject.connect(ui.checkBox_R, &QCheckBox::toggled, [&](bool enable) {enableBGR(enable, 1, 2); });
+	MWObject.connect(ui.checkBox_B_2, &QCheckBox::toggled, [&](bool enable) {enableBGR(enable, 2, 0); });
+	MWObject.connect(ui.checkBox_G_2, &QCheckBox::toggled, [&](bool enable) {enableBGR(enable, 2, 1); });
+	MWObject.connect(ui.checkBox_R_2, &QCheckBox::toggled, [&](bool enable) {enableBGR(enable, 2, 2); });
 	MWObject.connect(ui.checkBox_sortHash, SIGNAL(toggled(bool)), this, SLOT(enableHash(bool)));
 	MWObject.connect(ui.checkBox_sorthistg, SIGNAL(toggled(bool)), this, SLOT(enableHistG(bool)));
 	MWObject.connect(ui.checkBox_sorthistb, SIGNAL(toggled(bool)), this, SLOT(enableHistB(bool)));
@@ -91,133 +183,144 @@ SortDialog::SortDialog(QWidget* parent) {
 	MWObject.connect(ui.checkBox_sortEdge, SIGNAL(toggled(bool)), this, SLOT(enableEdge(bool)));
 	MWObject.connect(ui.checkBox, SIGNAL(toggled(bool)), this, SLOT(equaliseWeights(bool)));
 	MWObject.connect(ui.comboBox_histFlag, SIGNAL(currentIndexChanged(int)), this, SLOT(displayButtons_BGR(int)));
-	for (int i = 0; i < lineedit_arr.size(); i++) {
-		MWObject.connect(lineedit_arr[i], SIGNAL(textChanged(QString)), this, SLOT(remainingPercentage(QString)));
+	for (int i = 0; i < initlineedit_vec.size(); i++) {
+		MWObject.connect(initlineedit_vec[i], SIGNAL(textChanged(QString)), this,
+			SLOT(remainingPercentage(QString)));
 	}
-	MWObject.connect(ui.horizontalSlider_fbin, &QSlider::sliderMoved,
-		[&](int value) {
-			QToolTip::showText(QCursor::pos(), QString("%1").arg(value), nullptr);
-			binVec[ui.comboBox_histFlag->currentIndex()][0] = value;
-		});
-	MWObject.connect(ui.horizontalSlider_sbin, &QSlider::sliderMoved,
-		[&](int value) {
-			QToolTip::showText(QCursor::pos(), QString("%1").arg(value), nullptr);
-			binVec[ui.comboBox_histFlag->currentIndex()][1] = value;
-		});
-	MWObject.connect(ui.horizontalSlider_tbin, &QSlider::sliderMoved,
-		[&](int value) {
-			QToolTip::showText(QCursor::pos(), QString("%1").arg(value), nullptr);
-			binVec[ui.comboBox_histFlag->currentIndex()][2] = value;
-		});
-	lineedit_arr.erase(lineedit_arr.end() - 3, lineedit_arr.end());
+	for(auto &i : slider_hist_vec)
+		for(auto &j : i)
+			MWObject.connect(j, &QSlider::sliderMoved,
+				[&](int value) {
+					QToolTip::showText(QCursor::pos(), QString("%1").arg(value), nullptr);
+				});
+	
+	if (fv && wv)
+		initialiseWeights(fv, wv);
 }
 
 void SortDialog::equaliseWeights(bool enable) {
-	iop::WeightVector wv(true);
+	if (enable) {
+		iop::WeightVector wv(true);
+		auto ftoq = [](float f) {
+			return QString::fromStdString(gen::format(f));
+		};
+		ui.lineEdit_18->setText(ftoq(wv.wv_hash[0] * 100));
+		ui.lineEdit_19->setText(ftoq(wv.wv_hash[1] * 100));
+		ui.lineEdit_weightgramag->setText(ftoq(wv.wv_grad[0] * 100));
+		ui.lineEdit_weightgradir->setText(ftoq(wv.wv_grad[1] * 100));
+		ui.lineEdit_weighthistf->setText(ftoq(wv.w_hgray * 100));
+		ui.lineEdit_weighthists->setText(ftoq(0));
+		ui.lineEdit_weighthistt->setText(ftoq(0));
+		ui.lineEdit_weighthistf_1->setText(ftoq(wv.wv_hbgr[0] * 100));
+		ui.lineEdit_weighthists_1->setText(ftoq(wv.wv_hbgr[1] * 100));
+		ui.lineEdit_weighthistt_1->setText(ftoq(wv.wv_hbgr[2] * 100));
+		ui.lineEdit_weighthistf_2->setText(ftoq(wv.wv_hhsv[0] * 100));
+		ui.lineEdit_weighthists_2->setText(ftoq(wv.wv_hhsv[1] * 100));
+		ui.lineEdit_weighthistt_2->setText(ftoq(wv.wv_hhsv[2] * 100));
+		ui.horizontalSlider_fbin->setValue(10);
+		ui.horizontalSlider_sbin->setValue(0);
+		ui.horizontalSlider_tbin->setValue(0);
+		ui.horizontalSlider_fbin_1->setValue(5);
+		ui.horizontalSlider_sbin_1->setValue(5);
+		ui.horizontalSlider_tbin_1->setValue(5);
+		ui.horizontalSlider_fbin_2->setValue(5);
+		ui.horizontalSlider_sbin_2->setValue(5);
+		ui.horizontalSlider_tbin_2->setValue(5);
+		for (int i = 0; i < lineedit_hist_vec.size(); i++) {
+			for (int j = 0; j < lineedit_hist_vec[i].size(); j++) {
+					checkbox_vec[i]->setChecked(true);
+					checkbox_vec_bgr[i][j]->setChecked(true);
+			}
+		}
+		ui.comboBox_edgeFlag->setCurrentIndex(0);
+		ui.lineEdit_gradirbin->setText(ftoq(8));
+		ui.lineEdit_gramagbin->setText(ftoq(10));
+		ui.checkBox_sorthistg->setChecked(true);
+		ui.checkBox_sorthistb->setChecked(true);
+		ui.checkBox_sorthisth->setChecked(true);
+		ui.checkBox_sortEdge->setChecked(true);
+		ui.checkBox_sortHash->setChecked(true);
+		emit displayButtons_BGR(ui.comboBox_histFlag->currentIndex());
+		emit remainingPercentage("", true);
+		ui.checkBox->setChecked(true);
+	}
+}
+
+void SortDialog::initialiseWeights(iop::FeatureVector* fv, iop::WeightVector* wv) {
 	auto ftoq = [](float f) {
 		return QString::fromStdString(gen::format(f));
 	};
-	ui.lineEdit_18->setText(ftoq(wv.wv_hash[0] * 100));
-	ui.lineEdit_19->setText(ftoq(wv.wv_hash[1] * 100));
-	ui.lineEdit_weightgramag->setText(ftoq(wv.wv_grad[0] * 100));
-	ui.lineEdit_weightgradir->setText(ftoq(wv.wv_grad[1] * 100));
-	weightVec[0][0] = wv.w_hgray * 100;
-	weightVec[1][0] = wv.wv_hbgr[0] * 100;
-	weightVec[1][1] = wv.wv_hbgr[1] * 100;
-	weightVec[1][2] = wv.wv_hbgr[2] * 100;
-	weightVec[2][0] = wv.wv_hhsv[0] * 100;
-	weightVec[2][1] = wv.wv_hhsv[1] * 100;
-	weightVec[2][2] = wv.wv_hhsv[2] * 100;
-	binVec[0][0] = 10;
-	binVec[1][0] = 5;
-	binVec[1][1] = 5;
-	binVec[1][2] = 5;
-	binVec[2][0] = 5;
-	binVec[2][1] = 5;
-	binVec[2][2] = 5;
-	for (auto& i : bgrEnableVec)
-		for (auto& j : i)
-			j = true;
-	ui.comboBox_edgeFlag->setCurrentIndex(0);
-	ui.lineEdit_gradirbin->setText(ftoq(8));
-	ui.lineEdit_gramagbin->setText(ftoq(10));
-	enableVec[0] = true;
-	ui.checkBox_sorthistg->setChecked(true);
-	ui.checkBox_sorthistb->setChecked(true);
-	ui.checkBox_sorthisth->setChecked(true);
-	enableVec[1] = true;
-	enableVec[2] = true;
-	ui.checkBox_sortEdge->setChecked(true);
-	ui.checkBox_sortHash->setChecked(true);
+	ui.lineEdit_18->setText(ftoq(wv->wv_hash[0] * 100));
+	ui.lineEdit_19->setText(ftoq(wv->wv_hash[1] * 100));
+	ui.lineEdit_weightgramag->setText(ftoq(wv->wv_grad[0] * 100));
+	ui.lineEdit_weightgradir->setText(ftoq(wv->wv_grad[1] * 100));
+	ui.lineEdit_weighthistf->setText(ftoq(wv->w_hgray * 100));
+	ui.lineEdit_weighthists->setText(ftoq(0));
+	ui.lineEdit_weighthistt->setText(ftoq(0));
+	ui.lineEdit_weighthistf_1->setText(ftoq(wv->wv_hbgr[0] * 100));
+	ui.lineEdit_weighthists_1->setText(ftoq(wv->wv_hbgr[1] * 100));
+	ui.lineEdit_weighthistt_1->setText(ftoq(wv->wv_hbgr[2] * 100));
+	ui.lineEdit_weighthistf_2->setText(ftoq(wv->wv_hhsv[0] * 100));
+	ui.lineEdit_weighthists_2->setText(ftoq(wv->wv_hhsv[1] * 100));
+	ui.lineEdit_weighthistt_2->setText(ftoq(wv->wv_hhsv[2] * 100));
+	ui.horizontalSlider_fbin->setValue(fv->hist_gray->getVariablesFloat()[1]);
+	ui.horizontalSlider_sbin->setValue(0);
+	ui.horizontalSlider_tbin->setValue(0);
+	ui.horizontalSlider_fbin_1->setValue(fv->hist_bgr->getVariablesFloat()[1]);
+	ui.horizontalSlider_sbin_1->setValue(fv->hist_bgr->getVariablesFloat()[2]);
+	ui.horizontalSlider_tbin_1->setValue(fv->hist_bgr->getVariablesFloat()[3]);
+	ui.horizontalSlider_fbin_2->setValue(fv->hist_hsv->getVariablesFloat()[1]);
+	ui.horizontalSlider_sbin_2->setValue(fv->hist_hsv->getVariablesFloat()[2]);
+	ui.horizontalSlider_tbin_2->setValue(fv->hist_hsv->getVariablesFloat()[3]);
+
+	for (int i = 0; i < lineedit_hist_vec.size(); i++) {
+		checkbox_vec[i]->setChecked(false);
+		for (int j = 0; j < lineedit_hist_vec[i].size(); j++) {
+			checkbox_vec_bgr[i][j]->setChecked(false);
+			auto curr = lineedit_hist_vec[i][j];
+			if (curr->text() != "0") {
+				checkbox_vec[i]->setChecked(true);
+				checkbox_vec_bgr[i][j]->setChecked(true);
+			}
+		}
+	}
+
+	ui.comboBox_edgeFlag->setCurrentIndex(fv->edge->getEdgeFlag());
+	ui.lineEdit_gradirbin->setText(ftoq(fv->edge->getComparisonValues()[1]));
+	ui.lineEdit_gramagbin->setText(ftoq(fv->edge->getComparisonValues()[2]));
+
+	if (fv->edge->getComparisonValues()[1] != 0 || fv->edge->getComparisonValues()[2] != 0) {
+		ui.checkBox_sortEdge->setChecked(true);
+		emit enableEdge(true);
+	}
+	if (fv->perc_hash->getSelectHash().first != false || fv->perc_hash->getSelectHash().second != false) {
+		ui.checkBox_sortHash->setChecked(true);
+		emit enableHash(true);
+	}
 	emit displayButtons_BGR(ui.comboBox_histFlag->currentIndex());
 	emit remainingPercentage("", true);
+	ui.checkBox->setChecked(false);
 }
 
-void SortDialog::enableBGR(bool enable, int index) {
-	QCheckBox* checkbox = (QCheckBox*)sender();
-	if (index == 0) {
-		ui.horizontalSlider_fbin->setEnabled(enable);
-		ui.lineEdit_weighthistf->setEnabled(enable);
-		if (ui.comboBox_histFlag->currentIndex() == 1) {
-			binVec[1][0] = enable ? ui.horizontalSlider_fbin->value() : 0;
-			bgrEnableVec[1][0] = enable;
-		}
-		else if (ui.comboBox_histFlag->currentIndex() == 2) {
-			binVec[2][0] = enable ? ui.horizontalSlider_fbin->value() : 0;
-			bgrEnableVec[2][0] = enable;
-		}
-	}
-	else if (index == 1) {
-		ui.horizontalSlider_sbin->setEnabled(enable);
-		ui.lineEdit_weighthists->setEnabled(enable);
-		if (ui.comboBox_histFlag->currentIndex() == 1) {
-			binVec[1][1] = enable ? ui.horizontalSlider_sbin->value() : 0;
-			bgrEnableVec[1][1] = enable;
-		}
-		else if (ui.comboBox_histFlag->currentIndex() == 2) {
-			binVec[2][1] = enable ? ui.horizontalSlider_sbin->value() : 0;
-			bgrEnableVec[2][1] = enable;
-		}
-	}
-	else if (index == 2) {
-		ui.horizontalSlider_tbin->setEnabled(enable);
-		ui.lineEdit_weighthistt->setEnabled(enable);
-		if (ui.comboBox_histFlag->currentIndex() == 1) {
-			binVec[1][2] = enable ? ui.horizontalSlider_tbin->value() : 0;
-			bgrEnableVec[1][2] = enable;
-		}
-		else if (ui.comboBox_histFlag->currentIndex() == 2) {
-			binVec[2][2] = enable ? ui.horizontalSlider_tbin->value() : 0;
-			bgrEnableVec[2][2] = enable;
-		}
+void SortDialog::enableBGR(bool enable, int combobox, int index) {
+	if (combobox == 0);
+	else {
+		slider_hist_vec[combobox][index]->setEnabled(enable && checkbox_vec[combobox]->isChecked());
+		lineedit_hist_vec[combobox][index]->setEnabled(enable && checkbox_vec[combobox]->isChecked());
 	}
 	emit remainingPercentage("", true);
 }
 
 void SortDialog::remainingPercentage(QString sent, bool disabled) {
 	float initial = ui.lineEdit_2->text().toFloat();
-	QLineEdit* lineedit = (QLineEdit*)sender();
-	int iter = -1;
-	if(!disabled)
-		for (int i = 0; i < lineedit_hist_arr.size(); i++) {
-			if (lineedit_hist_arr[i]->objectName() == lineedit->objectName()) {
-				iter = i;
-				break;
-			}
-		}
-	if (iter != -1) {
-		int index = ui.comboBox_histFlag->currentIndex();
-		weightVec[index][iter] = sent.toFloat();
-	}
+	
 	float currentPerc = 0;
-	for (auto i : lineedit_arr) {
+	for (auto i : initlineedit_vec) {
 		if (i->isEnabled())
 			currentPerc += i->text().toFloat();
 	}
-	for (int i = 0; i < weightVec.size(); i++)
-		for (int j = 0; j < weightVec[i].size(); j++)
-			currentPerc += enableVec[i] && bgrEnableVec[i][j] ? weightVec[i][j] : 0;
-	ui.lineEdit_2->setText(QString::fromStdString(std::to_string(100 - currentPerc)));
+
+	ui.lineEdit_2->setText(QString::fromStdString(gen::format(100 - currentPerc)));
 	if (!gen::cmpf(currentPerc, 100)) {
 		ui.buttonBox->button(QDialogButtonBox::Ok)->setEnabled(false);
 		ui.buttonBox->button(QDialogButtonBox::Ok)->setToolTip("Weight percentage must be 100.");
@@ -236,81 +339,63 @@ void SortDialog::enableHash(bool enable) {
 }
 
 void SortDialog::enableHistG(bool enable) {
-	ui.checkBox_B->setVisible(false);
-	ui.checkBox_G->setVisible(false);
-	ui.checkBox_R->setVisible(false);
-	ui.horizontalSlider_fbin->setEnabled(enable && bgrEnableVec[0][0]);
-	ui.horizontalSlider_sbin->setEnabled(false);
-	ui.horizontalSlider_tbin->setEnabled(false);
-	ui.horizontalSlider_fbin->setValue(binVec[0][0]);
-	ui.horizontalSlider_sbin->setValue(binVec[0][1]);
-	ui.horizontalSlider_tbin->setValue(binVec[0][2]);
-	ui.lineEdit_weighthistf->setEnabled(enable && bgrEnableVec[0][0]);
-	ui.lineEdit_weighthists->setEnabled(false);
-	ui.lineEdit_weighthistt->setEnabled(false);
-	ui.lineEdit_weighthistf->setText(QString::fromStdString(gen::format(weightVec[0][0])));
-	ui.lineEdit_weighthists->setText(QString::fromStdString(gen::format(weightVec[0][1])));
-	ui.lineEdit_weighthistt->setText(QString::fromStdString(gen::format(weightVec[0][2])));
-	ui.horizontalSlider_fbin->setMaximum(255);
-	ui.label_bMax->setText("255");
-	enableVec[0] = enable;
+	ui.stackedWidget_bgr->setCurrentIndex(0);
+	ui.stackedWidget_fbin->setCurrentIndex(0);
+	ui.stackedWidget_sbin->setCurrentIndex(0);
+	ui.stackedWidget_tbin->setCurrentIndex(0);
+	slider_hist_g[0]->setEnabled(enable);
+	slider_hist_g[1]->setEnabled(false);
+	slider_hist_g[2]->setEnabled(false);
+	ui.stackedWidget_fw->setCurrentIndex(0);
+	ui.stackedWidget_sw->setCurrentIndex(0);
+	ui.stackedWidget_tw->setCurrentIndex(0);
+	lineedit_hist_g[0]->setEnabled(enable);
+	lineedit_hist_g[1]->setEnabled(false);
+	lineedit_hist_g[2]->setEnabled(false);
+	ui.stackedWidget_fbinlabel->setCurrentIndex(0);
 	emit remainingPercentage("g", true);
 }
 
 void SortDialog::enableHistB(bool enable) {
-	ui.checkBox_B->setText("B");
-	ui.checkBox_B->setVisible(true);
-	ui.checkBox_B->setEnabled(enable);
-	ui.checkBox_G->setText("G");
-	ui.checkBox_G->setVisible(true);
-	ui.checkBox_G->setEnabled(enable);
-	ui.checkBox_R->setText("R");
-	ui.checkBox_R->setVisible(true);
-	ui.checkBox_R->setEnabled(enable);
-	ui.horizontalSlider_fbin->setEnabled(enable && bgrEnableVec[1][0]);
-	ui.horizontalSlider_sbin->setEnabled(enable && bgrEnableVec[1][1]);
-	ui.horizontalSlider_tbin->setEnabled(enable && bgrEnableVec[1][2]);
-	ui.horizontalSlider_fbin->setMaximum(255);
-	ui.label_bMax->setText("255");
-	ui.horizontalSlider_fbin->setValue(binVec[1][0]);
-	ui.horizontalSlider_sbin->setValue(binVec[1][1]);
-	ui.horizontalSlider_tbin->setValue(binVec[1][2]);
-	ui.lineEdit_weighthistf->setEnabled(enable && bgrEnableVec[1][0]);
-	ui.lineEdit_weighthists->setEnabled(enable && bgrEnableVec[1][1]);
-	ui.lineEdit_weighthistt->setEnabled(enable && bgrEnableVec[1][2]);
-	ui.lineEdit_weighthistf->setText(QString::fromStdString(gen::format(weightVec[1][0])));
-	ui.lineEdit_weighthists->setText(QString::fromStdString(gen::format(weightVec[1][1])));
-	ui.lineEdit_weighthistt->setText(QString::fromStdString(gen::format(weightVec[1][2])));
-	enableVec[1] = enable;
+	ui.stackedWidget_bgr->setCurrentIndex(1);
+	checkbox_vec_bgr[1][0]->setEnabled(enable);
+	checkbox_vec_bgr[1][1]->setEnabled(enable);
+	checkbox_vec_bgr[1][2]->setEnabled(enable);
+	ui.stackedWidget_fbin->setCurrentIndex(1);
+	ui.stackedWidget_sbin->setCurrentIndex(1);
+	ui.stackedWidget_tbin->setCurrentIndex(1);
+	slider_hist_bgr[0]->setEnabled(checkbox_vec_bgr[1][0]->isChecked() && enable);
+	slider_hist_bgr[1]->setEnabled(checkbox_vec_bgr[1][1]->isChecked() && enable);
+	slider_hist_bgr[2]->setEnabled(checkbox_vec_bgr[1][2]->isChecked() && enable);
+	ui.stackedWidget_fw->setCurrentIndex(1);
+	ui.stackedWidget_sw->setCurrentIndex(1);
+	ui.stackedWidget_tw->setCurrentIndex(1);
+	lineedit_hist_bgr[0]->setEnabled(checkbox_vec_bgr[1][0]->isChecked() && enable);
+	lineedit_hist_bgr[1]->setEnabled(checkbox_vec_bgr[1][1]->isChecked() && enable);
+	lineedit_hist_bgr[2]->setEnabled(checkbox_vec_bgr[1][2]->isChecked() && enable);
+	ui.stackedWidget_fbinlabel->setCurrentIndex(0);
 	emit remainingPercentage("b", true);
 }
 
 void SortDialog::enableHistH(bool enable) {
-	ui.checkBox_B->setText("H");
-	ui.checkBox_B->setVisible(true);
-	ui.checkBox_B->setEnabled(enable);
-	ui.checkBox_G->setText("S");
-	ui.checkBox_G->setVisible(true);
-	ui.checkBox_G->setEnabled(enable);
-	ui.checkBox_R->setText("V");
-	ui.checkBox_R->setVisible(true);
-	ui.checkBox_R->setEnabled(enable);
-	ui.horizontalSlider_fbin->setEnabled(enable && bgrEnableVec[2][0]);
-	ui.horizontalSlider_sbin->setEnabled(enable && bgrEnableVec[2][1]);
-	ui.horizontalSlider_tbin->setEnabled(enable && bgrEnableVec[2][2]);
-	ui.horizontalSlider_fbin->setMaximum(180);
-	ui.label_bMax->setText("180");
-	ui.horizontalSlider_fbin->setValue(binVec[2][0]);
-	ui.horizontalSlider_sbin->setValue(binVec[2][1]);
-	ui.horizontalSlider_tbin->setValue(binVec[2][2]);
-	ui.lineEdit_weighthistf->setEnabled(enable && bgrEnableVec[2][0]);
-	ui.lineEdit_weighthists->setEnabled(enable && bgrEnableVec[2][1]);
-	ui.lineEdit_weighthistt->setEnabled(enable && bgrEnableVec[2][2]);
-	ui.lineEdit_weighthistf->setText(QString::fromStdString(gen::format(weightVec[2][0])));
-	ui.lineEdit_weighthists->setText(QString::fromStdString(gen::format(weightVec[2][1])));
-	ui.lineEdit_weighthistt->setText(QString::fromStdString(gen::format(weightVec[2][2])));
-	enableVec[2] = enable;
-	emit remainingPercentage("s", true);
+	ui.stackedWidget_bgr->setCurrentIndex(2);
+	checkbox_vec_bgr[2][0]->setEnabled(enable);
+	checkbox_vec_bgr[2][1]->setEnabled(enable);
+	checkbox_vec_bgr[2][2]->setEnabled(enable);
+	ui.stackedWidget_fbin->setCurrentIndex(2);
+	ui.stackedWidget_sbin->setCurrentIndex(2);
+	ui.stackedWidget_tbin->setCurrentIndex(2);
+	slider_hist_hsv[0]->setEnabled(checkbox_vec_bgr[2][0]->isChecked() && enable);
+	slider_hist_hsv[1]->setEnabled(checkbox_vec_bgr[2][1]->isChecked() && enable);
+	slider_hist_hsv[2]->setEnabled(checkbox_vec_bgr[2][2]->isChecked() && enable);
+	ui.stackedWidget_fw->setCurrentIndex(2);
+	ui.stackedWidget_sw->setCurrentIndex(2);
+	ui.stackedWidget_tw->setCurrentIndex(2);
+	lineedit_hist_hsv[0]->setEnabled(checkbox_vec_bgr[2][0]->isChecked() && enable);
+	lineedit_hist_hsv[1]->setEnabled(checkbox_vec_bgr[2][1]->isChecked() && enable);
+	lineedit_hist_hsv[2]->setEnabled(checkbox_vec_bgr[2][2]->isChecked() && enable);
+	ui.stackedWidget_fbinlabel->setCurrentIndex(1);
+	emit remainingPercentage("h", true);
 }
 
 void SortDialog::enableEdge(bool enable) {
@@ -323,51 +408,58 @@ void SortDialog::enableEdge(bool enable) {
 }
 
 void SortDialog::buildFeatureVector() {
+	auto qtof = [](QString q) {
+		return q.toFloat();
+	};
 	iop::WeightVector wv(true);
-	wv.wv_hash[0] = ui.lineEdit_18->text().toFloat() / 100;
-	wv.wv_hash[1] = ui.lineEdit_19->text().toFloat() / 100;
-	wv.wv_grad[0] = ui.lineEdit_weightgramag->text().toFloat() / 100;
-	wv.wv_grad[1] = ui.lineEdit_weightgradir->text().toFloat() / 100;
-	wv.w_hgray = weightVec[0][0] / 100;
-	wv.wv_hbgr[0] = weightVec[1][0] / 100;
-	wv.wv_hbgr[1] = weightVec[1][1] / 100;
-	wv.wv_hbgr[2] = weightVec[1][2] / 100;
-	wv.wv_hhsv[0] = weightVec[2][0] / 100;
-	wv.wv_hhsv[1] = weightVec[2][1] / 100;
-	wv.wv_hhsv[2] = weightVec[2][2] / 100;
+	wv.wv_hash[0] = ui.lineEdit_18->isEnabled() ? ui.lineEdit_18->text().toFloat() / 100 : 0;
+	wv.wv_hash[1] = ui.lineEdit_19->isEnabled() ? ui.lineEdit_19->text().toFloat() / 100 : 0;
+	wv.wv_grad[0] = ui.lineEdit_weightgramag->isEnabled() ? ui.lineEdit_weightgramag->text().toFloat() / 100 : 0;
+	wv.wv_grad[1] = ui.lineEdit_weightgradir->isEnabled() ? ui.lineEdit_weightgradir->text().toFloat() / 100 : 0;
+	wv.w_hgray = checkbox_vec[0]->isEnabled() ? qtof(lineedit_hist_vec[0][0]->text()) / 100 : 0;
+	delete(wv.wvv_total[1]);
+	wv.wvv_total[1] = new vecf{ wv.w_hgray };
+	wv.wv_hbgr[0] = checkbox_vec_bgr[1][0]->isChecked() ? qtof(lineedit_hist_vec[1][0]->text()) / 100 : 0;
+	wv.wv_hbgr[1] = checkbox_vec_bgr[1][1]->isChecked() ? qtof(lineedit_hist_vec[1][1]->text()) / 100 : 0;
+	wv.wv_hbgr[2] = checkbox_vec_bgr[1][2]->isChecked() ? qtof(lineedit_hist_vec[1][2]->text()) / 100 : 0;
+	wv.wv_hhsv[0] = checkbox_vec_bgr[2][0]->isChecked() ? qtof(lineedit_hist_vec[2][0]->text()) / 100 : 0;
+	wv.wv_hhsv[1] = checkbox_vec_bgr[2][1]->isChecked() ? qtof(lineedit_hist_vec[2][1]->text()) / 100 : 0;
+	wv.wv_hhsv[2] = checkbox_vec_bgr[2][2]->isChecked() ? qtof(lineedit_hist_vec[2][2]->text()) / 100 : 0;
 
 	feat::Histogram hist_g;
-	if(enableVec[0])
-		hist_g = feat::Histogram(cv::Mat(), HIST_GRAY, binVec[0][0]);
+	if(checkbox_vec[0]->isEnabled())
+		hist_g = feat::Histogram(cv::Mat(), HIST_GRAY, slider_hist_vec[0][0]->value());
 	else
-		hist_g = feat::Histogram(cv::Mat(), HIST_GRAY, 0);
+		hist_g = feat::Histogram(cv::Mat(), HIST_GRAY, 0, 0, 0);
 
 	feat::Histogram hist_bgr;
-	if (enableVec[1])
-		hist_bgr = feat::Histogram(cv::Mat(), HIST_BGR, bgrEnableVec[1][0] ? binVec[1][0] : 0, 
-			bgrEnableVec[1][1] ? binVec[1][1] : 0, 
-			bgrEnableVec[1][2] ? binVec[1][2] : 0);
+	if (checkbox_vec[1]->isEnabled())
+		hist_bgr = feat::Histogram(cv::Mat(), HIST_BGR, checkbox_vec_bgr[1][0]->isChecked() ? slider_hist_vec[1][0]->value() : 0, 
+			checkbox_vec_bgr[1][1]->isChecked() ? slider_hist_vec[1][1]->value() : 0, 
+			checkbox_vec_bgr[1][2]->isChecked() ? slider_hist_vec[1][2]->value() : 0);
 	else
 		hist_bgr = feat::Histogram(cv::Mat(), HIST_BGR, 0, 0, 0);
 
 	feat::Histogram hist_hsv;
-	if (enableVec[2])
-		hist_hsv = feat::Histogram(cv::Mat(), HIST_HSV, bgrEnableVec[2][0] ? binVec[2][0] : 0,
-			bgrEnableVec[2][1] ? binVec[2][1] : 0,
-			bgrEnableVec[2][2] ? binVec[2][2] : 0);
+	if (checkbox_vec[2]->isEnabled())
+		hist_hsv = feat::Histogram(cv::Mat(), HIST_HSV, checkbox_vec_bgr[2][0]->isChecked() ? slider_hist_vec[2][0]->value() : 0,
+			checkbox_vec_bgr[2][1]->isChecked() ? slider_hist_vec[2][1]->value() : 0,
+			checkbox_vec_bgr[2][2]->isChecked() ? slider_hist_vec[2][2]->value() : 0);
 	else
 		hist_hsv = feat::Histogram(cv::Mat(), HIST_HSV, 0, 0, 0);
 
 	feat::Edge edge;
-	if (ui.checkBox_sortEdge)
+	if (ui.checkBox_sortEdge->isChecked())
 		edge = feat::Edge(cv::Mat(), ui.comboBox_edgeFlag->currentIndex(), nullptr,
 			-1, ui.lineEdit_gramagbin->text().toFloat(), ui.lineEdit_gradirbin->text().toFloat());
 	else
 		edge = feat::Edge(cv::Mat(), 0, nullptr, -1, 0, 0);
 	
 	feat::Hash hash;
-	if (ui.checkBox_sortHash)
+	if (ui.checkBox_sortHash->isChecked())
 		hash = feat::Hash(cv::Mat(), std::make_pair(true, true));
+	else
+		hash = feat::Hash(cv::Mat(), std::make_pair(false, false));
 
 	iop::FeatureVector fv(nullptr, &edge, &hist_g, &hist_bgr, &hist_hsv, &hash);
 
@@ -376,26 +468,17 @@ void SortDialog::buildFeatureVector() {
 
 void SortDialog::displayButtons_BGR(int state) {
 	if (state == 0) {
-		enableHistG(enableVec[0]);
+		enableHistG(ui.checkBox_sorthistg->isChecked());
 		ui.stackedWidget->setCurrentIndex(0);
 	}
 	else if (state == 1) {
 		ui.stackedWidget->setCurrentIndex(1);
-		ui.checkBox_B->setChecked(bgrEnableVec[1][0]);
-		ui.checkBox_G->setChecked(bgrEnableVec[1][1]);
-		ui.checkBox_R->setChecked(bgrEnableVec[1][2]);
-		enableHistB(enableVec[1]);
+		enableHistB(ui.checkBox_sorthistb->isChecked());
 	}
 	else if (state == 2) {
 		ui.stackedWidget->setCurrentIndex(2);
-		ui.checkBox_B->setChecked(bgrEnableVec[2][0]);
-		ui.checkBox_G->setChecked(bgrEnableVec[2][1]);
-		ui.checkBox_R->setChecked(bgrEnableVec[2][2]);
-		enableHistH(enableVec[2]);
+		enableHistH(ui.checkBox_sorthisth->isChecked());
 	}
-	if (binstate != nullptr)
-		delete(binstate);
-	binstate = new int(state);
 }
 
 MainWindow::MainWindow(dbop::Database dbObj, QWidget *parent) : QMainWindow(parent) {
@@ -407,6 +490,7 @@ MainWindow::MainWindow(dbop::Database dbObj, QWidget *parent) : QMainWindow(pare
 	QResource::registerResource("Resource.rcc");
 
 	mw_dbPtr = &dbObj;
+	//lnkr::deleteFromSimAndWV(); TODO: UNCOM THIS
 
 	qDB = QSqlDatabase::addDatabase("QSQLITE");
 	qDB.setDatabaseName("C:/Users/ASUS/source/repos/bpv2/bpv2/bitirme.db");
@@ -415,32 +499,44 @@ MainWindow::MainWindow(dbop::Database dbObj, QWidget *parent) : QMainWindow(pare
 		showError(qDB.lastError());
 
 	resultModel = new TableModel;
-	resultModel->setQuery("SELECT DISTINCT icon.mat, b.name, similarity.similarity"
-		" FROM icon, image a, image b"
-		" INNER JOIN imageicon"
-		" ON imageicon.imhash = b.hash and imageicon.iconhash = icon.hash"
+	
+	resultModel->setQuery("SELECT DISTINCT b.dir, b.name, similarity.similarity, b.hash"
+		" FROM image a, image b"
 		" INNER JOIN similarity"
 		" ON similarity.srchash = a.hash and similarity.desthash = b.hash", qDB);
-	ui.resultTableView->setModel(resultModel);
+
+	proxyModel_result = new QSortFilterProxyModel;
+	proxyModel_result->setDynamicSortFilter(true);
+	proxyModel_result->setSourceModel(resultModel);
+	ui.resultTableView->setModel(proxyModel_result);
+	ui.resultTableView->setSortingEnabled(true);
 	resultModel->setHeaderData(0, Qt::Horizontal, tr("Thumbnail"), Qt::DecorationRole);
 	resultModel->setHeaderData(1, Qt::Horizontal, tr("Name"));
 	resultModel->setHeaderData(2, Qt::Horizontal, tr("Similarity"));
+	resultModel->setHeaderData(3, Qt::Horizontal, tr("Hash"));
+
+	ui.resultTableView->setColumnHidden(3, true);
 	
 	ui.resultTableView->verticalHeader()->setSectionResizeMode(QHeaderView::Fixed);
 	ui.resultTableView->verticalHeader()->setDefaultSectionSize(100);
 	ui.resultTableView->verticalHeader()->setVisible(false);
 
 	ui.resultTableView->horizontalHeader()->setModel(resultModel);
-	ui.resultTableView->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Fixed);
+	ui.resultTableView->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
 	ui.resultTableView->verticalHeader()->setDefaultSectionSize(100);
 	ui.resultTableView->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
 	ui.resultTableView->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
 
-	mainModel = new TableModel;
-	mainModel->setQuery("SELECT DISTINCT icon.mat, a.name, a.hash"
+	ui.resultTableView->setContextMenuPolicy(Qt::CustomContextMenu);
+
+	/*"SELECT DISTINCT icon.mat, a.name, a.hash"
 		" FROM icon, image a"
 		" INNER JOIN imageicon"
-		" ON imageicon.imhash = a.hash and imageicon.iconhash = icon.hash", qDB);
+		" ON imageicon.imhash = a.hash and imageicon.iconhash = icon.hash"*/
+
+	mainModel = new TableModel;
+	mainModel->setQuery("SELECT DISTINCT a.dir, a.name, a.hash"
+		" FROM image a" , qDB);
 	ui.mainTableView->setModel(mainModel);
 	mainModel->setHeaderData(0, Qt::Horizontal, tr("Thumbnail"), Qt::DecorationRole);
 	mainModel->setHeaderData(1, Qt::Horizontal, tr("Name"));
@@ -453,7 +549,7 @@ MainWindow::MainWindow(dbop::Database dbObj, QWidget *parent) : QMainWindow(pare
 	ui.mainTableView->verticalHeader()->setVisible(false);
 
 	ui.mainTableView->horizontalHeader()->setModel(mainModel);
-	ui.mainTableView->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Fixed);
+	ui.mainTableView->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
 	ui.mainTableView->verticalHeader()->setDefaultSectionSize(100);
 	ui.mainTableView->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
 
@@ -501,15 +597,18 @@ MainWindow::MainWindow(dbop::Database dbObj, QWidget *parent) : QMainWindow(pare
 	ui.lineEdit_sigma->setEnabled(false);
 
 	QObject MWObject;
+	MWObject.connect(ui.pushButton_switch, SIGNAL(clicked()), this, SLOT(switchTables()));
 	MWObject.connect(ui.pushButton_srcImgLabel, SIGNAL(clicked()), this, SLOT(openImageLabel()));
 	MWObject.connect(ui.comboBox_edgeFlag, SIGNAL(currentIndexChanged(int)), this, SLOT(enableCanny(int)));
 	MWObject.connect(ui.pushButton_sort, SIGNAL(clicked()), this, SLOT(compareImages()));
 	MWObject.connect(ui.pushButton_loadImgs, SIGNAL(clicked()), this, SLOT(openList()));
 	MWObject.connect(ui.pushButton_dispInDet, SIGNAL(clicked()), this, SLOT(displayFeature()));
 	MWObject.connect(ui.comboBox_histFlag, SIGNAL(currentIndexChanged(int)), this, SLOT(displayButtons_BGR()));
-	MWObject.connect(ui.mainTableView, SIGNAL(customContextMenuRequested(QPoint)), this, SLOT(customMenuRequested(QPoint)));
+	MWObject.connect(ui.mainTableView, SIGNAL(customContextMenuRequested(QPoint)), this, SLOT(customMenuRequested_main(QPoint)));
+	MWObject.connect(ui.resultTableView, SIGNAL(customContextMenuRequested(QPoint)), this, SLOT(customMenuRequested_result(QPoint)));
 	MWObject.connect(ui.toolButton_settings, SIGNAL(clicked()), this, SLOT(openSortDialog()));
 	MWObject.connect(ui.checkBox_icon, SIGNAL(toggled(bool)), this, SLOT(showIcons(bool)));
+	MWObject.connect(ui.pushButton_sort, SIGNAL(clicked()), this, SLOT(compareMain()));
 	MWObject.connect(ui.horizontalSlider_fbin, &QSlider::sliderMoved,
 		[&](int value) {
 #if 0 // not so nice -> delayed
@@ -538,7 +637,7 @@ MainWindow::MainWindow(dbop::Database dbObj, QWidget *parent) : QMainWindow(pare
 }
 
 MainWindow::~MainWindow(){
-	mw_dbPtr->delete_GENERAL(std::vector<string>{"sourceimage"});
+	lnkr::deleteFromSimAndWV();
 }
 
 void MainWindow::setIcons() {
@@ -558,8 +657,17 @@ void MainWindow::setIcons() {
 }
 
 void MainWindow::openSortDialog() {
-	SortDialog sortDialog(this);
+	SortDialog sortDialog(this, currentfv, currentwv);
 	sortDialog.exec();
+}
+
+void MainWindow::openDetailDialog(iop::Comparison* comp, iop::WeightVector* wvec) {
+	if (!wvec) {
+		throw std::exception("Define weight vector first.");
+		return;
+	}
+	DetailDialog detailDialog(this, comp, wvec);
+	detailDialog.exec();
 }
 
 void MainWindow::showError(const QSqlError& err) {
@@ -576,12 +684,16 @@ Ui::MainWindow MainWindow::getUI() {
 }
 
 void MainWindow::setFeatureVector(iop::FeatureVector returnfv, iop::WeightVector returnwv) {
-	if (currentfv)
+	if (currentfv) {
 		delete(currentfv);
+		currentfv = nullptr;
+	}
 	currentfv = new iop::FeatureVector(returnfv);
 
-	if (currentwv)
+	if (currentwv) {
 		delete(currentwv);
+		currentwv = nullptr;
+	}
 	currentwv = new iop::WeightVector(returnwv);
 }
 
@@ -651,8 +763,16 @@ void MainWindow::scaleImage(QImage& image, QLabel* imlabel, QWidget* frame) {
 
 void MainWindow::displayFeature() {
 	int index = ui.tabWidget_comparison->currentIndex();
-	img::Image srcImg = mw_dbPtr->select_SourceImage();
-	img::Image destImg = mw_dbPtr->select_DestinationImage();
+	if (!source_img) {
+		throw std::exception("Source image must be picked first.");
+		return;
+	}
+	else if (!dest_img) {
+		throw std::exception("Comparison image(right hand) must be picked first.");
+		return;
+	}
+	img::Image srcImg = *source_img;
+	img::Image destImg = *dest_img;
 
 	QImage srcImgScaled = cvMatToQImage(srcImg.getImageMat());
 	QImage destImgScaled = cvMatToQImage(destImg.getImageMat());
@@ -689,6 +809,7 @@ void MainWindow::displayFeature() {
 void MainWindow::displayHash(img::Image* src) {
 	if (ui.label_imgSrc->pixmap()->isNull()) {
 		throw std::exception("Unable to locate source image. Load image to source first.");
+		return;
 	}
 	else {
 		/*string srcDHash = feat::Hash::imageHashing_dHash(QImageToCvMat(ui.label_imgSrc->pixmap()->toImage())).to_string();
@@ -701,6 +822,7 @@ void MainWindow::displayHash(img::Image* src) {
 	}
 	else {
 		throw std::exception("Unable to locate comparison image. Load image to compare first.");
+		return;
 	}
 }
 
@@ -886,7 +1008,7 @@ void MainWindow::displayEdge(img::Image* src, bool source) {
 			break;
 		default:
 			throw std::exception("Illegal kernel flag.");
-			break;
+			return;
 		}
 		feat::Edge::Canny* canny = new feat::Edge::Canny(edgeVals[1], edgeVals[4], edgeVals[3], edgeVals[2], kernelX, kernelY);
 		srcEdge = lnkr::setEdge(src, edgeVals[0], canny);
@@ -1038,8 +1160,26 @@ bool MainWindow::loadFile(const QString& fileName, bool source)
 	setImage(source ? ui.label_imgSrc : ui.label_imgDest, newImage);
 
 	setWindowFilePath(fileName);
-	source ? lnkr::setSourceImage(QDir::cleanPath(fileName).toStdString(), cv::IMREAD_COLOR) 
-		: lnkr::setDestinationImage(QDir::cleanPath(fileName).toStdString(), cv::IMREAD_COLOR);
+	if (source) {
+		auto* temp = new img::Image(lnkr::setSourceImage(QDir::cleanPath(fileName).toStdString(), cv::IMREAD_COLOR));
+		if (source_img) {
+			if (gen::cmpMat(temp->getImageMat(), source_img->getImageMat()));
+			else { 
+				delete(source_img); 
+				source_img = temp;
+				lnkr::deleteFromSimAndWV();
+				refreshTable(resultModel);
+			}
+		}
+		else {
+			source_img = temp;
+		}		
+	}
+	else if (!source) {
+		if (dest_img)
+			delete(dest_img);
+		dest_img = new img::Image(lnkr::setDestinationImage(QDir::cleanPath(fileName).toStdString(), cv::IMREAD_COLOR));
+	}
 
 	return true;
 }
@@ -1099,11 +1239,8 @@ void MainWindow::openImageLabel()
 
 void MainWindow::addToMainTable(img::Image* image) {
 	lnkr::addToMainTable(image);
-	mainModel->query().exec();
-	mainModel->setQuery(mainModel->query());
+	refreshTable(mainModel);
 }
-
-
 
 void MainWindow::createActions()
 //! [17] //! [18]
@@ -1111,15 +1248,12 @@ void MainWindow::createActions()
 	
 }
 
-void MainWindow::customMenuRequested(QPoint pos) {
+void MainWindow::customMenuRequested_main(QPoint pos) {
 	QModelIndex index = ui.mainTableView->indexAt(pos);
 	auto hash = mainModel->data(index.siblingAtColumn(2));
-	QSqlQuery query("SELECT dir FROM image WHERE hash='" + hash.toString() + "'", qDB);
-	query.exec();
-	while (query.next()) {
-		if(dir) delete(dir);
-		dir = new QString(query.value(0).toString());
-	}
+	if (dir)
+		delete(dir);
+	dir = new QString(lnkr::getImageDir(hash.toString().toStdString()).c_str());
 
 	QMenu* menu = new QMenu(this);
 	QAction* action1 = new QAction("Pick as source image", menu);
@@ -1132,6 +1266,7 @@ void MainWindow::customMenuRequested(QPoint pos) {
 	menu->addAction(action2);
 	menu->addAction(action3);
 	menu->addAction(action4);
+	menu->addAction(action5);
 	menu->popup(ui.mainTableView->viewport()->mapToGlobal(pos));
 
 	QObject::connect(action1, &QAction::triggered, this, [this] { loadFile(*dir); });
@@ -1141,18 +1276,56 @@ void MainWindow::customMenuRequested(QPoint pos) {
 	QObject::connect(action5, &QAction::triggered, this, [this] { copyToClipboard(*dir, true); });
 }
 
+void MainWindow::customMenuRequested_result(QPoint pos) {
+	
+	QModelIndex index_proxy = ui.resultTableView->indexAt(pos);
+	auto index_result = proxyModel_result->mapToSource(index_proxy);
+	auto hash = resultModel->data(index_result.siblingAtColumn(3)).toString().toStdString();
+	if (dir) 
+		delete(dir);
+	dir = new QString(lnkr::getImageDir(hash).c_str());
+
+	if (currentcomp)
+		delete(currentcomp);
+	currentcomp = new iop::Comparison(lnkr::getRawComparison(hash, false));
+
+	QMenu* menu = new QMenu(this);
+	QAction* action1 = new QAction("Pick as source image", menu);
+	QAction* action2 = new QAction("Pick as comparison image", menu);
+	QAction* action3 = new QAction("Delete from table(will also delete from database)", menu);
+	QAction* action4 = new QAction("Copy full path to clipboard", menu);
+	QAction* action5 = new QAction("Copy folder path to clipboard", menu);
+	QAction* action6 = new QAction("View details...", menu);
+
+	menu->addAction(action1);
+	menu->addAction(action2);
+	menu->addAction(action3);
+	menu->addAction(action4);
+	menu->addAction(action5);
+	menu->addAction(action6);
+	menu->popup(ui.mainTableView->viewport()->mapToGlobal(pos));
+
+	QObject::connect(action1, &QAction::triggered, this, [&] { loadFile(*dir); });
+	QObject::connect(action2, &QAction::triggered, this, [this] { loadFile(*dir, false); });
+	QObject::connect(action3, &QAction::triggered, this, [this] { deleteImage(*dir); });
+	QObject::connect(action4, &QAction::triggered, this, [this] { copyToClipboard(*dir); });
+	QObject::connect(action5, &QAction::triggered, this, [this] { copyToClipboard(*dir, true); });
+	QObject::connect(action6, &QAction::triggered, this, [&] { openDetailDialog(currentcomp, currentwv); });
+}
+
 void MainWindow::copyToClipboard(QString& str, bool folder) {
 	QClipboard* clipboard = QApplication::clipboard();
 
 	if (folder) {
 		QString folderPath;
+		string oper = str.toStdString();
 		int j = 0;
-		for (int i = 0; i < dir->size(); i++) {
-			if (dir[i] == '/' || dir[i] == '\\') {
+		for (int i = 0; i < oper.size(); i++) {
+			if (oper[i] == '/' || oper[i] == '\\') {
 				j = i;
 			}
 		}
-		folderPath = str.toStdString().substr(0, j + 1).c_str();
+		folderPath = oper.substr(0, j + 1).c_str();
 		clipboard->setText(folderPath);
 		statusBar()->showMessage("Directory " + folderPath + " copied to clipboard.", 5000);
 	}
@@ -1165,33 +1338,12 @@ void MainWindow::copyToClipboard(QString& str, bool folder) {
 void MainWindow::deleteImage(QString& fileName) {
 	auto image = lnkr::createImage(fileName.toStdString(), cv::IMREAD_COLOR);
 	lnkr::deleteImage(&image);
-	mainModel->query().exec();
-	mainModel->setQuery(mainModel->query());
+	refreshTable(mainModel);
 }
 
-void MainWindow::refreshTable(TableModel* table, bool main) {
-	QString query = table->query().executedQuery();
-	table->clear();
-	table->query().clear();
-	table->setQuery(query);
-	if (main) {
-		mainModel->setHeaderData(0, Qt::Horizontal, tr("Thumbnail"), Qt::DecorationRole);
-		mainModel->setHeaderData(1, Qt::Horizontal, tr("Name"));
-		mainModel->setHeaderData(2, Qt::Horizontal, tr("Hash"));
-
-		ui.mainTableView->setColumnHidden(2, true);
-
-		ui.mainTableView->verticalHeader()->setSectionResizeMode(QHeaderView::Fixed);
-		ui.mainTableView->verticalHeader()->setDefaultSectionSize(100);
-		ui.mainTableView->verticalHeader()->setVisible(false);
-
-		ui.mainTableView->horizontalHeader()->setModel(mainModel);
-		ui.mainTableView->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Fixed);
-		ui.mainTableView->verticalHeader()->setDefaultSectionSize(100);
-		ui.mainTableView->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
-
-		ui.mainTableView->setContextMenuPolicy(Qt::CustomContextMenu);
-	}
+void MainWindow::refreshTable(TableModel* table) {
+	table->query().exec();
+	table->setQuery(table->query());
 }
 
 void MainWindow::enableCanny(int state) {
@@ -1209,4 +1361,104 @@ void MainWindow::enableCanny(int state) {
 		ui.lineEdit_thigh->setEnabled(false);
 		ui.lineEdit_sigma->setEnabled(false);
 	}
+}
+
+void MainWindow::compareMain() {
+	if (!currentfv && !currentwv) {
+		openSortDialog();
+		return;
+	}
+	else if (!currentfv && currentwv || currentfv && !currentwv) {
+		throw std::exception("One of feature vector or weight vector can't be null. They must both have the same state.");
+		return;
+	}
+
+	lnkr::deleteFromSimAndWV();
+
+	if (!source_img) {
+		throw std::exception("Source image must be picked first.");
+		return;
+	}
+
+	auto fv = *currentfv;
+	auto* source_image = new img::Image(*source_img);
+	auto recommended = 200;
+	auto source_mat = source_image->getImageMat();
+
+	auto fv_edge = *fv.edge;
+	feat::Edge* source_edge = nullptr;
+
+	if (!fv.edge->empty()) {
+		auto height = source_mat.rows;
+		auto width = source_mat.cols;
+		if (height > width) {
+			auto temp = recommended;
+			width = recommended * width / height;
+			height = temp;
+		}
+		else {
+			auto temp = recommended;
+			height = recommended * height / width;
+			width = temp;
+		}
+		source_edge = new feat::Edge(source_mat, fv_edge.getEdgeFlag(), fv_edge.getCannyPtr(),
+			width, fv_edge.getComparisonValues()[1], fv_edge.getComparisonValues()[2]);
+	}
+
+	auto fv_hgray = *fv.hist_gray;
+	feat::Histogram* source_hgray = nullptr;
+	if (!fv_hgray.empty()) {
+		source_hgray = new feat::Histogram(source_mat, static_cast<int>(fv_hgray.getVariablesFloat()[0]),
+			static_cast<int>(fv_hgray.getVariablesFloat()[1]), static_cast<int>(fv_hgray.getVariablesFloat()[2]),
+			static_cast<int>(fv_hgray.getVariablesFloat()[3]));
+	}
+
+	auto fv_hbgr = *fv.hist_bgr;
+	feat::Histogram* source_hbgr = nullptr;
+	if (!fv_hbgr.empty()) {
+		source_hbgr = new feat::Histogram(source_mat, static_cast<int>(fv_hbgr.getVariablesFloat()[0]),
+			static_cast<int>(fv_hbgr.getVariablesFloat()[1]), static_cast<int>(fv_hbgr.getVariablesFloat()[2]),
+			static_cast<int>(fv_hbgr.getVariablesFloat()[3]));
+	}
+
+	auto fv_hhsv = *fv.hist_hsv;
+	feat::Histogram* source_hhsv = nullptr;
+	if (!fv_hhsv.empty()) {
+		source_hhsv = new feat::Histogram(source_mat, static_cast<int>(fv_hhsv.getVariablesFloat()[0]),
+			static_cast<int>(fv_hhsv.getVariablesFloat()[1]), static_cast<int>(fv_hhsv.getVariablesFloat()[2]),
+			static_cast<int>(fv_hhsv.getVariablesFloat()[3]));
+	}
+
+	auto fv_hash = *fv.perc_hash;
+	feat::Hash* source_hash = nullptr;
+	if (!fv_hash.empty()) {
+		source_hash = new feat::Hash(source_mat, fv_hash.getSelectHash());
+	}
+
+	auto fv_source = new iop::FeatureVector(source_image, source_edge, source_hgray, source_hbgr, 
+		source_hhsv, source_hash);
+
+	auto wv = *currentwv;
+
+	auto imageVec = lnkr::getImageDirs();
+	if (!comparator)
+		delete(comparator);
+	comparator = new iop::Comparator();
+
+	comparator->beginMultiCompare(fv_source, imageVec, &wv, 10000);
+	for (auto i : comparator->getComparisonVector(false)) {
+		lnkr::setSimilarity(&i);
+	}
+	lnkr::setWeightVector(&wv);
+	refreshTable(resultModel);
+	ui.stackedWidget_table->setCurrentIndex(1);
+
+	delete(fv_source);
+}
+
+void MainWindow::switchTables() {
+	if (ui.stackedWidget_table->currentIndex() == 0)
+		ui.stackedWidget_table->setCurrentIndex(1);
+	else if (ui.stackedWidget_table->currentIndex() == 1)
+		ui.stackedWidget_table->setCurrentIndex(0);
 }

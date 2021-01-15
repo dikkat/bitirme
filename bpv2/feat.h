@@ -17,34 +17,49 @@ namespace feat {
 	extern cv::Mat robertX;
 	extern cv::Mat robertY;
 
+	class Feature {
+	public:
+		virtual bool skeleton() = 0;
+		virtual bool empty() = 0;
+	};
+
 	class Gradient;
 
-	class Hash {
+	class Hash : public Feature {
 	public:
 		Hash() {}
-		Hash(cv::Mat const imageMat, std::pair<bool, bool> selectHash);
+		//01 FOR D, 10 FOR P, 11 FOR BOTH
+		Hash(cv::Mat const sourceMat, std::pair<bool, bool> selectHash = std::make_pair(true, true));
 		std::pair<std::bitset<64>, std::bitset<64>> getHashVariables();
+		std::pair<bool, bool> getSelectHash();
 		static XXH64_hash_t hash_xxHash(cv::Mat const inputMat);
 		static XXH64_hash_t setHash(std::vector<cv::Mat>* matVec = nullptr, vecf* floatVec = nullptr);
 		static XXH64_hash_t setHash(std::vector<string> strVec);
+		bool skeleton() override;
+		bool empty() override;
 	private:
+		cv::Mat sourceMat;
 		std::bitset<64> dHash = NULL;
 		std::bitset<64> pHash = NULL;
 		std::bitset<64> imageHashing_dHash(cv::Mat const imageMat);
 		std::bitset<64> imageHashing_pHash(cv::Mat const imageMat);
+		std::pair<bool, bool> selectHash;
 	};
 
-	class Histogram {
+	class Histogram : public Feature {
 	public:
 		Histogram(cv::Mat imageMat, int flag = HIST_BGR, int fb = 10, int sb = 4, int tb = 4);
 		Histogram() {};
 		cv::Mat getHistogramMat();
 		cv::Mat getNormalizedHistogramMat();
 		int* getBin();
+		//flag, fbin, sbin, tbin
 		vecf getVariablesFloat();
 		XXH64_hash_t getHash();
-		cv::Mat createHistogramDisplayImage(std::vector<cv::Mat> bgrhist, int hist_w, int hist_h); //OUTDATED
-		cv::Mat createHistogramDisplayImage(int hist_w, int hist_h); //OUTDATED
+		//cv::Mat createHistogramDisplayImage(std::vector<cv::Mat> bgrhist, int hist_w, int hist_h); //OUTDATED
+		//cv::Mat createHistogramDisplayImage(int hist_w, int hist_h); //OUTDATED
+		bool skeleton() override;
+		bool empty() override;
 	private:
 		XXH64_hash_t hash;
 		cv::Mat sourceMat;
@@ -60,66 +75,7 @@ namespace feat {
 		std::vector<cv::Mat> histogramBGRSeparateCalculation(cv::Mat sourceMat);
 	};
 
-	class Edge {
-	public:
-		class Canny {
-		public:
-			Canny(float gaussKernelSize = 31, float sigma = 1.4, float thigh = 0.13, float tlow = 0.075, 
-				cv::Mat kernelx = feat::prewittX, cv::Mat kernely = feat::prewittY) :
-				gaussKernelSize(gaussKernelSize), sigma(sigma), thigh(thigh), tlow(tlow), kernelx(kernelx), kernely(kernely) {
-				setHash();
-			}
-			~Canny();
-			cv::Mat edgeDetectionCanny(cv::Mat const imageMat);
-			//void setVariables(string varName, float fltVal = 0, cv::Mat matVal = cv::Mat());
-			vecf getVariablesFloat();
-			std::vector<cv::Mat> getVariablesMat();
-			XXH64_hash_t getHash();
-		private:
-			friend class Edge;
-			XXH64_hash_t hash;
-			Edge* parent;
-			cv::Mat sourceMat;
-			float gaussKernelSize;
-			float thigh;
-			float tlow;
-			float sigma;
-			cv::Mat kernelx;
-			cv::Mat kernely;
-			void setHash();
-			cv::Mat calculate(cv::Mat const imageMat);
-			cv::Mat nonMaximumSuppression(cv::Mat& dirMat, cv::Mat& magMat);
-			void performHysteresis(cv::Mat& resultMat, float weak, float strong);
-			void doubleThreshold(cv::Mat& resultMat, cv::Mat const magMat, float max, float tlow, float thigh, float weakratio);
-		}; //HAUSDORFF DISTANCE FOR EDGE COMPARISON ALSO MAYBE SIFT ALGORITHM
-		Edge(cv::Mat imageMat, int flag, feat::Edge::Canny* edc, float recommendedWidth = -1,
-			int magbin = 10, int dirbin = 8);
-		Edge(){}
-		~Edge();
-		int getEdgeFlag();
-		std::vector<XXH64_hash_t> getHashVariables();
-		cv::Mat getEdgeMat();
-		Canny* getCannyPtr();
-		Gradient* getGradientPtr();
-		std::vector<int> getComparisonValues();
-	private:
-		XXH64_hash_t hash;
-		XXH64_hash_t* edcHash = nullptr;
-		Canny* child_edc = nullptr;
-		Gradient* grad = nullptr;
-		int edgeFlag = -1;
-		int magbin = 10;
-		int dirbin = 8;
-		int recommendedWidth;
-		cv::Mat edgeMat;
-		cv::Mat edgeDetectionSobel(cv::Mat const imageMat);
-		cv::Mat edgeDetectionPrewitt(cv::Mat const imageMat);
-		cv::Mat edgeDetectionRobertsCross(cv::Mat const imageMat);
-		cv::Mat edgeDetectionDeriche(cv::Mat const imageMat, float alpha);
-		cv::Mat commonOperationsSPR(cv::Mat const kernelx, cv::Mat const kernely, cv::Mat const imat);
-	};
-
-	class Gradient {
+	class Gradient : public Feature {
 	public:
 		Gradient() {};
 		Gradient(cv::Mat const imageMat, cv::Mat const kernelx, cv::Mat const kernely, float magbin = 10, float dirbin = 8);
@@ -135,9 +91,93 @@ namespace feat {
 		std::pair<feat::Histogram, feat::Histogram> calculateEdgeGradientHistograms(cv::Mat magMat,
 			cv::Mat dirMat, int magbin, int dirbin);
 		std::pair<cv::Mat, cv::Mat> calculateEdgeGradientMagnitudeDirection(cv::Mat const kx, cv::Mat const ky, cv::Mat const imat);
+		bool skeleton() override {}
+		bool empty() override {}
 	};
 
-	class Corner {
+	class Edge : public Feature {
+	public:
+		class Canny {
+		public:
+			Canny(float gaussKernelSize = 31, float sigma = 1.4, float thigh = 0.13, float tlow = 0.075, 
+				cv::Mat kernelx = feat::prewittX, cv::Mat kernely = feat::prewittY) :
+				gaussKernelSize(gaussKernelSize), sigma(sigma), thigh(thigh), tlow(tlow), kernelx(kernelx), kernely(kernely) {
+				setHash();
+			}
+			cv::Mat edgeDetectionCanny(cv::Mat const imageMat);
+			//void setVariables(string varName, float fltVal = 0, cv::Mat matVal = cv::Mat());
+			vecf getVariablesFloat();
+			std::vector<cv::Mat> getVariablesMat();
+			XXH64_hash_t getHash();
+		private:
+			friend class Edge;
+			XXH64_hash_t hash;
+			Edge* parent = nullptr;
+			cv::Mat sourceMat;
+			float gaussKernelSize;
+			float thigh;
+			float tlow;
+			float sigma;
+			cv::Mat kernelx;
+			cv::Mat kernely;
+			void setHash();
+			cv::Mat calculate(cv::Mat const imageMat);
+			cv::Mat nonMaximumSuppression(cv::Mat& dirMat, cv::Mat& magMat);
+			void performHysteresis(cv::Mat& resultMat, float weak, float strong);
+			void doubleThreshold(cv::Mat& resultMat, cv::Mat const magMat, float max, float tlow, float thigh, float weakratio);
+		}; //HAUSDORFF DISTANCE FOR EDGE COMPARISON ALSO MAYBE SIFT ALGORITHM
+		Edge(cv::Mat sourceMat, int flag = EDGE_SOBEL, feat::Edge::Canny* edc = nullptr, float recommendedWidth = -1,
+			int magbin = 10, int dirbin = 8);
+		Edge(){}
+		~Edge();
+		Edge(const Edge& other);
+		Edge& operator=(const Edge& other) {
+			if (other.child_edc) {
+				this->child_edc = new Canny(*other.child_edc);
+				this->child_edc->parent = this;
+				this->edcHash = &this->child_edc->hash;
+			}
+			if (!other.sourceMat.empty()) {
+				this->grad = new Gradient(*other.grad);
+				this->sourceMat = other.sourceMat;
+				this->edgeMat = other.edgeMat;
+			}
+			this->dirbin = other.dirbin;
+			this->edgeFlag = other.edgeFlag;
+			this->hash = other.hash;
+			this->magbin = other.magbin;
+			this->recommendedWidth = other.recommendedWidth;
+			
+			return *this;
+		}
+		int getEdgeFlag();
+		std::vector<XXH64_hash_t> getHashVariables();
+		cv::Mat getEdgeMat();
+		Canny* getCannyPtr();
+		Gradient* getGradientPtr();
+		//recommendedWidth, magbin, dirbin
+		std::vector<int> getComparisonValues();
+		bool skeleton() override;
+		bool empty() override;
+	private:
+		XXH64_hash_t hash;
+		XXH64_hash_t* edcHash = nullptr;
+		Canny* child_edc = nullptr;
+		Gradient* grad = nullptr;
+		int edgeFlag = -1;
+		int magbin = 10;
+		int dirbin = 8;
+		int recommendedWidth;
+		cv::Mat sourceMat;
+		cv::Mat edgeMat;
+		cv::Mat edgeDetectionSobel(cv::Mat const imageMat);
+		cv::Mat edgeDetectionPrewitt(cv::Mat const imageMat);
+		cv::Mat edgeDetectionRobertsCross(cv::Mat const imageMat);
+		cv::Mat edgeDetectionDeriche(cv::Mat const imageMat, float alpha);
+		cv::Mat commonOperationsSPR(cv::Mat const kernelx, cv::Mat const kernely, cv::Mat const imat);
+	};
+
+	class Corner : public Feature {
 	public:
 		//NEED FURTHER EXPLORATION, IF I HAVE ENOUGH TIME I WOULD LIKE TO ADD HARRIS AFFINE DETECTOR AND BRISK DETECTOR	
 		class Harris {
@@ -181,6 +221,8 @@ namespace feat {
 			float numOfPoints = 100, float radius = 2, float thickness = 2, cv::Scalar pointColor = { 255,0,255 });
 		static cv::Mat cornerDetectionHarrisLaplace(cv::Mat imageMat, feat::Corner::Harris* cdh, float n = 3, float scaleRatio = 0);
 		static void localMaxima(cv::Mat src, cv::Mat& dst, int squareSize, float threshold);
+		bool skeleton() override {}
+		bool empty() override {}
 	private:
 		XXH64_hash_t hash;
 		XXH64_hash_t* cdhHash = nullptr;

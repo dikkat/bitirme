@@ -42,6 +42,23 @@ cv::Mat gen::realNormalize(cv::Mat operand, int bins) {
 	return newMat;
 }
 
+string gen::format(float f) {
+	float error = 0.002;
+	if (abs(f - roundf(f)) < error) {
+		int i = roundf(f);
+		return std::to_string(i);
+	}
+	else {
+		std::stringstream stream;
+		stream << std::fixed << std::setprecision(3) << f;
+		return stream.str();
+	}
+}
+
+bool gen::cmpMat(cv::Mat lh, cv::Mat rh) {
+	return cv::countNonZero(lh != rh) == 0;
+}
+
 //ONLY FOR STORAGE MOVE TO SOMEWHERE ELSE
 //void calculateMeanTimes() {
 //	auto resize = [](cv::Mat mat, int size) {
@@ -471,3 +488,91 @@ cv::Mat gen::realNormalize(cv::Mat operand, int bins) {
 		}
 	}
 	finalLog.close();*/
+
+
+
+
+
+/*iop::Comparator cmp;
+	{
+		auto tedge = feat::Edge(imb.getImageMat(), EDGE_SOBEL, nullptr);
+		auto thgray = feat::Histogram(imb.getImageMat(), HIST_GRAY, 10);
+		auto thbgr = feat::Histogram(imb.getImageMat(), HIST_BGR, 10, 10, 10);
+		auto thhsv = feat::Histogram(imb.getImageMat(), HIST_HSV, 10, 10, 10);
+		auto thash = feat::Hash(imb.getImageMat(), std::make_pair(true, true));
+		iop::FeatureVector fva(&imb, nullptr, &tedge, &thgray, &thbgr, &thhsv, &thash);
+		iop::FeatureVector* source = &fva;
+		iop::WeightVector wv(true);
+		/*lnkr::insertDirectoryToDB(diriter("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench/full"), 2000);
+		cmp.beginMultiCompare(&fva, &wv, 8000);
+		auto compVec = cmp.getComparisonVector(true);
+		int j = 0;
+std::vector<string> strVec{
+		"C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench/full/ukbench00288.jpg",
+		"C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench/full/ukbench00943.jpg",
+		"C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench/full/ukbench00289.jpg",
+		"C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench/full/ukbench00291.jpg",
+		"C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench/full/ukbench04028.jpg",
+		"C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/iaprtc12/images/04/4225.jpg",
+		"C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench/full/ukbench00463.jpg",
+		"C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench/full/ukbench00522.jpg",
+		"C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench/full/ukbench01142.jpg",
+		"C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench/full/ukbench01532.jpg",
+		"C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench/full/ukbench01653.jpg",
+		"C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench/full/ukbench01169.jpg",
+		"C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench/full/ukbench02951.jpg",
+		"C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench/full/ukbench00290.jpg",
+		"C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench/full/ukbench03488.jpg",
+		"C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench/full/ukbench00339.jpg",
+		"C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench/full/ukbench02384.jpg",
+		"C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench/full/ukbench00942.jpg",
+		"C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/iaprtc12/images/05/5016.jpg",
+		"C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench/full/ukbench02263.jpg",
+		"C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/iaprtc12/images/03/3313.jpg" };
+std::vector<iop::Comparison> compVec;
+for (int i = 0; i < 20; i++) {
+	cv::Mat loopMat = cv::imread(strVec[i], cv::IMREAD_COLOR);
+	img::Image img(strVec[i], cv::IMREAD_COLOR);
+
+	feat::Edge* edge = nullptr;
+	if (source->edge != nullptr) {
+		edge = new feat::Edge(img.getImageMat(), source->edge->getEdgeFlag(), source->edge->getCannyPtr(),
+			source->edge->getComparisonValues()[0], source->edge->getComparisonValues()[1],
+			source->edge->getComparisonValues()[2]);
+	}
+
+	feat::Histogram* hist_gray = nullptr;
+	if (source->hist_gray != nullptr) {
+		hist_gray = new feat::Histogram(img.getImageMat(), HIST_GRAY, source->hist_gray->getBin()[0]);
+	}
+
+	feat::Histogram* hist_bgr = nullptr;
+	if (source->hist_bgr != nullptr) {
+		hist_bgr = new feat::Histogram(img.getImageMat(), HIST_BGR, source->hist_bgr->getBin()[0],
+			source->hist_bgr->getBin()[1], source->hist_bgr->getBin()[2]);
+	}
+
+	feat::Histogram* hist_hsv = nullptr;
+	if (source->hist_hsv != nullptr) {
+		hist_hsv = new feat::Histogram(img.getImageMat(), HIST_HSV, source->hist_hsv->getBin()[0],
+			source->hist_hsv->getBin()[1], source->hist_hsv->getBin()[2]);
+	}
+
+	feat::Hash* perc_hash = nullptr;
+	if (source->perc_hash != nullptr) {
+		perc_hash = new feat::Hash(img.getImageMat(), std::make_pair(
+			source->perc_hash->getHashVariables().first != NULL ? true : false,
+			source->perc_hash->getHashVariables().second != NULL ? true : false));
+	}
+
+	iop::FeatureVector rhand(&img, nullptr, edge, hist_gray, hist_bgr, hist_hsv, perc_hash);
+	compVec.push_back(iop::Comparison(source, &rhand, &wv));
+}
+std::ofstream valFile("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/compvals.txt", std::ios::out);
+for (auto i : compVec) {
+	valFile << i.diff_gradd + i.diff_gradm << " " << i.diff_hgray << " "
+		<< i.diff_hbgrb + i.diff_hbgrg + i.diff_hbgrr << " "
+		<< i.diff_hhsvh + i.diff_hhsvs + i.diff_hhsvv << " "
+		<< i.diff_hash << " " << i.euc_dist << "\n";
+}
+	}*/

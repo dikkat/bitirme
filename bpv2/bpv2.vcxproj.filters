@@ -77,6 +77,9 @@
     <ClCompile Include="..\..\..\..\..\..\Qt\5.14.1\msvc2017_64\include\QCustomPlot\qcustomplot.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="x64\Debug\rcc\qrc_Resources.cpp">
+      <Filter>Resource Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <QtMoc Include="MainWindow.h">
@@ -111,10 +114,53 @@
     <QtUic Include="MainWindow.ui">
       <Filter>Form Files</Filter>
     </QtUic>
+    <QtUic Include="DialogSort.ui">
+      <Filter>Form Files</Filter>
+    </QtUic>
+    <QtUic Include="DialogDetail.ui">
+      <Filter>Form Files</Filter>
+    </QtUic>
   </ItemGroup>
   <ItemGroup>
     <QtRcc Include="Resource.qrc">
       <Filter>Resource Files</Filter>
     </QtRcc>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Resources\iaprtc12\images\00\53.jpg">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="Resources\qt">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="resources\settings.svg">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="resources\sort.svg">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="resources\swap.svg">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="resources\zoom(1).svg">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="resources\zoom.png">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="resources\zoom.svg">
+      <Filter>Resource Files</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="resource.h">
+      <Filter>Generated Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="Resource.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="Resources\qt resources\zoom.png" />
   </ItemGroup>
 </Project>

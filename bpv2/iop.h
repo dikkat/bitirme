@@ -2,9 +2,8 @@
 #include "image.h"
 #include "sim.h"
 #include "feat.h"
-#include "dbop.h"
-#include "linker.h"
 #include <QList>
+#include <mutex>
 
 enum cmpr_flag { SIM_COSSIM, SIM_MANDIST, SIM_EUCDIST, SIM_MINKDIST, SIM_JACSIM, SIM_HISINTR, SIM_CROCOR, SIM_CSQDIST };
 
@@ -12,12 +11,7 @@ namespace img {
 	class Image;
 }
 
-static QList<img::Image> imageList;
-
-static dbop::Database* iop_dbPtr;
-
 namespace iop {
-	void setDatabaseClass(dbop::Database dbObj);
 	bool checkVectorEmpty(vecf operand);
 	std::pair<float, bool> calculateVectorSimilarity(vecf const lh, vecf const rh, int flag);
 	int getMinkowskiOrder();
@@ -27,56 +21,82 @@ namespace iop {
 	class FeatureVector {
 	public:
 		FeatureVector() {}
-		FeatureVector(img::Image* image, std::vector<bool>* enabler = nullptr, feat::Edge* edge = nullptr, feat::Histogram* hist_gray = nullptr,
-			feat::Histogram* hist_bgr = nullptr, feat::Histogram* hist_hsv = nullptr, feat::Hash* perc_hash = nullptr);
-	private:
-		friend class Comparator;
-		friend class Comparison;
-		img::Image* image;
-		std::vector<bool>* enabler;
-		feat::Edge* edge;
-		feat::Histogram *hist_gray, *hist_bgr, *hist_hsv;
-		feat::Hash* perc_hash;
+		FeatureVector(bool def_fv);
+		//EDGE, HISTGRAY, HISTBGR, HISTHSV, DHASH, PHASH
+		FeatureVector(img::Image* image, feat::Edge* edge, feat::Histogram* hist_gray,
+			feat::Histogram* hist_bgr, feat::Histogram* hist_hsv, feat::Hash* perc_hash)
+			: image(image ? new img::Image(*image) : nullptr), edge(edge ? new feat::Edge(*edge) : nullptr), 
+			hist_gray(hist_gray ? new feat::Histogram(*hist_gray) : nullptr), 
+			hist_bgr(hist_bgr ? new feat::Histogram(*hist_bgr) : nullptr), 
+			hist_hsv(hist_hsv ? new feat::Histogram(*hist_hsv) : nullptr),
+			perc_hash(perc_hash ? new feat::Hash(*perc_hash) : nullptr) {}
+		~FeatureVector();
+		FeatureVector(FeatureVector& other) : FeatureVector(other.image, other.edge,
+			other.hist_gray, other.hist_bgr, other.hist_hsv, other.perc_hash) {}
+		FeatureVector& operator=(const FeatureVector other) {
+			if (this == &other)
+				return *this;
+			this->image = new img::Image(*other.image);
+			this->edge = other.edge ? new feat::Edge(*other.edge) : nullptr;
+			this->hist_gray = other.hist_gray ? new feat::Histogram(*other.hist_gray) : nullptr;
+			this->hist_bgr = other.hist_bgr ? new feat::Histogram(*other.hist_bgr) : nullptr;
+			this->hist_hsv = other.hist_hsv ? new feat::Histogram(*other.hist_hsv) : nullptr;
+			this->perc_hash = other.perc_hash ? new feat::Hash(*other.perc_hash) : nullptr;
+			return *this;
+		}
+		img::Image* image = nullptr;
+		feat::Edge* edge = nullptr;
+		feat::Histogram *hist_gray = nullptr, *hist_bgr = nullptr, *hist_hsv = nullptr;
+		feat::Hash* perc_hash = nullptr;
 	};
 	
 	class WeightVector {
 	public:
-		WeightVector() {}
-		WeightVector(std::vector<vecf> wvv_total);
+		WeightVector(bool equal) : WeightVector(&equalf, &equalf, &equalf, &equalf, &equalf) {}
 		WeightVector(vecf* wv_grad = nullptr, float* w_hgray = nullptr, vecf* wv_hbgr = nullptr, 
 			vecf* wv_hhsv = nullptr, vecf* wv_hash = nullptr);
-	private:
-		friend class Comparator;
-		friend class Comparison;
+		WeightVector(float* w_grad = nullptr, float* w_hgray = nullptr, float* w_hbgr = nullptr,
+			float* w_hhsv = nullptr, float* w_hash = nullptr);
+		WeightVector(WeightVector& other) : WeightVector(&other.wv_grad, &other.w_hgray, &other.wv_hbgr,
+			&other.wv_hhsv, &other.wv_hash) {}
+		float equalf = 0.2;
 		float w_hgray = 0;
 		vecf wv_grad, wv_hbgr, wv_hhsv, wv_hash;
-		std::vector<vecf> wvv_total;
+		std::vector<vecf*> wvv_total = { &wv_grad, new vecf{w_hgray}, &wv_hbgr, &wv_hhsv, &wv_hash };
 	};
 
 	class Comparison {
 	public:
+		Comparison() {}
 		Comparison(FeatureVector* source, FeatureVector* rhand, WeightVector* wvec);
-	private:
 		friend class Comparator;
-		FeatureVector* source;
-		FeatureVector* rhand;
-		WeightVector* wvec;
+		FeatureVector* source = nullptr;
+		FeatureVector* rhand = nullptr;
+		WeightVector* wvec = nullptr;
 		string source_dir;
 		string rhand_dir;
 		float euc_dist = 0;
-		float diff_gradm, diff_gradd, diff_hgray, diff_hbgrb, diff_hbgrg, diff_hbgrr;
-		float diff_hhsvh, diff_hhsvs, diff_hhsvv, diff_hash;
+		float diff_gradm = -1, diff_gradd = -1, diff_hgray = -1, diff_hbgrb = -1, diff_hbgrg = -1, 
+			diff_hbgrr = -1, diff_hhsvh = -1, diff_hhsvs = -1, diff_hhsvv = -1, diff_hashd = -1,
+			diff_hashp = -1;
+		std::vector<float*> diff_total{ &diff_gradm, &diff_gradd, &diff_hgray, &diff_hbgrb, &diff_hbgrg, 
+			&diff_hbgrr, &diff_hhsvh, &diff_hhsvs, &diff_hhsvv, &diff_hashd, &diff_hashp, &euc_dist };
+		std::pair<string, string> getDirValues();
+		float getEuclideanDistance();
+		void calculateEuclideanDistance();
 		std::pair<vecf, bool> calculateHistogramSimilarity(feat::Histogram* lh, feat::Histogram* rh,
-			int flagsim, vecf wghtVec);
-		std::pair<vecf, bool> calculateEdgeSimilarity(feat::Edge* lh, feat::Edge* rh, vecf weightVec,
+			int flagsim);
+		std::pair<vecf, bool> calculateEdgeSimilarity(feat::Edge* lh, feat::Edge* rh,
 			int flagsim, int magbin, int dirbin);
-		float calculateHashSimilarity(feat::Hash* lhand, feat::Hash* rhand, vecf weightVec);
+		vecf calculateHashSimilarity(feat::Hash* lhand, feat::Hash* rhand);
 	};
 
 	class Comparator {
 	public:
-		Comparator(FeatureVector* source) : source(source) {};
-		void beginMultiCompare(std::vector<FeatureVector*> destVec, WeightVector* wvec);
+		Comparator() {}
+		std::vector<Comparison> beginMultiCompare(FeatureVector* source, std::vector<string> destVec,
+			WeightVector* wvec, int cmpNum);
+		std::vector<Comparison> getComparisonVector(bool sorted);
 	private:
 		FeatureVector* source;
 		std::vector<Comparison> dest;

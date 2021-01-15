@@ -4,5 +4,14 @@
         <file>Resources/qt resources/zoom.svg</file>
         <file>Resources/qt resources/zoom.png</file>
         <file>Resources/iaprtc12/images/00/53.jpg</file>
+        <file>Resources/qt resources/settings.svg</file>
+        <file>Resources/qt resources/swap.svg</file>
+        <file>Resources/qt resources/sort.svg</file>
+        <file>Resources/qt resources/sort.png</file>
+        <file>Resources/qt resources/settings.png</file>
+        <file>Resources/qt resources/swap.png</file>
+        <file>Resources/qt resources/magnifying-glass.png</file>
+        <file>Resources/qt resources/magnifying-glass(1).png</file>
+        <file>Resources/qt resources/compare.png</file>
     </qresource>
 </RCC>

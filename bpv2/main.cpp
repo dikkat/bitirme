@@ -34,10 +34,18 @@
 		GO BACK TO LINKER.CPP LINE 29 AND INSERT TO ICONIMAGE
 	ADD UHMMMMM WHAT WAS IT YES EDGE COMPARISON METHODS AND MAYBE CORNER ASWELL -- SKIP BUT MUST COME BACK YOU HEAR? MUST
 	CHANGE RESIZE PARAMETERS AT DBOP::INSERT_IMAGE FUNCTION -- DONE
-	LETS NOT FORGET MULTI THREADING
-	CHECK IF POINTERS BE CRAZY AT CORNER HARRIS LAPLACE
-	MAKE CORNER COLOR AND RADIUS CUSTOMIZABLE
-	ADD ZOOMER FUNC TO PAGE 2
+	LETS NOT FORGET MULTI THREADING -- DONE AND DUSTED
+	CHECK IF POINTERS BE CRAZY AT CORNER HARRIS LAPLACE -- DONE
+	MAKE CORNER COLOR AND RADIUS CUSTOMIZABLE -- NAH
+	IF GRAY DISABLE SECOND AND THIRD BIN -- DONE
+	IF NOT ENABLED DISABLE ALL WIDGETS -- DONEY
+	PUT RAW COMPARISON VALUES INTO DATABASE !!!!!!!!!!!!!!!HIGH PRIORITY --DONE
+	MAKE DIR AN ALTERNATE COLUMN TO ICONS !!!!!!!!!! -- LOL SO IMPORTANT
+
+	ADD ZOOMER FUNC TO PAGE 2 --EVENTUALLY
+	CHANGE SERIALIZATION TO CV MAT'S
+	MAKE IT POSSIBLE THAT CHANGING FEATURE VECTOR ELEMENTS DONT NEED COMPLETE RECALCULATION
+	NORMALIZE DIFFERENCE VALUES
 
 	FINISH UNIVERSITY
 	GET A 15K DOLLAR PER MONTH JOB
@@ -82,39 +90,96 @@ int main(int argc, char* argv[])
 	*/
 	img::Image ima("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench/full/ukbench05661.jpg", cv::IMREAD_COLOR);
 	dbop::Database db("bitirme.db");
-	iop::setDatabaseClass(db);
 	lnkr::setDatabaseClass(db);
 
-	using diriter = std::filesystem::directory_iterator;
-	using direntry = std::filesystem::directory_entry;
 	//-------------------------------------------------------------------
-	
-	img::Image imb("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/audi.jpg", cv::IMREAD_COLOR);
-	img::Image imc("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/audiclipped.jpg", cv::IMREAD_COLOR);
-
-	feat::Histogram hist(imb.getImageMat(), HIST_HSV, 255, 255, 255);
-
-	feat::Edge edgea(imb.getImageMat(), EDGE_SOBEL, &feat::Edge::Canny(31,3.6), 400);
-	feat::Edge edgeb(imc.getImageMat(), EDGE_SOBEL, &feat::Edge::Canny(31,3.6), 400);
-
-	iop::FeatureVector fva(&imb, nullptr, &edgea);
-	iop::FeatureVector fvb(&imc, nullptr, &edgeb);
-	iop::WeightVector wv(&vecf{ 0.6, 0.4 });
-	iop::Comparison compVal(&fva, &fvb, &wv); //IT SEEMS WE COOL TEST IT ON LOOP WITH IMAGEREADING
-	
-
-	auto temp = edgea.getEdgeMat();
-	temp = temp * 4;
-	auto tempb = edgeb.getEdgeMat();
-	tempb = tempb * 4;
-	
-	
-	/*feat::Corner::Harris cdh = feat::Corner::Harris(3,3,2.4,1.9);
-	feat::Corner corner(imb.getImageMat(), &cdh, CORNER_HARLAP, 7);
-	auto temp = corner.getCornerMarkedMat();
-	gen::imageTesting(temp, "test");*/
 
 
+	img::Image imb("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench/full/ukbench00302.jpg", cv::IMREAD_COLOR);
+	/*lnkr::setIcon(&imb);
+	auto strvec = db.select_GENERAL({ {"dir"}, {"image"}, {} })[0];
+	for (int i = 0; i < 200; i++) {
+		auto image = img::Image(strvec[i], cv::IMREAD_COLOR);
+		lnkr::setIcon(&image);
+	}*/
+	iop::Comparator cmp;
+	{
+		auto tedge = feat::Edge(imb.getImageMat(), EDGE_SOBEL, nullptr);
+		auto thgray = feat::Histogram(imb.getImageMat(), HIST_GRAY, 10);
+		auto thbgr = feat::Histogram(imb.getImageMat(), HIST_BGR, 10, 10, 10);
+		auto thhsv = feat::Histogram(imb.getImageMat(), HIST_HSV, 10, 10, 10);
+		auto thash = feat::Hash(imb.getImageMat(), std::make_pair(true, true));
+		iop::FeatureVector fva(&imb, &tedge, &thgray, &thbgr, &thhsv, &thash);
+		iop::FeatureVector* source = &fva;
+		iop::WeightVector wv(true);
+		//lnkr::insertDirectoryToDB(diriter("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench/full"), 2000);
+	}
+	//	int j = 0;
+	//	std::vector<string> strVec{
+	//			"C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench/full/ukbench00288.jpg",
+	//			"C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench/full/ukbench00943.jpg",
+	//			"C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench/full/ukbench00289.jpg",
+	//			"C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench/full/ukbench00291.jpg",
+	//			"C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench/full/ukbench04028.jpg",
+	//			"C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/iaprtc12/images/04/4225.jpg",
+	//			"C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench/full/ukbench00463.jpg",
+	//			"C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench/full/ukbench00522.jpg",
+	//			"C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench/full/ukbench01142.jpg",
+	//			"C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench/full/ukbench01532.jpg",
+	//			"C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench/full/ukbench01653.jpg",
+	//			"C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench/full/ukbench01169.jpg",
+	//			"C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench/full/ukbench02951.jpg",
+	//			"C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench/full/ukbench00290.jpg",
+	//			"C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench/full/ukbench03488.jpg",
+	//			"C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench/full/ukbench00339.jpg",
+	//			"C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench/full/ukbench02384.jpg",
+	//			"C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench/full/ukbench00942.jpg",
+	//			"C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/iaprtc12/images/05/5016.jpg",
+	//			"C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench/full/ukbench02263.jpg",
+	//			"C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/iaprtc12/images/03/3313.jpg" };
+	//	std::vector<iop::Comparison> compVec;
+	//	for (int i = 0; i < 20; i++) {
+	//		cv::Mat loopMat = cv::imread(strVec[i], cv::IMREAD_COLOR);
+	//		img::Image img(strVec[i], cv::IMREAD_COLOR);
+
+	//		feat::Edge* edge = nullptr;
+	//		if (source->edge != nullptr) {
+	//			edge = new feat::Edge(img.getImageMat(), source->edge->getEdgeFlag(), source->edge->getCannyPtr(),
+	//				source->edge->getComparisonValues()[0], source->edge->getComparisonValues()[1],
+	//				source->edge->getComparisonValues()[2]);
+	//		}
+
+	//		feat::Histogram* hist_gray = nullptr;
+	//		if (source->hist_gray != nullptr) {
+	//			hist_gray = new feat::Histogram(img.getImageMat(), HIST_GRAY, source->hist_gray->getBin()[0]);
+	//		}
+
+	//		feat::Histogram* hist_bgr = nullptr;
+	//		if (source->hist_bgr != nullptr) {
+	//			hist_bgr = new feat::Histogram(img.getImageMat(), HIST_BGR, source->hist_bgr->getBin()[0],
+	//				source->hist_bgr->getBin()[1], source->hist_bgr->getBin()[2]);
+	//		}
+
+	//		feat::Histogram* hist_hsv = nullptr;
+	//		if (source->hist_hsv != nullptr) {
+	//			hist_hsv = new feat::Histogram(img.getImageMat(), HIST_HSV, source->hist_hsv->getBin()[0],
+	//				source->hist_hsv->getBin()[1], source->hist_hsv->getBin()[2]);
+	//		}
+
+	//		feat::Hash* perc_hash = nullptr;
+	//		if (source->perc_hash != nullptr) {
+	//			perc_hash = new feat::Hash(img.getImageMat(), std::make_pair(
+	//				source->perc_hash->getHashVariables().first != NULL ? true : false,
+	//				source->perc_hash->getHashVariables().second != NULL ? true : false));
+	//		}
+
+	//		iop::FeatureVector rhand(&img, nullptr, edge, hist_gray, hist_bgr, hist_hsv, perc_hash);
+	//		iop::Comparison cmptemp(source, &rhand, &wv);
+	//		lnkr::setSimilarity(&cmptemp);
+	//		lnkr::setIcon(&img);
+	//		compVec.push_back(cmptemp);
+	//	}
+	//}
 	//--------------------------------------------------------------------
 
 	QApplication a(argc, argv);

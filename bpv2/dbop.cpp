@@ -198,7 +198,20 @@ void dbop::Database::initializeTables() {
         sql = "CREATE TABLE Similarity(" \
             "srcHash TEXT NOT NULL," \
             "destHash TEXT NOT NULL," \
-            "similarity INT," \
+			"srcDir TEXT NOT NULL," \
+			"destDir TEXT NOT NULL," \
+			"diff_gradm REAL," \
+			"diff_gradd REAL," \
+			"diff_hgray REAL," \
+			"diff_hbgrb REAL," \
+			"diff_hbgrg REAL," \
+			"diff_hbgrr REAL," \
+			"diff_hhsvh REAL," \
+			"diff_hhsvs REAL," \
+			"diff_hhsvv REAL," \
+			"diff_hashd REAL," \
+			"diff_hashp REAL," \
+            "similarity REAL," \
             "FOREIGN KEY (srcHash)" \
             "REFERENCES Image(hash)" \
             "ON DELETE CASCADE," \
@@ -251,6 +264,26 @@ void dbop::Database::initializeTables() {
         rc = sqlite3_exec(db, sql, callback, 0, &zErrMsg);
         errorCheck(rc, zErrMsg);
     }
+
+	sql = "SELECT name FROM sqlite_master WHERE type='table' and name = 'WeightVector';";
+	rc = sqlite3_get_table(db, sql, &resultp, &row, &col, &zErrMsg);
+	errorCheck(rc, zErrMsg);
+	if (row == 0) {
+		sql = "CREATE TABLE WeightVector(" \
+			"w_gradm REAL," \
+			"w_gradd REAL," \
+			"w_hgray REAL," \
+			"w_hbgrb REAL," \
+			"w_hbgrg REAL," \
+			"w_hbgrr REAL," \
+			"w_hhsvh REAL," \
+			"w_hhsvs REAL," \
+			"w_hhsvv REAL," \
+			"w_hashd REAL," \
+			"w_hashp REAL);";
+		rc = sqlite3_exec(db, sql, callback, 0, &zErrMsg);
+		errorCheck(rc, zErrMsg);
+	}
 }
 
 int dbop::Database::callback(void* data, int argc, char** argv, char** azColName) {
@@ -271,7 +304,7 @@ void dbop::Database::insert_Image(string dir) {
     string name_str = imgOper.getImageName();
 
     sqlite3_stmt* strQuery = NULL;
-    int rc = sqlite3_prepare_v2(db, "INSERT INTO image(hash, iconmat, name, dir) VALUES (?, ?, ?)", -1, &strQuery, NULL);
+    int rc = sqlite3_prepare_v2(db, "INSERT INTO image(hash, name, dir) VALUES (?, ?, ?)", -1, &strQuery, NULL);
     sqlite3_bind_text(strQuery, 1, hash_str.c_str(), hash_str.size(), SQLITE_STATIC);
     sqlite3_bind_text(strQuery, 2, name_str.c_str(), name_str.size(), SQLITE_STATIC);
     sqlite3_bind_text(strQuery, 3, dir.c_str(), dir.size(), SQLITE_STATIC);
@@ -604,7 +637,97 @@ void dbop::Database::insert_ImageCorner(XXH64_hash_t imHash, XXH64_hash_t corner
     errorCheck(rc, zErrMsg);
 }
 
-/*[0]ATTRIBUTES [1]TABLES [2]CONDITIONS*/
+void dbop::Database::insert_Similarity(iop::Comparison comp) {
+	img::Image lhand(comp.source_dir, cv::IMREAD_COLOR);
+	img::Image rhand(comp.rhand_dir, cv::IMREAD_COLOR);
+	string srchash_str = std::to_string(lhand.getHash());
+	string desthash_str = std::to_string(rhand.getHash());
+	string srcdir = lhand.getVariablesString()[1];
+	string destdir = rhand.getVariablesString()[1];
+	double diff_gradm = static_cast<double>(comp.diff_gradm);
+	double diff_gradd = static_cast<double>(comp.diff_gradd);
+	double diff_hgray = static_cast<double>(comp.diff_hgray);
+	double diff_hbgrb = static_cast<double>(comp.diff_hbgrb);
+	double diff_hbgrg = static_cast<double>(comp.diff_hbgrg);
+	double diff_hbgrr = static_cast<double>(comp.diff_hbgrr);
+	double diff_hhsvh = static_cast<double>(comp.diff_hhsvh);
+	double diff_hhsvs = static_cast<double>(comp.diff_hhsvs);
+	double diff_hhsvv = static_cast<double>(comp.diff_hhsvv);
+	double diff_hashd = static_cast<double>(comp.diff_hashd);
+	double diff_hashp = static_cast<double>(comp.diff_hashp);
+	double similarity = static_cast<double>(comp.euc_dist);
+
+	sqlite3_stmt* strQuery = NULL;
+	int rc = sqlite3_prepare_v2(db, "INSERT INTO Similarity(srchash, desthash, srcdir, destdir," \
+		"diff_gradm, diff_gradd, diff_hgray, diff_hbgrb, diff_hbgrg, diff_hbgrr, diff_hhsvh," \
+		"diff_hhsvs, diff_hhsvv, diff_hashd, diff_hashp, similarity)" \
+		"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", -1, &strQuery, NULL);
+	sqlite3_bind_text(strQuery, 1, srchash_str.c_str(), srchash_str.size(), SQLITE_STATIC);
+	sqlite3_bind_text(strQuery, 2, desthash_str.c_str(), desthash_str.size(), SQLITE_STATIC);
+	sqlite3_bind_text(strQuery, 3, srcdir.c_str(), srcdir.size(), SQLITE_STATIC);
+	sqlite3_bind_text(strQuery, 4, destdir.c_str(), destdir.size(), SQLITE_STATIC);
+	sqlite3_bind_double(strQuery, 5, diff_gradm);
+	sqlite3_bind_double(strQuery, 6, diff_gradd);
+	sqlite3_bind_double(strQuery, 7, diff_hgray);
+	sqlite3_bind_double(strQuery, 8, diff_hbgrb);
+	sqlite3_bind_double(strQuery, 9, diff_hbgrg);
+	sqlite3_bind_double(strQuery, 10, diff_hbgrr);
+	sqlite3_bind_double(strQuery, 11, diff_hhsvh);
+	sqlite3_bind_double(strQuery, 12, diff_hhsvs);
+	sqlite3_bind_double(strQuery, 13, diff_hhsvv);
+	sqlite3_bind_double(strQuery, 14, diff_hashd);
+	sqlite3_bind_double(strQuery, 15, diff_hashp);
+	sqlite3_bind_double(strQuery, 16, similarity);
+	rc = sqlite3_step(strQuery);
+	errorCheck(rc, const_cast<char*>(sqlite3_errmsg(db)));
+}
+
+void dbop::Database::insert_DestinationImage(img::Image image) {
+	string hash_str = std::to_string(image.getHash());
+	string name_str = image.getVariablesString()[0];
+	string dir_str = image.getVariablesString()[1];
+
+	sqlite3_stmt* strQuery = NULL;
+	int rc = sqlite3_prepare_v2(db, "INSERT INTO DestImage(hash, name, dir) VALUES (?, ?, ?)", -1, &strQuery, NULL);
+	sqlite3_bind_text(strQuery, 1, hash_str.c_str(), hash_str.size(), SQLITE_STATIC);
+	sqlite3_bind_text(strQuery, 2, name_str.c_str(), name_str.size(), SQLITE_STATIC);
+	sqlite3_bind_text(strQuery, 3, dir_str.c_str(), dir_str.size(), SQLITE_STATIC);
+	rc = sqlite3_step(strQuery);
+	errorCheck(rc, const_cast<char*>(sqlite3_errmsg(db)));
+}
+
+void dbop::Database::insert_WeightVector(iop::WeightVector wvec) {
+	double w_gradm = static_cast<double>(wvec.wv_grad[0]);
+	double w_gradd = static_cast<double>(wvec.wv_grad[1]);
+	double w_hgray = static_cast<double>(wvec.w_hgray);
+	double w_hbgrb = static_cast<double>(wvec.wv_hbgr[0]);
+	double w_hbgrg = static_cast<double>(wvec.wv_hbgr[1]);
+	double w_hbgrr = static_cast<double>(wvec.wv_hbgr[2]);
+	double w_hhsvh = static_cast<double>(wvec.wv_hhsv[0]);
+	double w_hhsvs = static_cast<double>(wvec.wv_hhsv[1]);
+	double w_hhsvv = static_cast<double>(wvec.wv_hhsv[2]);
+	double w_hashd = static_cast<double>(wvec.wv_hash[0]);
+	double w_hashp = static_cast<double>(wvec.wv_hash[1]);
+
+	sqlite3_stmt* strQuery = NULL;
+	int rc = sqlite3_prepare_v2(db, "INSERT INTO WeightVector(w_gradm, w_gradd, w_hgray," \
+		"w_hbgrb, w_hbgrg, w_hbgrr, w_hhsvh, w_hhsvs, w_hhsvv, w_hashd, w_hashp) " \
+		"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", -1, &strQuery, NULL);
+	sqlite3_bind_double(strQuery, 1, w_gradm);
+	sqlite3_bind_double(strQuery, 2, w_gradd);
+	sqlite3_bind_double(strQuery, 3, w_hgray);
+	sqlite3_bind_double(strQuery, 4, w_hbgrb);
+	sqlite3_bind_double(strQuery, 5, w_hbgrg);
+	sqlite3_bind_double(strQuery, 6, w_hbgrr);
+	sqlite3_bind_double(strQuery, 7, w_hhsvh);
+	sqlite3_bind_double(strQuery, 8, w_hhsvs);
+	sqlite3_bind_double(strQuery, 9, w_hhsvv);
+	sqlite3_bind_double(strQuery, 10, w_hashd);
+	sqlite3_bind_double(strQuery, 11, w_hashp);
+	rc = sqlite3_step(strQuery);
+	errorCheck(rc, const_cast<char*>(sqlite3_errmsg(db)));
+}
+
 std::vector<std::vector<string>> dbop::Database::select_GENERAL(std::vector<std::vector<string>> paramVec) {
     sqlite3_stmt* strQuery = NULL;
     
@@ -624,10 +747,16 @@ std::vector<std::vector<string>> dbop::Database::select_GENERAL(std::vector<std:
     }
     tables.erase(tables.end() - 1);
 
-    string conditions = paramVec[2][0];
+	string conditions = "";
+	if(!paramVec[2].empty())
+		conditions = paramVec[2][0];
 
-    string statement = "SELECT " + attributes + " FROM " + tables + " WHERE " + conditions + ";";
-    int rc = sqlite3_prepare_v2(db, statement.c_str(), -1, &strQuery, NULL);
+	string statement;
+	if (conditions != "")
+		statement = "SELECT " + attributes + " FROM " + tables + " WHERE " + conditions + ";";
+	else
+		statement = "SELECT " + attributes + " FROM " + tables + ";";
+    int rc = sqlite3_prepare_v2(db, statement.c_str(), -1 , &strQuery, NULL);
     /*sqlite3_bind_text(strQuery, 1, attributes.c_str(), attributes.size(), SQLITE_STATIC);
     sqlite3_bind_text(strQuery, 2, tables.c_str(), tables.size(), SQLITE_STATIC);
     sqlite3_bind_text(strQuery, 3, conditions.c_str(), conditions.size(), SQLITE_STATIC);*/
@@ -722,7 +851,7 @@ img::Image dbop::Database::select_SourceImage() {
         }
     }
     if (row > 1) {
-        delete_GENERAL(std::vector<string>{"SourceImage"});
+        delete_GENERAL("SourceImage");
         throw std::exception("Multiple source images, somehow. Pretty much impossible error. Source image table cleared, load source image again even if it's still there.");
     }
     else if (row == 0) {
@@ -734,21 +863,49 @@ img::Image dbop::Database::select_SourceImage() {
     
 }
 
-void dbop::Database::delete_GENERAL(std::vector<string> tableVec, string conditions) {
-    sqlite3_stmt* strQuery = NULL;
+img::Image dbop::Database::select_DestinationImage() {
+	sqlite3_stmt* strQuery = NULL;
 
-    string tables = "";
-    for (string i : tableVec) {
-        tables.append(i);
-        tables.append(",");
-    }
-    tables.erase(tables.end() - 1);
+	int rc = sqlite3_prepare_v2(db, "SELECT dir FROM DestImage", -1, &strQuery, NULL);
+
+	std::vector<string> imgVec;
+	int row = 0;
+	bool done = false;
+	const char* charOper;
+	while (!done) {
+		switch (int rc = sqlite3_step(strQuery)) {
+		case SQLITE_ROW:
+			charOper = reinterpret_cast<const char*>(sqlite3_column_text(strQuery, 0));
+			imgVec.push_back(charOper);
+			row++;
+			break;
+		case SQLITE_DONE:
+			done = true;
+			break;
+		default:
+			errorCheck(rc, const_cast<char*>(sqlite3_errmsg(db)));
+		}
+	}
+	if (row > 1) {
+		delete_GENERAL("SourceImage");
+		throw std::exception("Multiple right hand images, somehow. Pretty much impossible error. Right hand image table cleared, load right hand image again even if it's still there.");
+	}
+	else if (row == 0) {
+		throw std::exception("Unable to locate right hand image. Load image to right hand first.");
+	}
+	else {
+		return img::Image(imgVec[0], cv::IMREAD_COLOR);
+	}
+}
+
+void dbop::Database::delete_GENERAL(string table, string conditions) {
+    sqlite3_stmt* strQuery = NULL;
 
     string statement;
     if (conditions != "")
-        statement = "DELETE FROM " + tables + " WHERE " + conditions + ";";
+        statement = "DELETE FROM " + table + " WHERE " + conditions + ";";
     else
-        statement = "DELETE FROM " + tables + ";";
+        statement = "DELETE FROM " + table + ";";
     int rc = sqlite3_prepare_v2(db, statement.c_str(), -1, &strQuery, NULL);
     errorCheck(rc, const_cast<char*>(sqlite3_errmsg(db)));
     rc = sqlite3_step(strQuery);
@@ -756,44 +913,153 @@ void dbop::Database::delete_GENERAL(std::vector<string> tableVec, string conditi
 }
 
 string dbop::serializeMat(cv::Mat operand) {
-    std::ostringstream srlzstr_stream;
     uchar* pixelPtr = operand.data;
+	
+	std::mutex m;
+	std::vector<std::ostringstream> streamVec;
+	int currentNum = 0;
+	std::vector<int> hulo;
+	hulo.push_back(0);
+	hulo.push_back(0);
+	hulo.push_back(0);
+	hulo.push_back(0);
 
-    srlzstr_stream << operand.dims << " ";
-    for (int i = 0; i < operand.dims; i++) {
-        srlzstr_stream << operand.size[i] << " ";
-    }
-    srlzstr_stream << operand.type() << " ";
+	auto task = [&streamVec, &pixelPtr, &m, &operand, &currentNum, &hulo](int i, int notlast, int perThread) {
+		std::ostringstream thread_stream;
+		if (i == 0) {
+			thread_stream << operand.dims << " ";
+			for (int i = 0; i < operand.dims; i++) {
+				thread_stream << operand.size[i] << " ";
+			}
+			thread_stream << operand.type() << " ";
+		}
+		for (int j = notlast * i; j < perThread * (i + 1); j++) {
+			thread_stream << static_cast<float>(pixelPtr[j]) << " ";
+			hulo[i]++;
+		}
+		while (i != currentNum);
+		m.lock();
+		streamVec.push_back(std::move(thread_stream));
+		currentNum++;
+		m.unlock();
+	};
 
-    for (int i = 0; i < operand.total() * operand.elemSize(); i++) {
-        srlzstr_stream << static_cast<float>(pixelPtr[i]) << " ";
-    }
-    string srlzd_str = srlzstr_stream.str();
-    return srlzd_str;
+	std::vector<std::thread*> threadVec;
+
+	int threadNum = std::thread::hardware_concurrency();
+	int remainer = operand.total() * operand.elemSize() % threadNum;
+	int notlast = floor(operand.total() * operand.elemSize() / threadNum);
+	int last = notlast + remainer;
+
+	for (int i = 0; i < threadNum; i++) {
+		int perThread = notlast;
+		if (i == threadNum - 1)
+			perThread = last;
+		std::thread* thr = new std::thread(task, i, notlast, perThread);
+		threadVec.push_back(thr);
+	}
+
+	while (streamVec.size() != 4);
+
+	for (auto &i : threadVec) {
+		i->join();
+		delete(i);
+	}
+
+	string result = "";
+	for (int i = 0; i < 4; i++) {
+		result += streamVec[i].str();
+	}
+	
+    return result;
 }
 
 cv::Mat dbop::deserializeMat(string operand){
-    std::istringstream desrlzstr_stream(operand);
-    int mdims, mtype;
+	std::mutex m;
+	int currentNum = 0, initialNum = 0;
+	int matDims, matType;
+	int *matSize;
 
-    desrlzstr_stream >> mdims;
-    int* msize = new int[mdims];
-    for (int i = 0; i < mdims; i++)
-        desrlzstr_stream >> msize[i];
-    desrlzstr_stream >> mtype;
+	cv::Mat matOper;
+	std::vector<std::vector<uchar>> ucharVec;
 
-    cv::Mat matoper(mdims, msize, mtype);
-    delete [] msize;
+	auto task = [&matOper, &matDims, &matType, &matSize, &m, &operand, &currentNum, 
+		&initialNum, &ucharVec](int i, int offset, int move) {
+		std::istringstream thread_stream(operand.substr(offset, move - offset));
+		while (i != initialNum);
+		if (i == 0) {
+			thread_stream >> matDims;
+			matSize = new int[matDims];
+			for (int j = 0; j < matDims; j++) {
+				thread_stream >> matSize[j];
+			}
+			thread_stream >> matType;
+			matOper = cv::Mat(matDims, matSize, matType);
+			initialNum = 1;
+		}
+		else
+			initialNum++;
+		
+		std::vector<uchar> pixelPtr;
+		float foper;
+		while(thread_stream >> foper){
+			pixelPtr.push_back(foper);
+		}
+		while (i != currentNum);
+		m.lock();
+		ucharVec.push_back(pixelPtr);
+		currentNum++;
+		m.unlock();
+	};
 
-    uchar* pixelPtr = matoper.data;
-    float cnpixoper;
-    
-    for (int i = 0; i < matoper.total() * matoper.elemSize(); i++) {
-        desrlzstr_stream >> cnpixoper;
-        pixelPtr[i] = cnpixoper;
-    }
+	int threadNum = std::thread::hardware_concurrency();
+	int remainer = operand.length() % threadNum;
+	int notlast = floor(operand.length() / threadNum);
 
-    return matoper;
+	std::vector<std::thread*> threadVec;
+
+	std::vector<std::pair<int, int>> offsetVec;
+	for (int i = 0; i < threadNum; i++) {
+		int move = 0;
+		int offset = 0;
+		if (i != 0) {
+			offset = offsetVec[i - 1].second;
+		}
+		move = offset + notlast;
+		while (i != threadNum - 1 && operand[move] != ' ') {
+			move++;
+		}
+		if(i == threadNum - 1)
+			offsetVec.push_back(std::make_pair(offset, operand.length()));
+		else
+			offsetVec.push_back(std::make_pair(offset, move));
+	}
+	for (int i = 0; i < threadNum; i++) {
+		int offset = offsetVec[i].first;
+		int move = offsetVec[i].second;
+		
+		std::thread* thr = new std::thread(task, i, offset, move);
+		threadVec.push_back(thr);
+	}
+
+	while (currentNum != 4);
+
+	for (auto& i : threadVec) {
+		i->join();
+		delete(i);
+	}
+
+	int sum = 0;
+	for (int i = 0; i < ucharVec.size(); i++) {
+		std::move(ucharVec[i].begin(), ucharVec[i].end(), matOper.data + sum);
+		sum += ucharVec[i].size();
+	}
+
+	delete[](matSize);
+
+	gen::imageTesting(matOper, "test2");
+
+    return matOper;
 }
 
 template <typename T>

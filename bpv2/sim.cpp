@@ -753,7 +753,6 @@ cv::Mat sim::convolution2DOpenCV(cv::Mat const imageMat, cv::Mat const kernel) {
 	auto temp = planes[0];
 	temp(cv::Range(floor(kernel.rows / 2), temp.rows - floor(kernel.rows / 2)), 
 		cv::Range(floor(kernel.cols / 2), temp.cols - floor(kernel.cols / 2))).copyTo(temp);
-	cv::normalize(temp, temp, 0, 255, cv::NORM_MINMAX);
 
 	return temp;
 }

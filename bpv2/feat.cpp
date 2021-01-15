@@ -13,26 +13,32 @@ feat::Histogram::Histogram(cv::Mat imageMat, int flag, int fb, int sb, int tb) :
 		float bgr_ranges[] = { 0, 256 };
 		const float* histRange[] = { bgr_ranges };
 		const int histSize[] = { getBin()[0], getBin()[1], getBin()[2] };
-		std::pair<cv::Mat, cv::Mat> temp = histogramCalculation(sourceMat, flag, histSize, histRange);
-		histMat = temp.first;
-		nhistMat = temp.second;
+		if (!skeleton()) {
+			std::pair<cv::Mat, cv::Mat> temp = histogramCalculation(sourceMat, flag, histSize, histRange);
+			histMat = temp.first;
+			nhistMat = temp.second;
+		}
 	}
 	else if (flag == HIST_HSV) {
 		float h_ranges[] = { 0, 180 };
 		float sv_ranges[] = { 0, 256 };
 		const float* histRange[] = { h_ranges, sv_ranges, sv_ranges };
 		const int histSize[] = { getBin()[0], getBin()[1], getBin()[2] };
-		std::pair<cv::Mat, cv::Mat> temp = histogramCalculation(sourceMat, flag, histSize, histRange);
-		histMat = temp.first;
-		nhistMat = temp.second;
+		if (!skeleton()) {
+			std::pair<cv::Mat, cv::Mat> temp = histogramCalculation(sourceMat, flag, histSize, histRange);
+			histMat = temp.first;
+			nhistMat = temp.second;
+		}
 	}
 	else if (flag == HIST_GRAY) {
 		float gray_range[] = { 0, 256 };
 		const float* histRange[] = { gray_range };
 		const int histSize[] = { getBin()[0] };
-		std::pair<cv::Mat, cv::Mat> temp = histogramCalculation(sourceMat, flag, histSize, histRange);
-		histMat = temp.first;
-		nhistMat = temp.second;
+		if (!skeleton()) {
+			std::pair<cv::Mat, cv::Mat> temp = histogramCalculation(sourceMat, flag, histSize, histRange);
+			histMat = temp.first;
+			nhistMat = temp.second;
+		}
 	}
 	else if (flag == HIST_DATA) {
 		double max, min;
@@ -40,14 +46,15 @@ feat::Histogram::Histogram(cv::Mat imageMat, int flag, int fb, int sb, int tb) :
 		float data_range[] = { roundf(min), roundf(max) + 1 };
 		const float* histRange[] = { data_range };
 		const int histSize[] = { getBin()[0] };
-		std::pair<cv::Mat, cv::Mat> temp = histogramCalculation(sourceMat, flag, histSize, histRange);
-		histMat = temp.first;
-		nhistMat = temp.second;
+		if (!skeleton()) {
+			std::pair<cv::Mat, cv::Mat> temp = histogramCalculation(sourceMat, flag, histSize, histRange);
+			histMat = temp.first;
+			nhistMat = temp.second;
+		}
 	}
 	else
 		throw std::exception("Illegal histogram build flag.");
 
-	nhistMat = normalizeHistMat(histMat, 0, 1);
 	hash = feat::Hash::setHash(nullptr, &vecf{static_cast<float>(flag), static_cast<float>(fb),
 		static_cast<float>(sb), static_cast<float>(tb)});
 }
@@ -208,33 +215,46 @@ std::vector<cv::Mat> feat::Histogram::histogramBGRSeparateCalculation(cv::Mat so
 	return BGR_hist;
 }
 
-cv::Mat feat::Histogram::createHistogramDisplayImage(std::vector<cv::Mat> bgrhist, int hist_w, int hist_h) {
-	int histSize = 256;
-	int bin_w = cvRound((double)hist_w / histSize);
+//cv::Mat feat::Histogram::createHistogramDisplayImage(std::vector<cv::Mat> bgrhist, int hist_w, int hist_h) {
+//	int histSize = 256;
+//	int bin_w = cvRound((double)hist_w / histSize);
+//
+//	cv::Mat histImgMat(hist_h, hist_w, CV_8UC3, cv::Scalar(0, 0, 0));
+//
+//	cv::Mat b_hist = normalizeHistMat(bgrhist[0], 0, histImgMat.rows);
+//	cv::Mat g_hist = normalizeHistMat(bgrhist[1], 0, histImgMat.rows);
+//	cv::Mat r_hist = normalizeHistMat(bgrhist[2], 0, histImgMat.rows);
+//
+//	nhistBGR.push_back(b_hist);
+//	nhistBGR.push_back(g_hist);
+//	nhistBGR.push_back(r_hist);
+//
+//	for (int i = 1; i < histSize; i++) {
+//		line(histImgMat, cv::Point(bin_w * (i - 1), hist_h - cvRound(b_hist.at<float>(i - 1))),
+//			cv::Point(bin_w * (i), hist_h - cvRound(b_hist.at<float>(i))),
+//			cv::Scalar(255, 0, 0), 2, 8, 0);
+//		line(histImgMat, cv::Point(bin_w * (i - 1), hist_h - cvRound(g_hist.at<float>(i - 1))),
+//			cv::Point(bin_w * (i), hist_h - cvRound(g_hist.at<float>(i))),
+//			cv::Scalar(0, 255, 0), 2, 8, 0);
+//		line(histImgMat, cv::Point(bin_w * (i - 1), hist_h - cvRound(r_hist.at<float>(i - 1))),
+//			cv::Point(bin_w * (i), hist_h - cvRound(r_hist.at<float>(i))),
+//			cv::Scalar(0, 0, 255), 2, 8, 0);
+//	}
+//	return histImgMat;
+//}
 
-	cv::Mat histImgMat(hist_h, hist_w, CV_8UC3, cv::Scalar(0, 0, 0));
-
-	cv::Mat b_hist = normalizeHistMat(bgrhist[0], 0, histImgMat.rows);
-	cv::Mat g_hist = normalizeHistMat(bgrhist[1], 0, histImgMat.rows);
-	cv::Mat r_hist = normalizeHistMat(bgrhist[2], 0, histImgMat.rows);
-
-	nhistBGR.push_back(b_hist);
-	nhistBGR.push_back(g_hist);
-	nhistBGR.push_back(r_hist);
-
-	for (int i = 1; i < histSize; i++) {
-		line(histImgMat, cv::Point(bin_w * (i - 1), hist_h - cvRound(b_hist.at<float>(i - 1))),
-			cv::Point(bin_w * (i), hist_h - cvRound(b_hist.at<float>(i))),
-			cv::Scalar(255, 0, 0), 2, 8, 0);
-		line(histImgMat, cv::Point(bin_w * (i - 1), hist_h - cvRound(g_hist.at<float>(i - 1))),
-			cv::Point(bin_w * (i), hist_h - cvRound(g_hist.at<float>(i))),
-			cv::Scalar(0, 255, 0), 2, 8, 0);
-		line(histImgMat, cv::Point(bin_w * (i - 1), hist_h - cvRound(r_hist.at<float>(i - 1))),
-			cv::Point(bin_w * (i), hist_h - cvRound(r_hist.at<float>(i))),
-			cv::Scalar(0, 0, 255), 2, 8, 0);
-	}
-	return histImgMat;
+bool feat::Histogram::skeleton() {
+	if (sourceMat.empty())
+		return true;
+	return false;
 }
+
+bool feat::Histogram::empty() {
+	if (getBin()[0] == 0 && getBin()[1] == 0 && getBin()[2] == 0)
+		return true;
+	return false;
+}
+
 /*OUTDATED, WILL DO IT AT QT NOW
 cv::Mat feat::Histogram::createHistogramDisplayImage(int hist_w, int hist_h) { //https://stackoverflow.com/a/46202761/9304781
 	cv::Mat oper = histMat.clone();
@@ -243,40 +263,44 @@ cv::Mat feat::Histogram::createHistogramDisplayImage(int hist_w, int hist_h) { /
 	return resultMat;
 }
 */
-feat::Edge::Edge(cv::Mat imageMat, int flag, feat::Edge::Canny* edc, float recommendedWidth, int magbin, int dirbin) 
-	: magbin(magbin), dirbin(dirbin) {
-	cv::Mat oper;
-	if(recommendedWidth != -1)
-		cv::resize(imageMat, oper, cv::Size(recommendedWidth, 
-			static_cast<float>(imageMat.rows) / static_cast<float>(imageMat.cols) * recommendedWidth));
 
-	switch (flag) {
-	case EDGE_SOBEL:
-		edgeMat = edgeDetectionSobel(oper);
-		break;
-	case EDGE_PREWT:
-		edgeMat = edgeDetectionPrewitt(oper);
-		break;
-	case EDGE_ROBRT:
-		edgeMat = edgeDetectionRobertsCross(oper);
-		break;
-	case EDGE_CANNY:
-		if (edc == nullptr)
-			throw std::exception("Initialize Canny class first.");
-		else {
-			child_edc = new feat::Edge::Canny(*edc);
-			child_edc->parent = this;
-			edgeMat = child_edc->edgeDetectionCanny(oper);
-			edcHash = new XXH64_hash_t(child_edc->hash);
+feat::Edge::Edge(cv::Mat sourceMat, int flag, feat::Edge::Canny* edc, float recommendedWidth, int magbin, int dirbin) 
+	: magbin(magbin), dirbin(dirbin), recommendedWidth(recommendedWidth), sourceMat(sourceMat) {
+	cv::Mat oper;
+	if (recommendedWidth != -1)
+		cv::resize(sourceMat, oper, cv::Size(recommendedWidth,
+			static_cast<float>(sourceMat.rows) / static_cast<float>(sourceMat.cols) * recommendedWidth));
+	else
+		oper = sourceMat.clone();
+	if (!skeleton()) {
+		switch (flag) {
+		case EDGE_SOBEL:
+			edgeMat = edgeDetectionSobel(oper);
+			break;
+		case EDGE_PREWT:
+			edgeMat = edgeDetectionPrewitt(oper);
+			break;
+		case EDGE_ROBRT:
+			edgeMat = edgeDetectionRobertsCross(oper);
+			break;
+		case EDGE_CANNY:
+			if (edc == nullptr)
+				throw std::exception("Initialize Canny class first.");
+			else {
+				child_edc = new feat::Edge::Canny(*edc);
+				child_edc->parent = this;
+				edgeMat = child_edc->edgeDetectionCanny(oper);
+			}
+			break;
+		default:
+			throw std::exception("Illegal edge detection flag.");
 		}
-		break;
-	default:
-		throw std::exception("Illegal edge detection flag.");
 	}
 	edgeFlag = flag;
 
 	hash = feat::Hash::setHash(nullptr, &vecf{static_cast<float>(flag)});
 	if (child_edc != nullptr) {
+		edcHash = &child_edc->hash;
 		std::vector<string> hashVec;
 		hashVec.push_back(std::to_string(hash));
 		hashVec.push_back(std::to_string(child_edc->getHash()));
@@ -291,6 +315,25 @@ feat::Edge::~Edge() {
 		delete(child_edc);
 	if (grad != nullptr)
 		delete(grad);
+}
+
+feat::Edge::Edge(const Edge& other) {
+	if (other.child_edc) {
+		this->child_edc = new feat::Edge::Canny(*other.child_edc);
+		this->child_edc->parent = this;
+		this->edcHash = &this->child_edc->hash;
+	}
+	if (!other.sourceMat.empty()) {
+		this->grad = new feat::Gradient(*other.grad);
+		this->sourceMat = other.sourceMat;
+		this->edgeMat = other.edgeMat;
+	}
+	this->dirbin = other.dirbin;
+	this->edgeFlag = other.edgeFlag;
+	this->hash = other.hash;
+	this->magbin = other.magbin;
+	this->recommendedWidth = other.recommendedWidth;
+	
 }
 
 int feat::Edge::getEdgeFlag() {
@@ -314,6 +357,10 @@ feat::Edge::Canny* feat::Edge::getCannyPtr() {
 
 feat::Gradient* feat::Edge::getGradientPtr() {
 	return grad;
+}
+
+std::vector<int> feat::Edge::getComparisonValues() {
+	return { recommendedWidth, magbin, dirbin };
 }
 
 cv::Mat feat::Edge::edgeDetectionSobel(cv::Mat const imageMat) {
@@ -444,16 +491,24 @@ cv::Mat feat::Edge::commonOperationsSPR(cv::Mat const imageMat, cv::Mat const ke
 	return magMat;
 }
 
+bool feat::Edge::skeleton() {
+	if (sourceMat.empty())
+		return true;
+	return false;
+}
+
+bool feat::Edge::empty() {
+	if (getComparisonValues()[1] == 0 && getComparisonValues()[2] == 0)
+		return true;
+	return false;
+}
+
 cv::Mat feat::Edge::Canny::edgeDetectionCanny(cv::Mat const imageMat) {
 	if (sourceMat.data == NULL) {
 		parent->edcHash = &hash;
 		sourceMat = calculate(imageMat);
 	}
 	return sourceMat;
-}
-
-feat::Edge::Canny::~Canny() {
-	parent = nullptr;
 }
 
 ////kernelx, kernely, gaussKernelSize, thigh, tlow, sigma
@@ -496,8 +551,8 @@ cv::Mat feat::Edge::Canny::calculate(cv::Mat const imageMat) { //Computer Vision
 	cv::Mat cannyoper = sim::channelCheck(imageMat);																							 //https://towardsdatascience.com/canny-edge-detection-step-by-step-in-python-computer-vision-b49c3a2d8123
 	cannyoper = sim::filterGauss(cannyoper, gaussKernelSize, sigma, 0, true);
 
-	cv::Mat kernelx = (cv::Mat_<float>(3, 3) << -1, 0, 1, -2, 0, 2, -1, 0, 1);
-	cv::Mat kernely = (cv::Mat_<float>(3, 3) << 1, 2, 1, 0, 0, 0, -1, -2, -1);
+	cv::Mat kernelx = this->kernelx;
+	cv::Mat kernely = this->kernely;
 
 	parent->grad = new Gradient(cannyoper, kernelx, kernely);
 	std::pair<cv::Mat, cv::Mat> pair = parent->grad->getGradientMats();
@@ -521,7 +576,6 @@ cv::Mat feat::Edge::Canny::calculate(cv::Mat const imageMat) { //Computer Vision
 
 	return dtMat;
 }
-
 
 cv::Mat feat::Edge::Canny::nonMaximumSuppression(cv::Mat& dirMat, cv::Mat& magMat) {
 	cv::Mat resultMat = cv::Mat::zeros(magMat.rows, magMat.cols, magMat.type());
@@ -1064,6 +1118,7 @@ XXH64_hash_t feat::Hash::setHash(std::vector<cv::Mat>* matVec, vecf* floatVec) {
 	cv::Mat1f hashMat;
 	if (matVec != nullptr)
 		for (cv::Mat iter : *matVec) {
+			iter.convertTo(iter, CV_32FC3);
 			iter = iter.reshape(1, iter.total());
 			hashMat.push_back(iter);
 		}
@@ -1088,21 +1143,38 @@ XXH64_hash_t feat::Hash::setHash(std::vector<string> strVec) {
 }
 
 //01 FOR D, 10 FOR P, 11 FOR BOTH
-feat::Hash::Hash(cv::Mat const imageMat, std::pair<bool, bool> selectHash) {
-	if (!selectHash.first && !selectHash.second)
-		throw std::exception("Hash selection bool pair can't be both zero.");
-	else if (selectHash.first && !selectHash.second)
-		dHash = imageHashing_dHash(imageMat);
-	else if (!selectHash.first && selectHash.second)
-		pHash = imageHashing_pHash(imageMat);
-	else {
-		dHash = imageHashing_dHash(imageMat);
-		pHash = imageHashing_pHash(imageMat);
-	}	
+feat::Hash::Hash(cv::Mat const sourceMat, std::pair<bool, bool> selectHash) : selectHash(selectHash), 
+	sourceMat(sourceMat) {
+	if (!sourceMat.empty()) {
+		if (!selectHash.first && !selectHash.second);
+		else if (selectHash.first && !selectHash.second)
+			dHash = imageHashing_dHash(sourceMat);
+		else if (!selectHash.first && selectHash.second)
+			pHash = imageHashing_pHash(sourceMat);
+		else {
+			dHash = imageHashing_dHash(sourceMat);
+			pHash = imageHashing_pHash(sourceMat);
+		}
+	}
 }
 
 std::pair<std::bitset<64>, std::bitset<64>> feat::Hash::getHashVariables() {
 	return std::make_pair(dHash, pHash);
+}
+
+std::pair<bool, bool> feat::Hash::getSelectHash() {
+	return selectHash;
+}
+
+bool feat::Hash::skeleton() {
+	if (sourceMat.empty())
+		return true;
+	return false;
+}
+bool feat::Hash::empty() {
+	if (selectHash.first == false && selectHash.second == false)
+		return true;
+	return false;
 }
 
 feat::Gradient::Gradient(cv::Mat const imageMat, cv::Mat kernelx, cv::Mat kernely, float magbin, float dirbin) {

@@ -42,10 +42,17 @@
 	PUT RAW COMPARISON VALUES INTO DATABASE !!!!!!!!!!!!!!!HIGH PRIORITY --DONE
 	MAKE DIR AN ALTERNATE COLUMN TO ICONS !!!!!!!!!! -- LOL SO IMPORTANT
 
+	ADD MULTIPLE DELETING OF IMAGES
 	ADD ZOOMER FUNC TO PAGE 2 --EVENTUALLY
 	CHANGE SERIALIZATION TO CV MAT'S
 	MAKE IT POSSIBLE THAT CHANGING FEATURE VECTOR ELEMENTS DONT NEED COMPLETE RECALCULATION
 	NORMALIZE DIFFERENCE VALUES
+	ADD DIFFERENCE TO AVERAGE IN DETAILS
+	MAKE IT SO DETAILS TAB DOESNT GET FULL FOCUS, CAN STILL TO STUFF AT MAINWINDOW
+	-WHILE ITS OPEN OR WHATEVER
+	MULTI THREAD IMAGE LOADING
+	https://doc.qt.io/qt-5/qcontiguouscache.html
+	HASH COMPARISON
 
 	FINISH UNIVERSITY
 	GET A 15K DOLLAR PER MONTH JOB
@@ -88,32 +95,31 @@ int main(int argc, char* argv[])
 		sum += timeVec[i];
 	 << sum / timeVec.size() << std::endl;
 	*/
-	img::Image ima("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench/full/ukbench05661.jpg", cv::IMREAD_COLOR);
 	dbop::Database db("bitirme.db");
 	lnkr::setDatabaseClass(db);
-
+	
 	//-------------------------------------------------------------------
 
 
-	img::Image imb("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench/full/ukbench00302.jpg", cv::IMREAD_COLOR);
+	
 	/*lnkr::setIcon(&imb);
 	auto strvec = db.select_GENERAL({ {"dir"}, {"image"}, {} })[0];
 	for (int i = 0; i < 200; i++) {
 		auto image = img::Image(strvec[i], cv::IMREAD_COLOR);
 		lnkr::setIcon(&image);
 	}*/
-	iop::Comparator cmp;
-	{
-		auto tedge = feat::Edge(imb.getImageMat(), EDGE_SOBEL, nullptr);
-		auto thgray = feat::Histogram(imb.getImageMat(), HIST_GRAY, 10);
-		auto thbgr = feat::Histogram(imb.getImageMat(), HIST_BGR, 10, 10, 10);
-		auto thhsv = feat::Histogram(imb.getImageMat(), HIST_HSV, 10, 10, 10);
-		auto thash = feat::Hash(imb.getImageMat(), std::make_pair(true, true));
-		iop::FeatureVector fva(&imb, &tedge, &thgray, &thbgr, &thhsv, &thash);
-		iop::FeatureVector* source = &fva;
-		iop::WeightVector wv(true);
-		//lnkr::insertDirectoryToDB(diriter("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench/full"), 2000);
-	}
+	//iop::Comparator cmp;
+	//{
+	//	auto tedge = feat::Edge(imb.getImageMat(), EDGE_SOBEL, nullptr);
+	//	auto thgray = feat::Histogram(imb.getImageMat(), HIST_GRAY, 10);
+	//	auto thbgr = feat::Histogram(imb.getImageMat(), HIST_BGR, 10, 10, 10);
+	//	auto thhsv = feat::Histogram(imb.getImageMat(), HIST_HSV, 10, 10, 10);
+	//	auto thash = feat::Hash(imb.getImageMat(), std::make_pair(true, true));
+	//	iop::FeatureVector fva(&imb, &tedge, &thgray, &thbgr, &thhsv, &thash);
+	//	iop::FeatureVector* source = &fva;
+	//	iop::WeightVector wv(true);
+	//	//lnkr::insertDirectoryToDB(diriter("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench/full"), 2000);
+	//}
 	//	int j = 0;
 	//	std::vector<string> strVec{
 	//			"C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench/full/ukbench00288.jpg",
@@ -184,7 +190,19 @@ int main(int argc, char* argv[])
 
 	QApplication a(argc, argv);
 	MainWindow w = MainWindow(db);
-	gen::printTesting(gen::tout);
-	w.show();
-	return a.exec();
+	/*while (true) {
+		try {*/
+			w.show();
+			return a.exec();
+		/*}
+		catch (gen::Warning e) {
+			w.showWarning(e.code.c_str());
+			continue;
+		}
+		catch (std::exception e) {
+			w.showError(e.what());
+			continue;
+		}
+	}*/
+
 }

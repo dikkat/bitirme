@@ -1,10 +1,22 @@
 #include "image.h"
 
+img::Image::Image() {
+	dir = "";
+	name = "";
+	hash = XXH64(dir.c_str(), dir.size(), NULL);
+}
+
 img::Image::Image(string imgdir, int flag) {
-	imageMat = readImageFile(imgdir, flag);
+	if(flag != IMG_EMPTY)
+		imageMat = readImageFile(imgdir, flag);
     name = buildImageName(imgdir);
     dir = imgdir;
+	correctDir();
     hash = feat::Hash::setHash(std::vector<string>{dir});
+}
+
+img::Image::Image(const img::Image& other) {
+	*this = other;
 }
 
 const string img::Image::getImageName() {
@@ -16,11 +28,11 @@ cv::Mat img::Image::getImageMat() {
 }
 
 //NAME, DIR
-std::vector<string> img::Image::getVariablesString() {
+std::vector<string> img::Image::getVariablesString() const {
     return std::vector<string>{name, dir};
 }
 
-XXH64_hash_t img::Image::getHash() {
+XXH64_hash_t img::Image::getHash() const {
     return hash;
 }
 
@@ -45,9 +57,15 @@ cv::Mat img::Image::readImageFile(string imgdir, int flag) {
 		throw std::exception("Illegal image read flag.1");
 	cv::Mat matoperator;
 	matoperator = cv::imread(imgdir, flag);
-	if (matoperator.dims == 0)
+	if (matoperator.dims == 0 || matoperator.data == NULL)
 		throw std::exception("Can't read the file.");
 	return matoperator;
+}
+
+void img::Image::correctDir() {
+	for (auto& i : this->dir)
+		if (i == '\\')
+			i = '/';
 }
 
 img::Icon::Icon(cv::Mat iconMat_src) {

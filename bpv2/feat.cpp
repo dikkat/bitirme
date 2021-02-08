@@ -6,13 +6,16 @@ cv::Mat feat::prewittX = (cv::Mat_<float>(3, 3) << 1, 0, -1, 1, 0, -1, 1, 0, -1)
 cv::Mat feat::prewittY = (cv::Mat_<float>(3, 3) << 1, 1, 1, 0, 0, 0, -1, -1, -1);
 cv::Mat feat::robertX = (cv::Mat_<float>(2, 2) << 1, 0, 0, -1);
 cv::Mat feat::robertY = (cv::Mat_<float>(2, 2) << 0, 1, -1, 0);
+cv::Mat feat::isobelX = (cv::Mat_<float>(3, 3) << -1, 0, 1, -2, 0, 2, -1, 0, 1);
+cv::Mat feat::isobelY = (cv::Mat_<float>(3, 3) << 1, 2, 1, 0, 0, 0, -1, -2, -1);
+
 
 feat::Histogram::Histogram(cv::Mat imageMat, int flag, int fb, int sb, int tb) : fbin(fb), sbin(sb), tbin(tb), 
 	flag(flag), sourceMat(imageMat) {
 	if (flag == HIST_BGR) {
 		float bgr_ranges[] = { 0, 256 };
 		const float* histRange[] = { bgr_ranges };
-		const int histSize[] = { getBin()[0], getBin()[1], getBin()[2] };
+		std::vector<int> histSize = { getBin()[0], getBin()[1], getBin()[2] };
 		if (!skeleton()) {
 			std::pair<cv::Mat, cv::Mat> temp = histogramCalculation(sourceMat, flag, histSize, histRange);
 			histMat = temp.first;
@@ -23,7 +26,7 @@ feat::Histogram::Histogram(cv::Mat imageMat, int flag, int fb, int sb, int tb) :
 		float h_ranges[] = { 0, 180 };
 		float sv_ranges[] = { 0, 256 };
 		const float* histRange[] = { h_ranges, sv_ranges, sv_ranges };
-		const int histSize[] = { getBin()[0], getBin()[1], getBin()[2] };
+		std::vector<int> histSize = { getBin()[0], getBin()[1], getBin()[2] };
 		if (!skeleton()) {
 			std::pair<cv::Mat, cv::Mat> temp = histogramCalculation(sourceMat, flag, histSize, histRange);
 			histMat = temp.first;
@@ -33,7 +36,7 @@ feat::Histogram::Histogram(cv::Mat imageMat, int flag, int fb, int sb, int tb) :
 	else if (flag == HIST_GRAY) {
 		float gray_range[] = { 0, 256 };
 		const float* histRange[] = { gray_range };
-		const int histSize[] = { getBin()[0] };
+		std::vector<int> histSize = { getBin()[0] };
 		if (!skeleton()) {
 			std::pair<cv::Mat, cv::Mat> temp = histogramCalculation(sourceMat, flag, histSize, histRange);
 			histMat = temp.first;
@@ -45,7 +48,7 @@ feat::Histogram::Histogram(cv::Mat imageMat, int flag, int fb, int sb, int tb) :
 		cv::minMaxLoc(sourceMat, &min, &max);
 		float data_range[] = { roundf(min), roundf(max) + 1 };
 		const float* histRange[] = { data_range };
-		const int histSize[] = { getBin()[0] };
+		std::vector<int> histSize = { getBin()[0] };
 		if (!skeleton()) {
 			std::pair<cv::Mat, cv::Mat> temp = histogramCalculation(sourceMat, flag, histSize, histRange);
 			histMat = temp.first;
@@ -81,7 +84,8 @@ XXH64_hash_t feat::Histogram::getHash() {
 	return hash;
 }
 
-std::pair<cv::Mat, cv::Mat> feat::Histogram::histogramCalculation(cv::Mat sourceMat, int hist_flag, const int histSize[], const float* histRange[]) {
+std::pair<cv::Mat, cv::Mat> feat::Histogram::histogramCalculation(cv::Mat sourceMat, int hist_flag, std::vector<int> histSize, 
+	const float* histRange[]) {
 	cv::Mat histData, tempHist, tempnHist;
 	std::pair<cv::Mat, cv::Mat> histReturn;
 	
@@ -108,6 +112,12 @@ std::pair<cv::Mat, cv::Mat> feat::Histogram::histogramCalculation(cv::Mat source
 	for (int i = 0; i < data_planes.size(); i++) {
 		cv::Mat loopOper;
 		cv::calcHist(&data_planes[i], 1, channels, cv::Mat(), loopOper, 1, &histSize[i], histRange, uniform, accumulate);
+		int max = 0;
+		for (int i = 0; i < histSize.size(); i++)
+			if (histSize[i] > max)
+				max = histSize[i];
+		if (max != histSize[i])
+			cv::copyMakeBorder(loopOper, loopOper, 0, max - histSize[i], 0, 0, cv::BORDER_CONSTANT, cv::Scalar::all(0));
 		histVec.push_back(loopOper);
 	}
 	cv::merge(histVec, tempHist);
@@ -309,8 +319,6 @@ feat::Edge::Edge(cv::Mat sourceMat, int flag, feat::Edge::Canny* edc, float reco
 }
 
 feat::Edge::~Edge() {
-	if (edcHash != nullptr)
-		delete(edcHash);
 	if (child_edc != nullptr)
 		delete(child_edc);
 	if (grad != nullptr)
@@ -318,22 +326,7 @@ feat::Edge::~Edge() {
 }
 
 feat::Edge::Edge(const Edge& other) {
-	if (other.child_edc) {
-		this->child_edc = new feat::Edge::Canny(*other.child_edc);
-		this->child_edc->parent = this;
-		this->edcHash = &this->child_edc->hash;
-	}
-	if (!other.sourceMat.empty()) {
-		this->grad = new feat::Gradient(*other.grad);
-		this->sourceMat = other.sourceMat;
-		this->edgeMat = other.edgeMat;
-	}
-	this->dirbin = other.dirbin;
-	this->edgeFlag = other.edgeFlag;
-	this->hash = other.hash;
-	this->magbin = other.magbin;
-	this->recommendedWidth = other.recommendedWidth;
-	
+	*this = other;
 }
 
 int feat::Edge::getEdgeFlag() {
@@ -678,7 +671,7 @@ feat::Corner::Corner(cv::Mat imageMat, feat::Corner::Harris* cdh, int flag, int 
 		else {
 			child = new feat::Corner::Harris(*cdh);
 			child->parent = this;
-			cdhHash = new XXH64_hash_t(child->getHash());
+			cdhHash = &child->hash;
 			oper = cornerDetectionHarrisLaplace(imageMat, child, numberofScales, scaleRat);
 		}
 		break;
@@ -688,8 +681,8 @@ feat::Corner::Corner(cv::Mat imageMat, feat::Corner::Harris* cdh, int flag, int 
 		else {
 			child = new feat::Corner::Harris(*cdh);
 			child->parent = this;
-			cdhHash = new XXH64_hash_t(child->getHash());
-			oper = cdh->cornerDetectionHarris(imageMat);
+			cdhHash = &child->hash;
+			oper = child->cornerDetectionHarris(imageMat);
 		}
 		break;
 	default:
@@ -708,11 +701,13 @@ feat::Corner::Corner(cv::Mat imageMat, feat::Corner::Harris* cdh, int flag, int 
 	hash = feat::Hash::setHash(hashVec);
 }
 
+feat::Corner::Corner(const Corner& other) {
+	*this = other;
+}
+
 feat::Corner::~Corner() {
 	if (child != nullptr)
 		delete(child);
-	if (cdhHash != nullptr)
-		delete(cdhHash);
 }
 
 std::vector<int> feat::Corner::getIntVariables() {
@@ -1142,7 +1137,7 @@ XXH64_hash_t feat::Hash::setHash(std::vector<string> strVec) {
 	return XXH64(combined.c_str(), combined.size(), NULL);
 }
 
-//01 FOR D, 10 FOR P, 11 FOR BOTH
+//10 FOR D, 01 FOR P, 11 FOR BOTH
 feat::Hash::Hash(cv::Mat const sourceMat, std::pair<bool, bool> selectHash) : selectHash(selectHash), 
 	sourceMat(sourceMat) {
 	if (!sourceMat.empty()) {

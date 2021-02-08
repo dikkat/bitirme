@@ -10,6 +10,7 @@ static dbop::Database* lnkr_dbPtr;
 namespace lnkr {
 	void setDatabaseClass(dbop::Database dbObj);
 	img::Image createImage(string dir, int flag);
+	img::Image createImage(img::Image image);
 	void addToMainTable(img::Image* image);
 
 	img::Image setSourceImage(string dir, int flag);
@@ -26,16 +27,19 @@ namespace lnkr {
 	void setSimilarity(iop::Comparison* cmp_ptr);
 	void setWeightVector(iop::WeightVector* wvec_ptr);
 
-	feat::Edge* getImageEdge(img::Image* image_ptr, XXH64_hash_t edgeHash);
+	/*feat::Edge* getImageEdge(img::Image* image_ptr, XXH64_hash_t edgeHash);
 	feat::Edge::Canny* getEdgeCanny(img::Image* image_ptr, XXH64_hash_t cannyHash);
 	feat::Corner* getImageCorner(img::Image* image_ptr, XXH64_hash_t cornerHash);
 	feat::Corner::Harris* getCornerHarris(img::Image* image_ptr, XXH64_hash_t harrisHash);
-	feat::Histogram* getImageHist(img::Image* image_ptr, XXH64_hash_t histHash);
+	feat::Histogram* getImageHist(img::Image* image_ptr, XXH64_hash_t histHash);*/
 	float getSimilarity(img::Image* lhand, img::Image* rhand);
 	std::vector<string> getImageDirs();
 	string getImageDir(string hash);
 	iop::Comparison getRawComparison(string hash, bool source);
 	iop::WeightVector getWeightVector();
+	std::vector<img::Image> getImageTable();
+	std::vector<iop::Comparison> getSimilarityTable();
+
 	void deleteImage(img::Image* image_ptr);
 	void deleteFromSimAndWV();
 

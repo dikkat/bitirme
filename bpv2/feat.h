@@ -7,7 +7,7 @@
 enum hist_flag { HIST_GRAY, HIST_BGR, HIST_HSV, HIST_DATA };
 enum edge_flag { EDGE_SOBEL, EDGE_PREWT, EDGE_ROBRT, EDGE_CANNY, EDGE_DRCHE };
 enum corner_flag { CORNER_HARRIS, CORNER_HARLAP };
-enum kernel_flag {KERNEL_SOBEL, KERNEL_PREWT, KERNEL_ROBRT};
+enum kernel_flag {KERNEL_SOBEL, KERNEL_PREWT, KERNEL_ROBRT, KERNEL_ISOBEL};
 
 namespace feat {
 	extern cv::Mat sobelX;
@@ -16,6 +16,8 @@ namespace feat {
 	extern cv::Mat prewittY;
 	extern cv::Mat robertX;
 	extern cv::Mat robertY;
+	extern cv::Mat isobelX;
+	extern cv::Mat isobelY;
 
 	class Feature {
 	public:
@@ -28,7 +30,7 @@ namespace feat {
 	class Hash : public Feature {
 	public:
 		Hash() {}
-		//01 FOR D, 10 FOR P, 11 FOR BOTH
+		//10 FOR D, 01 FOR P, 11 FOR BOTH
 		Hash(cv::Mat const sourceMat, std::pair<bool, bool> selectHash = std::make_pair(true, true));
 		std::pair<std::bitset<64>, std::bitset<64>> getHashVariables();
 		std::pair<bool, bool> getSelectHash();
@@ -67,7 +69,8 @@ namespace feat {
 		int fbin, sbin, tbin, flag;
 		std::vector<cv::Mat> histBGR; //[0] BLUE, [1] GREEN, [2] RED
 		std::vector<cv::Mat> nhistBGR;
-		std::pair<cv::Mat, cv::Mat> histogramCalculation(cv::Mat sourceMat, int hist_flag, const int histSize[], const float* histRange[]);
+		std::pair<cv::Mat, cv::Mat> histogramCalculation(cv::Mat sourceMat, int hist_flag, std::vector<int> histSize,
+			const float* histRange[]);
 		/*cv::Mat histogramHSVCalculation(cv::Mat sourceMat);
 		cv::Mat histogramBGRCalculation(cv::Mat sourceMat);
 		cv::Mat histogramGRAYCalculation(cv::Mat sourceMat);*/
@@ -91,8 +94,8 @@ namespace feat {
 		std::pair<feat::Histogram, feat::Histogram> calculateEdgeGradientHistograms(cv::Mat magMat,
 			cv::Mat dirMat, int magbin, int dirbin);
 		std::pair<cv::Mat, cv::Mat> calculateEdgeGradientMagnitudeDirection(cv::Mat const kx, cv::Mat const ky, cv::Mat const imat);
-		bool skeleton() override {}
-		bool empty() override {}
+		bool skeleton() override { return false; }
+		bool empty() override { return false; }
 	};
 
 	class Edge : public Feature {
@@ -132,6 +135,7 @@ namespace feat {
 		~Edge();
 		Edge(const Edge& other);
 		Edge& operator=(const Edge& other) {
+			this->~Edge();
 			if (other.child_edc) {
 				this->child_edc = new Canny(*other.child_edc);
 				this->child_edc->parent = this;
@@ -139,8 +143,8 @@ namespace feat {
 			}
 			if (!other.sourceMat.empty()) {
 				this->grad = new Gradient(*other.grad);
-				this->sourceMat = other.sourceMat;
-				this->edgeMat = other.edgeMat;
+				this->sourceMat = other.sourceMat.clone();
+				this->edgeMat = other.edgeMat.clone();
 			}
 			this->dirbin = other.dirbin;
 			this->edgeFlag = other.edgeFlag;
@@ -210,19 +214,37 @@ namespace feat {
 		};
 		Corner(cv::Mat imageMat, feat::Corner::Harris* cdh, int flag, int numberofScales = 3, float scaleRat = 0);
 		Corner() {}
+		Corner(const Corner& other);
 		~Corner();
+		Corner& operator=(const Corner& other) {
+			this->~Corner();
+			if (other.child) {
+				this->child = new Harris(*other.child);
+				this->child->parent = this;
+				this->cdhHash = &this->child->hash;
+			}
+			this->hash = other.hash;
+			this->cornerFlag = other.cornerFlag;
+			this->numofScales = other.numofScales;
+			this->scaleRatio = other.scaleRatio;
+			this->sourceMat = other.sourceMat.clone();
+			this->cornerMat = other.cornerMat.clone();
+			this->cornerMarkedMat = other.cornerMarkedMat.clone();
+			
+			return *this;
+		}
 		std::vector<int> getIntVariables();
 		float getScaleRatio();
 		std::vector<XXH64_hash_t> getHashVariables();
 		cv::Mat getCornerMat();
 		cv::Mat getCornerMarkedMat(bool gray = false, float numOfPoints = 1000, float radius = 2, float thickness = 2,
 			cv::Scalar pointColor = { 255,0,255 });
-		static cv::Mat paintPointsOverImage(cv::Mat const imageMat, cv::Mat const pointMat, bool gray = true, 
+		static cv::Mat paintPointsOverImage(cv::Mat const imageMat, cv::Mat const pointMat, bool gray = true,
 			float numOfPoints = 100, float radius = 2, float thickness = 2, cv::Scalar pointColor = { 255,0,255 });
 		static cv::Mat cornerDetectionHarrisLaplace(cv::Mat imageMat, feat::Corner::Harris* cdh, float n = 3, float scaleRatio = 0);
 		static void localMaxima(cv::Mat src, cv::Mat& dst, int squareSize, float threshold);
-		bool skeleton() override {}
-		bool empty() override {}
+		bool skeleton() override { return false; }
+		bool empty() override { return false; }
 	private:
 		XXH64_hash_t hash;
 		XXH64_hash_t* cdhHash = nullptr;

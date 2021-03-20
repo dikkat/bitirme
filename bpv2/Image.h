@@ -9,20 +9,34 @@
 #include "xxhash.h"
 #include "feat.h"
 
+enum image_flag{IMG_EMPTY};
+
 namespace feat {
 	class Hash;
 }
+
+class TableModel;
 
 namespace img {
 	class Image {
 	public:
 		Image(string imgdir, int flag);
-		Image() {}
+		Image();
+		Image(const Image& other);
+		Image& operator=(const Image& other) {
+			this->hash = other.hash;
+			this->imageMat = other.imageMat.clone();
+			this->name = other.name;
+			this->dir = other.dir;
+			return *this;
+		}
 		const string getImageName();
 		cv::Mat getImageMat();
-		std::vector<string> getVariablesString();
-		XXH64_hash_t getHash();		
+		std::vector<string> getVariablesString() const;
+		XXH64_hash_t getHash() const;
+		void correctDir();
 	private:
+		friend class TableModel;
 		XXH64_hash_t hash;
 		cv::Mat imageMat;
 		string name, dir;

@@ -265,6 +265,7 @@ iop::WeightVector::WeightVector(float* w_grad, float* w_hgray, float* w_hbgr, fl
 
 std::vector<iop::Comparison> iop::Comparator::beginMultiCompare(FeatureVector* source, 
 	std::vector<string> destVec, WeightVector* wvec, int cmpNum) {
+	this->wvec = new WeightVector(*wvec);
 	this->source = source;
 	auto thrNum = std::thread::hardware_concurrency();
 
@@ -300,92 +301,91 @@ std::vector<iop::Comparison> iop::Comparator::beginMultiCompare(FeatureVector* s
 		for (int j = 0; j < 8; j++) i.push_back(vecf());
 	}
 
-	task = [&wnullError, &m, &cmpVec, &thrCond, &cmpNum, &timeVec](int i, string str, FeatureVector* source,
-		WeightVector* wvec) {
-			if (cmpVec.size() > cmpNum) {
-				thrCond[i] = true;
-				return;
-			}
+	task = [&](int i, string str, FeatureVector* source, WeightVector* wvec) {
+		if (cmpVec.size() > cmpNum) {
+			thrCond[i] = true;
+			return;
+		}
 
-			img::Image img(str, cv::IMREAD_COLOR);
+		img::Image img(str, cv::IMREAD_COLOR);
 
-			feat::Edge* edge = nullptr;
-			if (source->edge != nullptr) {
-				if (wvec->wv_grad.empty())
-					wnullError(true);
-				edge = new feat::Edge(img.getImageMat(), source->edge->getEdgeFlag(), source->edge->getCannyPtr(),
-					source->edge->getComparisonValues()[0], source->edge->getComparisonValues()[1],
-					source->edge->getComparisonValues()[2]);
-			}
-			else if (!wvec->wv_grad.empty())
-				wnullError(false);
+		feat::Edge* edge = nullptr;
+		if (source->edge && !source->edge->empty()) {
+			if (wvec->vectorAtIndexIsZero(0))
+				wnullError(true);
+			edge = new feat::Edge(img.getImageMat(), source->edge->getEdgeFlag(), source->edge->getCannyPtr(),
+				source->edge->getComparisonValues()[0], source->edge->getComparisonValues()[1],
+				source->edge->getComparisonValues()[2]);
+		}
+		else if (!wvec->vectorAtIndexIsZero(0))
+			wnullError(false);
 
-			feat::Histogram* hist_gray = nullptr;
-			if (source->hist_gray != nullptr) {
-				if (gen::cmpf(wvec->w_hgray, 0))
-					wnullError(true);
-				hist_gray = new feat::Histogram(img.getImageMat(), HIST_GRAY, source->hist_gray->getBin()[0]);
-			}
-			else if (!gen::cmpf(wvec->w_hgray, 0))
-				wnullError(false);
+		feat::Histogram* hist_gray = nullptr;
+		if (source->hist_gray && !source->hist_gray->empty()) {
+			if (wvec->vectorAtIndexIsZero(1))
+				wnullError(true);
+			hist_gray = new feat::Histogram(img.getImageMat(), HIST_GRAY, source->hist_gray->getBin()[0]);
+		}
+		else if (!wvec->vectorAtIndexIsZero(1))
+			wnullError(false);
 
-			feat::Histogram* hist_bgr = nullptr;
-			if (source->hist_bgr != nullptr) {
-				if (wvec->wv_hbgr.empty())
-					wnullError(true);
-				hist_bgr = new feat::Histogram(img.getImageMat(), HIST_BGR, source->hist_bgr->getBin()[0],
-					source->hist_bgr->getBin()[1], source->hist_bgr->getBin()[2]);
-			}
-			else if (!wvec->wv_hbgr.empty())
-				wnullError(false);
+		feat::Histogram* hist_bgr = nullptr;
+		if (source->hist_bgr && !source->hist_bgr->empty()) {
+			if (wvec->vectorAtIndexIsZero(2))
+				wnullError(true);
+			hist_bgr = new feat::Histogram(img.getImageMat(), HIST_BGR, source->hist_bgr->getBin()[0],
+				source->hist_bgr->getBin()[1], source->hist_bgr->getBin()[2]);
+		}
+		else if (!wvec->vectorAtIndexIsZero(2))
+			wnullError(false);
 			
-			feat::Histogram* hist_hsv = nullptr;
-			if (source->hist_hsv != nullptr) {
-				if (wvec->wv_hhsv.empty())
-					wnullError(true);
-				hist_hsv = new feat::Histogram(img.getImageMat(), HIST_HSV, source->hist_hsv->getBin()[0],
-					source->hist_hsv->getBin()[1], source->hist_hsv->getBin()[2]);
-			}
-			else if (!wvec->wv_hhsv.empty())
-				wnullError(false);
+		feat::Histogram* hist_hsv = nullptr;
+		if (source->hist_hsv && !source->hist_hsv->empty()) {
+			if (wvec->vectorAtIndexIsZero(3))
+				wnullError(true);
+			hist_hsv = new feat::Histogram(img.getImageMat(), HIST_HSV, source->hist_hsv->getBin()[0],
+				source->hist_hsv->getBin()[1], source->hist_hsv->getBin()[2]);
+		}
+		else if (!wvec->vectorAtIndexIsZero(3))
+			wnullError(false);
 			
-			feat::Hash* perc_hash = nullptr;
-			if (source->perc_hash != nullptr) {
-				if (wvec->wv_hash.empty())
-					wnullError(true);
-				perc_hash = new feat::Hash(img.getImageMat(), std::make_pair(
-					source->perc_hash->getHashVariables().first != NULL ? true : false,
-					source->perc_hash->getHashVariables().second != NULL ? true : false));
-			}
-			else if (!wvec->wv_hash.empty())
-				wnullError(false);
+		feat::Hash* perc_hash = nullptr;
+		if (source->perc_hash && !source->perc_hash->empty()) {
+			if (wvec->vectorAtIndexIsZero(4))
+				wnullError(true);
+			perc_hash = new feat::Hash(img.getImageMat(), std::make_pair(
+				source->perc_hash->getHashVariables().first != NULL ? true : false,
+				source->perc_hash->getHashVariables().second != NULL ? true : false));
+		}
+		else if (!wvec->vectorAtIndexIsZero(4))
+			wnullError(false);
 
-			FeatureVector rhand(&img, edge, hist_gray, hist_bgr, hist_hsv, perc_hash);
+		FeatureVector rhand(&img, edge, hist_gray, hist_bgr, hist_hsv, perc_hash);
 
-			m.lock();
+		m.lock();
 
-			if (cmpVec.size() >= cmpNum) {
-				m.unlock();
-				delete(edge);
-				delete(hist_gray);
-				delete(hist_bgr);
-				delete(hist_hsv);
-				delete(perc_hash);
-				thrCond[i] = true;
-				return;
-			}
-
-			cmpVec.push_back(Comparison(source, &rhand, wvec));
-
+		if (cmpVec.size() >= cmpNum) {
 			m.unlock();
 			delete(edge);
 			delete(hist_gray);
 			delete(hist_bgr);
 			delete(hist_hsv);
 			delete(perc_hash);
-
 			thrCond[i] = true;
 			return;
+		}
+
+		cmpVec.push_back(Comparison(source, &rhand, wvec));
+
+		m.unlock();
+		delete(edge);
+		delete(hist_gray);
+		delete(hist_bgr);
+		delete(hist_hsv);
+		delete(perc_hash);
+
+		thrCond[i] = true;
+		return;
 	};
 
 	for (int j = 0; j < destVec.size(); j++) {
@@ -428,37 +428,52 @@ iop::Comparison::Comparison(FeatureVector* source, FeatureVector* rhand, WeightV
 	source_dir = source->image->getVariablesString()[1];
 	rhand_dir = rhand->image->getVariablesString()[1];
 
-	auto tempg = calculateEdgeSimilarity(source->edge, rhand->edge, SIM_EUCDIST,
-		source->edge->getComparisonValues()[1], source->edge->getComparisonValues()[2]).first;
-	if (!tempg.empty()) {
-		diff_gradm = tempg[0];
-		diff_gradd = tempg[1];
+	if (source->edge) {
+		auto tempg = calculateEdgeSimilarity(source->edge, rhand->edge, SIM_EUCDIST,
+			source->edge->getComparisonValues()[1], source->edge->getComparisonValues()[2]).first;
+		if (!tempg.empty()) {
+			diff_gradm = tempg[0];
+			diff_gradd = tempg[1];
+		}
 	}
 
-	auto temphg = calculateHistogramSimilarity(source->hist_gray, rhand->hist_gray, SIM_EUCDIST).first;
-	if (!temphg.empty()) {
-		diff_hgray = temphg[0];
+	if (source->hist_gray) {
+		auto temphg = calculateHistogramSimilarity(source->hist_gray, rhand->hist_gray, SIM_EUCDIST).first;
+		if (!temphg.empty()) {
+			diff_hgray = temphg[0];
+		}
 	}
 
-	auto temphbgr = calculateHistogramSimilarity(source->hist_bgr, rhand->hist_bgr, SIM_EUCDIST).first;
-	if (!temphbgr.empty()) {
-		diff_hbgrb = temphbgr[0];
-		diff_hbgrg = temphbgr[1];
-		diff_hbgrr = temphbgr[2];
+	if (source->hist_bgr) {
+		auto temphbgr = calculateHistogramSimilarity(source->hist_bgr, rhand->hist_bgr, SIM_EUCDIST).first;
+		if (!temphbgr.empty()) {
+			diff_hbgrb = temphbgr[0];
+			diff_hbgrg = temphbgr[1];
+			diff_hbgrr = temphbgr[2];
+		}
 	}
 
-	auto temphhsv = calculateHistogramSimilarity(source->hist_hsv, rhand->hist_hsv, SIM_EUCDIST).first;
-	if (!temphhsv.empty()) {
-		diff_hhsvh = temphhsv[0];
-		diff_hhsvs = temphhsv[1];
-		diff_hhsvv = temphhsv[2];
+	if (source->hist_hsv) {
+		auto temphhsv = calculateHistogramSimilarity(source->hist_hsv, rhand->hist_hsv, SIM_EUCDIST).first;
+		if (!temphhsv.empty()) {
+			diff_hhsvh = temphhsv[0];
+			diff_hhsvs = temphhsv[1];
+			diff_hhsvv = temphhsv[2];
+		}
 	}
 
-	auto temphash = calculateHashSimilarity(source->perc_hash, rhand->perc_hash);
-	if (!temphash.empty()) {
-		diff_hashd = temphash[0];
-		diff_hashp = temphash[1];
+	if (source->perc_hash) {
+		auto temphash = calculateHashSimilarity(source->perc_hash, rhand->perc_hash);
+		if (!temphash.empty()) {
+			diff_hashd = temphash[0];
+			diff_hashp = temphash[1];
+		}
 	}
+
+	this->diff_total.clear();
+	this->diff_total = { &this->diff_gradm, &this->diff_gradd, &this->diff_hgray, &this->diff_hbgrb,
+		&this->diff_hbgrg, &this->diff_hbgrr, &this->diff_hhsvh, &this->diff_hhsvs,
+		&this->diff_hhsvv, &this->diff_hashd, &this->diff_hashp, &this->euc_dist };
 
 	calculateEuclideanDistance();
 	
@@ -474,15 +489,19 @@ void iop::Comparison::calculateEuclideanDistance() {
 	for(int i = 0; i < wvec.size(); i++)
 		for (int j = 0; j < wvec[i]->size(); j++) {
 			auto curr = *diff_total[k];
-			if (curr != -1 && !gen::cmpf(wvec.at(i)->at(j), 0, 0.0005)) {
-				euc_dist += pow(curr * wvec.at(i)->at(j), 2);
+			if (!gen::cmpf(curr, -1) && !gen::cmpf(wvec.at(i)->at(j), 0, 0.0005)) {
+				euc_dist += pow(curr, 2) * wvec.at(i)->at(j);
 				k++;
 				nooffeat++;
 			}
 			else 
 				k++;			
 		}
-	euc_dist = pow(euc_dist, static_cast<float>(1) / static_cast<float>(nooffeat));
+	euc_dist = pow(euc_dist, 0.5);
+}
+
+iop::Comparison::Comparison(const iop::Comparison& other) {
+	*this = other;
 }
 
 std::pair<string, string> iop::Comparison::getDirValues() {
@@ -500,4 +519,24 @@ std::vector<iop::Comparison> iop::Comparator::getComparisonVector(bool sorted) {
 			return lh.euc_dist < rh.euc_dist;
 		});
 	return temp;
+}
+
+std::vector<iop::Comparison>* iop::Comparator::getComparisonVector_ptr() {
+	return &dest;
+}
+
+iop::WeightVector* iop::Comparator::getWeightVector() {
+	return this->wvec;
+}
+
+bool iop::WeightVector::vectorAtIndexIsZero(int index) {
+	try { 
+		float sum = 0;
+		for (int i = 0; i < wvv_total.at(index)->size(); i++)
+			sum += wvv_total.at(index)->at(i);
+		return sum == 0;
+	}
+	catch (std::out_of_range e) {
+		throw e;
+	}
 }

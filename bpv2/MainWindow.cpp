@@ -1,8 +1,11 @@
 #include "MainWindow.h"
+#define CMP_MAX 10000
 
 QSqlDatabase qDB = QSqlDatabase();
 
 constexpr int maximum = 16777215;
+constexpr int tableIconSize = 100;
+constexpr bool imageCheck = false;
 
 cv::Mat QImageToCvMat(const QImage& operand) {
 	cv::Mat mat = cv::Mat(operand.height(), operand.width(), CV_8UC4, (uchar*)operand.bits(), operand.bytesPerLine());
@@ -12,7 +15,7 @@ cv::Mat QImageToCvMat(const QImage& operand) {
 	return result;
 }
 
-QImage cvMatToQImage(cv::Mat& operand) {
+QImage cvMatToQImage(const cv::Mat operand) {
 	QImage imgIn;
 	if (operand.channels() == 3)
 		imgIn = QImage((uchar*)operand.data, operand.cols, operand.rows, operand.step, QImage::Format_BGR888);
@@ -21,51 +24,263 @@ QImage cvMatToQImage(cv::Mat& operand) {
 		imgIn = QImage("buffer.jpg");
 	}
 	else
-		throw std::exception("Number of image channels can't be different than 1 and 3.");
+		throw gen::Warning("Number of image channels can't be different than 1 and 3.");
 	return imgIn;
 }
 
-TableModel::TableModel(QObject* parent)	: QSqlQueryModel(parent) {}
+SortProxyModel::SortProxyModel(QTableView* parent_table, QObject* parent) : QSortFilterProxyModel(parent), 
+	parent_table(parent_table) {
+	interval = { 0, maximum };
+}
+
+QVariant SortProxyModel::data(const QModelIndex& index, int role) const {
+	int row = index.row();
+	int pos_main = parent_table->indexAt(parent_table->rect().topLeft()).row();
+	std::pair<int, int> datainterval = { pos_main - 5, pos_main + 50 };
+	if (datainterval.first <= row && datainterval.second >= row) {
+		auto index_main = this->mapToSource(index);
+		return this->sourceModel()->data(index_main, role);
+	}
+	return QVariant();
+}
+
+void SortProxyModel::suspendData(std::pair<int, int> interval) {
+	this->interval = interval;
+	std::thread suspend_thr([this] {
+		Sleep(700);
+		this->interval = { 0, maximum };
+		});
+	suspend_thr.detach();
+}
+
+TableModel::TableModel(table_type type, std::vector<std::pair<img::Image, float>> imgVec, QObject* parent) :
+	type(type), imgVec(imgVec), QAbstractTableModel(parent) {
+	iconCache = new QCache<int, cv::Mat>(200);
+	colCount = type == table_type::TABLE_MAIN ? 3 : 4;
+	rowPos = 0;
+	iconColumnHidden = true;
+}
+
+int TableModel::rowCount(const QModelIndex& parent) const {
+	return dispVec.size();
+}
+
+int TableModel::columnCount(const QModelIndex& parent) const {
+	return colCount;
+}
+
+bool TableModel::insertRows(int row, int count, const QModelIndex& parent) {
+	beginInsertRows(QModelIndex(), row, row + count - 1);
+	imgVec.insert(imgVec.begin() + row, count, { img::Image(), float{ -1 } } );
+	endInsertRows();
+	return true;
+}
+
+bool TableModel::removeRows(int row, int count, const QModelIndex& parent) {
+	if (count == 0) {
+		return true;
+	}
+	beginRemoveRows(QModelIndex(), row, row + count - 1);
+	imgVec.erase(imgVec.begin() + row, imgVec.begin() + row + count);
+	endRemoveRows();
+	return true;
+}
+
+bool TableModel::setData(const QModelIndex& index, const QVariant& value, int role) {
+	if (index.isValid()) {
+		if (index.column() == 0) {
+			imgVec.at(index.row()).first.dir = value.toString().toStdString();
+			emit dataChanged(index, index, { role });
+			return true;
+		}
+		else if (index.column() == 1) {
+			auto hash = value.toString().toStdString();
+			imgVec.at(index.row()).first.hash = std::stoull(hash, nullptr); //TODO: CHECK THIS
+			emit dataChanged(index, index, { role });
+			return true;
+		}
+		else if (index.column() == 2) {
+			imgVec.at(index.row()).first.name = value.toString().toStdString();
+			emit dataChanged(index, index, { role });
+			return true;
+		}
+		else if (index.column() == 3) {
+			imgVec.at(index.row()).second = value.toFloat();
+			emit dataChanged(index, index, { role });
+			return true;
+		}
+	}
+
+	return false;
+}
+
+bool TableModel::canFetchMore(const QModelIndex& parent) const {
+	if (parent.isValid())
+		return false;
+	return (rowPos < imgVec.size());
+}
+
+void TableModel::fetchMore(const QModelIndex& parent) {
+	if (parent.isValid())
+		return;
+	int remainder = imgVec.size() - rowPos;
+	int itemsToFetch = /*this->type == table_type::TABLE_RESULT ?
+		remainder : qMin(this->iconColumnHidden ? 100 : 20, */remainder/*)*/;
+
+	if (itemsToFetch <= 0)
+		return;
+
+	beginInsertRows(QModelIndex(), rowPos, rowPos + itemsToFetch - 1);
+
+	for(int i = rowPos; i < rowPos + itemsToFetch; i++)
+		dispVec.push_back({ &imgVec[i].first, &imgVec[i].second });
+
+	rowPos += itemsToFetch;
+
+	endInsertRows();
+}
+
+void TableModel::insertImage(const img::Image image) {
+	/*int next_index = this->rowCount();*/
+
+	imgVec.push_back({ image, -1 });
+	dispVec.clear();
+	for(int i = 0; i < imgVec.size(); i++) 
+		dispVec.push_back({ &imgVec[i].first, &imgVec[i].second });
+	/*this->insertRows(next_index, 1);
+	this->setData(index(next_index, 0), QVariant(image.dir.c_str()));
+	this->setData(index(next_index, 1), QVariant(std::to_string(image.hash).c_str()));
+	this->setData(index(next_index, 2), QVariant(image.name.c_str()));
+	if (this->type == table_type::TABLE_RESULT)
+		this->setData(index(next_index, 3), QVariant(-1));*/
+}
+
+void TableModel::insertComparison(const iop::Comparison comparison) {
+	if (this->type != table_type::TABLE_RESULT)
+		throw std::exception("Illegal table type.");
+
+	img::Image image(comparison.rhand_dir, IMG_EMPTY);
+	imgVec.push_back({ image, comparison.euc_dist });
+	/*int next_index = this->rowCount();
+
+	this->insertRows(next_index, 1);
+	this->setData(index(next_index, 0), QVariant(image.dir.c_str()));
+	this->setData(index(next_index, 1), QVariant(std::to_string(image.hash).c_str()));
+	this->setData(index(next_index, 2), QVariant(image.name.c_str()));
+	this->setData(index(next_index, 3), QVariant(comparison.euc_dist));*/
+}
 
 QVariant TableModel::data(const QModelIndex& index, int role) const {
 	int col = index.column();
+	int row = index.row();
+
+	if (!index.isValid())
+		return QVariant();
+
+	if (index.row() >= dispVec.size())
+		return QVariant();
+
 	if (col == 0) {
-		if (role == Qt::DecorationRole) {
-			/*QString imcode = QSqlQueryModel::data(index).toString();
-			string condition = "imhash='" + imcode.toStdString() + "'";
-			img::Icon imgIcon(dbop::deserializeMat(imcode.toStdString()));
-			int height = imgIcon.getIconMat().rows;
-			auto mat = imgIcon.getIconMat();
-			std::vector<uchar> buffer;
-			cv::imencode(".jpg", mat, buffer, { cv::IMWRITE_JPEG_QUALITY, 85 });
-			auto compressed = cv::imdecode(buffer, cv::IMREAD_COLOR);
-			auto icon = QIcon(QPixmap::fromImage(cvMatToQImage(compressed)));
-			return icon;*/
-			QString imdir = QSqlQueryModel::data(index).toString();
-			auto mat = cv::imread(imdir.toStdString(), cv::IMREAD_COLOR);
-			auto width = mat.cols;
-			auto height = mat.rows;
-			auto recommended = 100;
-			if (height > width) {
-				width = recommended * width / height;
-				height = recommended;
+		if (role == Qt::ItemDataRole::DecorationRole) {
+			if (iconCache->contains(row)) {
+				return QIcon(QPixmap(QPixmap::fromImage(cvMatToQImage(*iconCache->object(row)))));
 			}
 			else {
-				height = recommended * height / width;
-				width = recommended;
+				string imdir = dispVec.at(row).first->getVariablesString()[1];
+				if (imdir == "")
+					return QVariant();
+				img::Image image(imdir, cv::IMREAD_COLOR);
+				cv::Mat& mat = image.getImageMat();
+				auto width = mat.cols;
+				auto height = mat.rows;
+				auto recommended = tableIconSize;
+				if (height > width) {
+					width = recommended * width / height;
+					height = recommended;
+				}
+				else {
+					height = recommended * height / width;
+					width = recommended;
+				}
+
+				cv::resize(mat, mat, cv::Size(width, height));
+				iconCache->insert(index.row(), new cv::Mat(mat), 1);
+				QPixmap pixmap = QPixmap::fromImage(cvMatToQImage(mat));
+				return QIcon(pixmap);
 			}
-			
-			cv::resize(mat, mat, cv::Size(width, height));
-			QPixmap pixmap = QPixmap::fromImage(cvMatToQImage(mat));
-			return QIcon(pixmap);
 		}
 		else {
 			return QVariant();
 		}
 	}
+
+	else if (col == 1 && role == Qt::ItemDataRole::DisplayRole) {
+		return QString(std::to_string(dispVec[row].first->getHash()).c_str());
+	}
+
+	else if (col == 2 && role == Qt::ItemDataRole::DisplayRole) {
+		return QString(dispVec[row].first->getVariablesString()[0].c_str());
+	}
+
+	else if (col == 3 && role == Qt::ItemDataRole::DisplayRole && type == table_type::TABLE_RESULT) {
+		return QVariant(*dispVec[row].second);
+	}
 	
-	return QSqlQueryModel::data(index, role);
+	return QVariant();
 }
+
+table_type TableModel::getType() {
+	return type;
+}
+
+void TableModel::setIconColumnHidden(bool hidden) {
+	iconColumnHidden = hidden;
+}
+
+void TableModel::updateComparison(int row, const iop::Comparison comparison) {
+	if (this->type != table_type::TABLE_RESULT)
+		throw std::exception("Comparison can't be added to main table.");
+	imgVec.at(row).second = comparison.euc_dist;
+	//emit dataChanged(this->index(row, 3), this->index(row, 3));
+}
+
+std::vector<std::pair<img::Image, float>>* TableModel::getImgVecPtr() {
+	return &this->imgVec;
+}
+
+void TableModel::resetTable() {
+	this->beginResetModel();
+	this->imgVec.clear();
+	this->dispVec.clear();
+	this->iconCache->clear();
+	this->rowPos = 0;
+	this->endResetModel();
+}
+
+QVariant TableModel::headerData(int section, Qt::Orientation orientation, int role) const {
+	if (orientation == Qt::Orientation::Horizontal) {
+		if (role == Qt::ItemDataRole::DisplayRole) {
+			if (section == 0)
+				return QString("Icon");
+			else if (section == 1)
+				return QString("Hash");
+			else if (section == 2)
+				return QString("Name");
+			else if (section == 3 && this->type == table_type::TABLE_RESULT)
+				return QString("Similarity");
+		}
+	}
+	return QVariant();
+}
+
+//void TableModel::suspendData(std::pair<int, int> interval) {
+//	this->interval = interval;
+//	std::thread suspend_thr([this] {
+//		Sleep(700);
+//		this->interval = { 0, maximum };
+//	});
+//	suspend_thr.detach();
+//}
 
 //void TableModel::sort(int column, Qt::SortOrder order) {
 //	if(this->headerData(2, Qt::Horizontal))
@@ -78,6 +293,8 @@ DetailDialog::DetailDialog(QWidget* parent, iop::Comparison* comp, iop::WeightVe
 	};
 	parent_ptr = (MainWindow*)parent;
 	if (comp) {
+		ui.label_srcimg->setText(img::buildImageName(comp->source_dir).c_str());
+		ui.label_destimg->setText(img::buildImageName(comp->rhand_dir).c_str());
 		ui.lineEdit_gm->setText(ftoq(comp->diff_gradm));
 		ui.lineEdit_gd->setText(ftoq(comp->diff_gradd));
 		ui.lineEdit_hg->setText(ftoq(comp->diff_hgray));
@@ -416,24 +633,24 @@ void SortDialog::buildFeatureVector() {
 	wv.wv_hash[1] = ui.lineEdit_19->isEnabled() ? ui.lineEdit_19->text().toFloat() / 100 : 0;
 	wv.wv_grad[0] = ui.lineEdit_weightgramag->isEnabled() ? ui.lineEdit_weightgramag->text().toFloat() / 100 : 0;
 	wv.wv_grad[1] = ui.lineEdit_weightgradir->isEnabled() ? ui.lineEdit_weightgradir->text().toFloat() / 100 : 0;
-	wv.w_hgray = checkbox_vec[0]->isEnabled() ? qtof(lineedit_hist_vec[0][0]->text()) / 100 : 0;
+	wv.w_hgray = lineedit_hist_vec[0][0]->isEnabled() ? qtof(lineedit_hist_vec[0][0]->text()) / 100 : 0;
 	delete(wv.wvv_total[1]);
 	wv.wvv_total[1] = new vecf{ wv.w_hgray };
-	wv.wv_hbgr[0] = checkbox_vec_bgr[1][0]->isChecked() ? qtof(lineedit_hist_vec[1][0]->text()) / 100 : 0;
-	wv.wv_hbgr[1] = checkbox_vec_bgr[1][1]->isChecked() ? qtof(lineedit_hist_vec[1][1]->text()) / 100 : 0;
-	wv.wv_hbgr[2] = checkbox_vec_bgr[1][2]->isChecked() ? qtof(lineedit_hist_vec[1][2]->text()) / 100 : 0;
-	wv.wv_hhsv[0] = checkbox_vec_bgr[2][0]->isChecked() ? qtof(lineedit_hist_vec[2][0]->text()) / 100 : 0;
-	wv.wv_hhsv[1] = checkbox_vec_bgr[2][1]->isChecked() ? qtof(lineedit_hist_vec[2][1]->text()) / 100 : 0;
-	wv.wv_hhsv[2] = checkbox_vec_bgr[2][2]->isChecked() ? qtof(lineedit_hist_vec[2][2]->text()) / 100 : 0;
+	wv.wv_hbgr[0] = lineedit_hist_vec[1][0] ->isEnabled() ? qtof(lineedit_hist_vec[1][0]->text()) / 100 : 0;
+	wv.wv_hbgr[1] = lineedit_hist_vec[1][1]->isEnabled() ? qtof(lineedit_hist_vec[1][1]->text()) / 100 : 0;
+	wv.wv_hbgr[2] = lineedit_hist_vec[1][2]->isEnabled() ? qtof(lineedit_hist_vec[1][2]->text()) / 100 : 0;
+	wv.wv_hhsv[0] = lineedit_hist_vec[2][0]->isEnabled() ? qtof(lineedit_hist_vec[2][0]->text()) / 100 : 0;
+	wv.wv_hhsv[1] = lineedit_hist_vec[2][1]->isEnabled() ? qtof(lineedit_hist_vec[2][1]->text()) / 100 : 0;
+	wv.wv_hhsv[2] = lineedit_hist_vec[2][2]->isEnabled() ? qtof(lineedit_hist_vec[2][2]->text()) / 100 : 0;
 
 	feat::Histogram hist_g;
-	if(checkbox_vec[0]->isEnabled())
+	if(checkbox_vec[0]->isChecked())
 		hist_g = feat::Histogram(cv::Mat(), HIST_GRAY, slider_hist_vec[0][0]->value());
 	else
 		hist_g = feat::Histogram(cv::Mat(), HIST_GRAY, 0, 0, 0);
 
 	feat::Histogram hist_bgr;
-	if (checkbox_vec[1]->isEnabled())
+	if (checkbox_vec[1]->isChecked())
 		hist_bgr = feat::Histogram(cv::Mat(), HIST_BGR, checkbox_vec_bgr[1][0]->isChecked() ? slider_hist_vec[1][0]->value() : 0, 
 			checkbox_vec_bgr[1][1]->isChecked() ? slider_hist_vec[1][1]->value() : 0, 
 			checkbox_vec_bgr[1][2]->isChecked() ? slider_hist_vec[1][2]->value() : 0);
@@ -441,7 +658,7 @@ void SortDialog::buildFeatureVector() {
 		hist_bgr = feat::Histogram(cv::Mat(), HIST_BGR, 0, 0, 0);
 
 	feat::Histogram hist_hsv;
-	if (checkbox_vec[2]->isEnabled())
+	if (checkbox_vec[2]->isChecked())
 		hist_hsv = feat::Histogram(cv::Mat(), HIST_HSV, checkbox_vec_bgr[2][0]->isChecked() ? slider_hist_vec[2][0]->value() : 0,
 			checkbox_vec_bgr[2][1]->isChecked() ? slider_hist_vec[2][1]->value() : 0,
 			checkbox_vec_bgr[2][2]->isChecked() ? slider_hist_vec[2][2]->value() : 0);
@@ -485,37 +702,42 @@ MainWindow::MainWindow(dbop::Database dbObj, QWidget *parent) : QMainWindow(pare
 	ui.setupUi(this);
 
 	setIcons();
-	screenSize = new QSize(QApplication::desktop()->screenGeometry().width(), QApplication::desktop()->screenGeometry().height());
+	screenSize = new QSize(this->geometry().width(), this->geometry().height());
 
 	QResource::registerResource("Resource.rcc");
 
+	ui.mainTabWidget->removeTab(2);
+	ui.comboBox_kernelFlag->setCurrentIndex(3);
+
 	mw_dbPtr = &dbObj;
-	//lnkr::deleteFromSimAndWV(); TODO: UNCOM THIS
+	lnkr::deleteFromSimAndWV(); 
 
 	qDB = QSqlDatabase::addDatabase("QSQLITE");
-	qDB.setDatabaseName("C:/Users/ASUS/source/repos/bpv2/bpv2/bitirme.db");
+	qDB.setDatabaseName("bitirme.db");
 
 	if (!qDB.open())
 		showError(qDB.lastError());
+	qDB.exec("PRAGMA synchronous = OFF");
+	qDB.exec("PRAGMA journal_mode = MEMORY");
 
-	resultModel = new TableModel;
+	resultModel = new TableModel(table_type::TABLE_RESULT, {});
 	
-	resultModel->setQuery("SELECT DISTINCT b.dir, b.name, similarity.similarity, b.hash"
+	QSqlQuery query(qDB);
+	if (query.prepare("SELECT DISTINCT b.dir, b.hash, b.name, similarity.similarity"
 		" FROM image a, image b"
 		" INNER JOIN similarity"
-		" ON similarity.srchash = a.hash and similarity.desthash = b.hash", qDB);
-
-	proxyModel_result = new QSortFilterProxyModel;
+		" ON similarity.srchash = a.hash and similarity.desthash = b.hash"))
+		query.exec();
+	else
+		throw std::exception("Failed initiating image table.");
+	
+	proxyModel_result = new SortProxyModel(ui.resultTableView);
 	proxyModel_result->setDynamicSortFilter(true);
 	proxyModel_result->setSourceModel(resultModel);
 	ui.resultTableView->setModel(proxyModel_result);
 	ui.resultTableView->setSortingEnabled(true);
-	resultModel->setHeaderData(0, Qt::Horizontal, tr("Thumbnail"), Qt::DecorationRole);
-	resultModel->setHeaderData(1, Qt::Horizontal, tr("Name"));
-	resultModel->setHeaderData(2, Qt::Horizontal, tr("Similarity"));
-	resultModel->setHeaderData(3, Qt::Horizontal, tr("Hash"));
 
-	ui.resultTableView->setColumnHidden(3, true);
+	ui.resultTableView->setColumnHidden(1, true);
 	
 	ui.resultTableView->verticalHeader()->setSectionResizeMode(QHeaderView::Fixed);
 	ui.resultTableView->verticalHeader()->setDefaultSectionSize(100);
@@ -524,25 +746,29 @@ MainWindow::MainWindow(dbop::Database dbObj, QWidget *parent) : QMainWindow(pare
 	ui.resultTableView->horizontalHeader()->setModel(resultModel);
 	ui.resultTableView->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
 	ui.resultTableView->verticalHeader()->setDefaultSectionSize(100);
-	ui.resultTableView->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
-	ui.resultTableView->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+	ui.resultTableView->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch);
+	ui.resultTableView->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Stretch);
 
 	ui.resultTableView->setContextMenuPolicy(Qt::CustomContextMenu);
 
-	/*"SELECT DISTINCT icon.mat, a.name, a.hash"
-		" FROM icon, image a"
-		" INNER JOIN imageicon"
-		" ON imageicon.imhash = a.hash and imageicon.iconhash = icon.hash"*/
+	/*"SELECT DISTINCT a.dir, a.hash, a.name"
+		" FROM image a"*/
 
-	mainModel = new TableModel;
-	mainModel->setQuery("SELECT DISTINCT a.dir, a.name, a.hash"
-		" FROM image a" , qDB);
-	ui.mainTableView->setModel(mainModel);
-	mainModel->setHeaderData(0, Qt::Horizontal, tr("Thumbnail"), Qt::DecorationRole);
-	mainModel->setHeaderData(1, Qt::Horizontal, tr("Name"));
-	mainModel->setHeaderData(2, Qt::Horizontal, tr("Hash"));
 	
-	ui.mainTableView->setColumnHidden(2, true);
+	auto imageVec = lnkr::getImageTable();
+	std::vector<std::pair<img::Image, float>> parVec;
+	for (auto i : imageVec)
+		parVec.push_back({ i, -1 });
+	mainModel = new TableModel(table_type::TABLE_MAIN, parVec);
+	/*for (auto i : imageVec)
+		mainModel->insertImage(i);*/
+	proxyModel_main = new SortProxyModel(ui.mainTableView);
+	proxyModel_main->setDynamicSortFilter(true);
+	proxyModel_main->setSourceModel(mainModel);
+	ui.mainTableView->setModel(proxyModel_main);
+	ui.mainTableView->setSortingEnabled(true);
+	
+	ui.mainTableView->setColumnHidden(1, true);
 
 	ui.mainTableView->verticalHeader()->setSectionResizeMode(QHeaderView::Fixed);
 	ui.mainTableView->verticalHeader()->setDefaultSectionSize(100);
@@ -550,19 +776,21 @@ MainWindow::MainWindow(dbop::Database dbObj, QWidget *parent) : QMainWindow(pare
 
 	ui.mainTableView->horizontalHeader()->setModel(mainModel);
 	ui.mainTableView->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
-	ui.mainTableView->verticalHeader()->setDefaultSectionSize(100);
-	ui.mainTableView->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
+	ui.mainTableView->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch);
 
 	ui.mainTableView->setContextMenuPolicy(Qt::CustomContextMenu);
 
+	ui.checkBox_icon->setChecked(false);
+	showIcons(false);
+
 	ui.label_imgSrc->setBackgroundRole(QPalette::Base);
-	ui.label_imgSrc->setScaledContents(true);
+	//ui.label_imgSrc->setScaledContents(true);
 
 	QDoubleValidator* validator = new QDoubleValidator(0.0001, 100.0, 1000);
 	ui.lineEdit_alpha->setValidator(validator);
 	ui.lineEdit_alpha->setText("0.04");
 	ui.lineEdit_gauss->setValidator(validator);
-	ui.lineEdit_gauss->setText("31");
+	ui.lineEdit_gauss->setText("5");
 	ui.lineEdit_numOfScales->setValidator(validator);
 	ui.lineEdit_numOfScales->setText("3");
 	ui.lineEdit_radius->setValidator(validator);
@@ -596,11 +824,13 @@ MainWindow::MainWindow(dbop::Database dbObj, QWidget *parent) : QMainWindow(pare
 	ui.lineEdit_thigh->setEnabled(false);
 	ui.lineEdit_sigma->setEnabled(false);
 
+	ui.stackedWidget->setHidden(true);
+	ui.stackedWidget_2->setHidden(true);
+
 	QObject MWObject;
 	MWObject.connect(ui.pushButton_switch, SIGNAL(clicked()), this, SLOT(switchTables()));
 	MWObject.connect(ui.pushButton_srcImgLabel, SIGNAL(clicked()), this, SLOT(openImageLabel()));
 	MWObject.connect(ui.comboBox_edgeFlag, SIGNAL(currentIndexChanged(int)), this, SLOT(enableCanny(int)));
-	MWObject.connect(ui.pushButton_sort, SIGNAL(clicked()), this, SLOT(compareImages()));
 	MWObject.connect(ui.pushButton_loadImgs, SIGNAL(clicked()), this, SLOT(openList()));
 	MWObject.connect(ui.pushButton_dispInDet, SIGNAL(clicked()), this, SLOT(displayFeature()));
 	MWObject.connect(ui.comboBox_histFlag, SIGNAL(currentIndexChanged(int)), this, SLOT(displayButtons_BGR()));
@@ -609,31 +839,23 @@ MainWindow::MainWindow(dbop::Database dbObj, QWidget *parent) : QMainWindow(pare
 	MWObject.connect(ui.toolButton_settings, SIGNAL(clicked()), this, SLOT(openSortDialog()));
 	MWObject.connect(ui.checkBox_icon, SIGNAL(toggled(bool)), this, SLOT(showIcons(bool)));
 	MWObject.connect(ui.pushButton_sort, SIGNAL(clicked()), this, SLOT(compareMain()));
+	MWObject.connect(ui.comboBox_statSrc, SIGNAL(currentIndexChanged(int)), this, SLOT(statsTab_enableBGR_src(int)));
+	MWObject.connect(ui.comboBox_statDest, SIGNAL(currentIndexChanged(int)), this, SLOT(statsTab_enableBGR_dest(int)));
 	MWObject.connect(ui.horizontalSlider_fbin, &QSlider::sliderMoved,
 		[&](int value) {
-#if 0 // not so nice -> delayed
-			qSlider.setToolTip(QString("%1").arg(value));
-#else // better
 			QToolTip::showText(QCursor::pos(), QString("%1").arg(value), nullptr);
-#endif // 0
 		});
 	MWObject.connect(ui.horizontalSlider_sbin, &QSlider::sliderMoved,
 		[&](int value) {
-#if 0 // not so nice -> delayed
-			qSlider.setToolTip(QString("%1").arg(value));
-#else // better
 			QToolTip::showText(QCursor::pos(), QString("%1").arg(value), nullptr);
-#endif // 0
 		});
 	MWObject.connect(ui.horizontalSlider_sbin, &QSlider::sliderMoved,
 		[&](int value) {
-#if 0 // not so nice -> delayed
-			qSlider.setToolTip(QString("%1").arg(value));
-#else // better
 			QToolTip::showText(QCursor::pos(), QString("%1").arg(value), nullptr);
-#endif // 0
 		});
 	
+	ui.mainTabWidget->setCurrentIndex(1);
+	ui.mainTabWidget->setCurrentIndex(0);
 }
 
 MainWindow::~MainWindow(){
@@ -653,7 +875,6 @@ void MainWindow::setIcons() {
 	ui.pushButton_13->setIcon(QIcon(":/new/prefix1/Resources/qt resources/magnifying-glass(1).png"));
 	ui.pushButton_17->setIcon(QIcon(":/new/prefix1/Resources/qt resources/magnifying-glass(1).png"));
 	ui.pushButton_dispInDet->setIcon(QIcon(":/new/prefix1/Resources/qt resources/compare.png"));
-	ui.pushButton_dispInDet_2->setIcon(QIcon(":/new/prefix1/Resources/qt resources/compare.png"));
 }
 
 void MainWindow::openSortDialog() {
@@ -663,7 +884,7 @@ void MainWindow::openSortDialog() {
 
 void MainWindow::openDetailDialog(iop::Comparison* comp, iop::WeightVector* wvec) {
 	if (!wvec) {
-		throw std::exception("Define weight vector first.");
+		throw gen::Warning("Define weight vector first.");
 		return;
 	}
 	DetailDialog detailDialog(this, comp, wvec);
@@ -677,6 +898,10 @@ void MainWindow::showError(const QSqlError& err) {
 
 void MainWindow::showError(QString err) {
 	QMessageBox::critical(this, "ERROR or as we intellectuals call it, EXCEPTION", "Error! \n" + err);
+}
+
+void MainWindow::showWarning(QString err) {
+	QMessageBox::warning(this, "Warning", err);
 }
 
 Ui::MainWindow MainWindow::getUI() {
@@ -699,12 +924,24 @@ void MainWindow::setFeatureVector(iop::FeatureVector returnfv, iop::WeightVector
 
 void MainWindow::showIcons(bool show) {
 	if (show) {
-		ui.mainTableView->setColumnHidden(0, false);
+		int pos_main = ui.mainTableView->indexAt(ui.mainTableView->rect().topLeft()).row();
+		proxyModel_main->suspendData({ pos_main - 5, pos_main + 15 });
+		int pos_res = ui.resultTableView->indexAt(ui.resultTableView->rect().topLeft()).row();
+		proxyModel_result->suspendData({ pos_res - 5, pos_res + 15 });
+		ui.mainTableView->verticalHeader()->setSectionResizeMode(QHeaderView::ResizeMode::Fixed);
+		ui.mainTableView->verticalHeader()->setDefaultSectionSize(100);
 		ui.resultTableView->setColumnHidden(0, false);
+		ui.mainTableView->setColumnHidden(0, false);
+		resultModel->setIconColumnHidden(false);
+		mainModel->setIconColumnHidden(false);
 	}
 	else {
-		ui.mainTableView->setColumnHidden(0, true);
+		ui.mainTableView->verticalHeader()->setSectionResizeMode(QHeaderView::ResizeMode::ResizeToContents);
+		ui.mainTableView->verticalHeader()->setDefaultSectionSize(1);
 		ui.resultTableView->setColumnHidden(0, true);
+		ui.mainTableView->setColumnHidden(0, true);
+		resultModel->setIconColumnHidden(true);
+		mainModel->setIconColumnHidden(true);
 	}
 }
 
@@ -745,96 +982,158 @@ void MainWindow::displayButtons_BGR() {
 }
 
 void MainWindow::scaleImage(QImage& image, QLabel* imlabel, QWidget* frame) {
-	float width, height;
+	float width = -1, height = -1;
+	const float frame_ratio = ui.mainTabWidget->currentIndex() == 0 ?
+		static_cast<float>(3) / 14 : static_cast<float>(7) / 20;
+	frame->update();
+	float frmwid = frame->width();
+	float frmhgt = frame->height();
+	float imgwid = imlabel->width();
+	float imghgt = imlabel->height();
+	/*if (abs(imlabel->width() - frame->width()) < frame->width() * 2 / 100
+		&& abs(imlabel->height() - frame->height()) < frame->height() * 2 / 100)
+		return;*/
 	if (image.width() >= image.height()) {
-		width = frame->width() > screenSize->width() * 6 / 20 ? screenSize->width() * 6 / 20 : frame->width();
-		height = width * image.height() / image.width();
+		width = screenSize->width() * frame_ratio;
+		height = width * image.height() / image.width() 
+			> frame->height() ? frame->height()
+			: width * image.height() / image.width();
+		width = height * image.width() / image.height();
 		imlabel->setMaximumHeight(height);
-		imlabel->setMaximumWidth(maximum);
+		imlabel->setMaximumWidth(width);
 	}
 	else if (image.height() >= image.width()) {
-		height = frame->height() > screenSize->height() * 6 / 20 ? screenSize->height() * 6 / 20 : frame->height();
-		width = height * image.height() / image.width();
+		height = frame->height() > screenSize->height() * frame_ratio ? screenSize->height() * frame_ratio : frame->height();
+		width = height * image.width() / image.height();
 		imlabel->setMaximumWidth(width);
-		imlabel->setMaximumHeight(maximum);
+		imlabel->setMaximumHeight(height);
 	}
 	image = image.scaled(width, height, Qt::KeepAspectRatio);
 }
 
-void MainWindow::displayFeature() {
-	int index = ui.tabWidget_comparison->currentIndex();
+void MainWindow::displayFeature(bool emitted, int index) {
+	emitted ? index = ui.tabWidget_comparison->currentIndex() : index = index;
 	if (!source_img) {
-		throw std::exception("Source image must be picked first.");
+		throw gen::Warning("Source image must be picked first.");
 		return;
 	}
-	else if (!dest_img) {
-		throw std::exception("Comparison image(right hand) must be picked first.");
+	else if (!dest_img && index != 4) {
+		throw gen::Warning("Comparison image(right hand) must be picked first.");
 		return;
 	}
 	img::Image srcImg = *source_img;
 	img::Image destImg = *dest_img;
 
-	QImage srcImgScaled = cvMatToQImage(srcImg.getImageMat());
-	QImage destImgScaled = cvMatToQImage(destImg.getImageMat());
-
-	scaleImage(srcImgScaled, ui.label_imgSrcBig, ui.frame_src);
-	scaleImage(destImgScaled, ui.label_imgDestBig, ui.frame_dest);
-
 	if (index == 0) {
 		displayHash(&srcImg);
 	}
 	else if (index == 1) {
+		ui.mainTabWidget->setCurrentIndex(1);
+		QImage srcImgScaled = cvMatToQImage(srcImg.getImageMat());
+		QImage destImgScaled = cvMatToQImage(destImg.getImageMat());
+		scaleImage(srcImgScaled, ui.label_imgSrcBig, ui.frame_src);
+		scaleImage(destImgScaled, ui.label_imgDestBig, ui.frame_dest);
 		ui.label_imgSrcBig->setPixmap(QPixmap::fromImage(srcImgScaled));
 		ui.label_imgDestBig->setPixmap(QPixmap::fromImage(destImgScaled));
-		displayHistogram(&srcImg, true);
-		displayHistogram(&destImg, false);
-		ui.mainTabWidget->setCurrentIndex(1);
+		displayHistogram(&srcImg, true, emitted ? nullptr : &curr_feat_src.feature.histogram);
+		displayHistogram(&destImg, false, emitted ? nullptr : &curr_feat_dest.feature.histogram);
 	}
 	else if (index == 2) {
+		ui.mainTabWidget->setCurrentIndex(1);
+		QImage srcImgScaled = cvMatToQImage(srcImg.getImageMat());
+		QImage destImgScaled = cvMatToQImage(destImg.getImageMat());
+		scaleImage(srcImgScaled, ui.label_imgSrcBig, ui.frame_src);
+		scaleImage(destImgScaled, ui.label_imgDestBig, ui.frame_dest);
 		ui.label_imgSrcBig->setPixmap(QPixmap::fromImage(srcImgScaled));
 		ui.label_imgDestBig->setPixmap(QPixmap::fromImage(destImgScaled));
-		displayEdge(&srcImg, true);
-		displayEdge(&destImg, false);
-		ui.mainTabWidget->setCurrentIndex(1);
+		displayEdge(&srcImg, true, emitted ? nullptr : &curr_feat_src.feature.edge);
+		displayEdge(&destImg, false, emitted ? nullptr : &curr_feat_dest.feature.edge);
 	}
 	else if (index == 3) {
+		ui.mainTabWidget->setCurrentIndex(1);
+		QImage srcImgScaled = cvMatToQImage(srcImg.getImageMat());
+		QImage destImgScaled = cvMatToQImage(destImg.getImageMat());
+		scaleImage(srcImgScaled, ui.label_imgSrcBig, ui.frame_src);
+		scaleImage(destImgScaled, ui.label_imgDestBig, ui.frame_dest);
 		ui.label_imgSrcBig->setPixmap(QPixmap::fromImage(srcImgScaled));
 		ui.label_imgDestBig->setPixmap(QPixmap::fromImage(destImgScaled));
-		displayCorner(&srcImg, true);
-		displayCorner(&destImg, false);
+		displayCorner(&srcImg, true, emitted ? nullptr : &curr_feat_src.feature.corner);
+		displayCorner(&destImg, false, emitted ? nullptr : &curr_feat_dest.feature.corner);
+	}
+	else if (index == 4) {
 		ui.mainTabWidget->setCurrentIndex(1);
+		if (source_img) {
+			QImage srcImgScaled = cvMatToQImage(srcImg.getImageMat());
+			scaleImage(srcImgScaled, ui.label_imgSrcBig, ui.frame_src);
+			ui.label_imgSrcBig->setPixmap(QPixmap::fromImage(srcImgScaled));
+		}
+		if (dest_img) {
+			QImage destImgScaled = cvMatToQImage(destImg.getImageMat());
+			scaleImage(destImgScaled, ui.label_imgDestBig, ui.frame_dest);
+			ui.label_imgDestBig->setPixmap(QPixmap::fromImage(destImgScaled));
+		}		
+		displayStatistics();
 	}
 }
 
 void MainWindow::displayHash(img::Image* src) {
-	if (ui.label_imgSrc->pixmap()->isNull()) {
-		throw std::exception("Unable to locate source image. Load image to source first.");
-		return;
+	auto index = ui.comboBox->currentIndex();
+	std::pair<bool,bool> selectHash;
+	if (index == 0)
+		selectHash = std::make_pair(true, false);
+	else if (index == 1)
+		selectHash = std::make_pair(false, true);
+	else
+		throw gen::Warning("Illegal hash flag.");
+
+	string srcHashStr, destHashStr;
+	if (!source_img) {
+		//throw gen::Warning("Unable to locate source image. Load image to source first.");
+		//return;
 	}
 	else {
-		/*string srcDHash = feat::Hash::imageHashing_dHash(QImageToCvMat(ui.label_imgSrc->pixmap()->toImage())).to_string();
-		ui.label_imHash->setText(srcDHash.c_str());*/ //TODO: COM BACK 'ER
+		auto srcHash = feat::Hash(source_img->getImageMat(), selectHash);
+		auto srcHashPair = srcHash.getHashVariables();
+		srcHashStr = selectHash.first ? srcHashPair.first.to_string() : srcHashPair.second.to_string();
+		ui.label_imHash->setText(srcHashStr.c_str());
+		curr_feat_src.destroyCurrent();
+		new(&curr_feat_src.feature.hash) feat::Hash;
+		curr_feat_src.feature.hash = srcHash;
+		curr_feat_src.index = 0;
 	}
 
-	if (!ui.label_imgDest->pixmap()->isNull()) {		
-		/*string destDHash = feat::Hash::imageHashing_dHash(QImageToCvMat(ui.label_imgDest->pixmap()->toImage())).to_string();
-		ui.label_destHash->setText(destDHash.c_str());*/ //TODO: FIX THESE
+	if (!dest_img) {		
+		//throw gen::Warning("Unable to locate comparison image. Load image to compare first.");
+		//return;
 	}
 	else {
-		throw std::exception("Unable to locate comparison image. Load image to compare first.");
-		return;
+		auto destHash = feat::Hash(dest_img->getImageMat(), selectHash);
+		auto destHashPair = destHash.getHashVariables();
+		destHashStr = selectHash.first ? destHashPair.first.to_string() : destHashPair.second.to_string();
+		ui.label_destHash->setText(destHashStr.c_str());
+	}
+
+	if (source_img && dest_img) {
+		QString line = "";
+		QString html_red = "<font color = \"Crimson\">";
+		QString html_green = "<font color = \"Green\">";
+		QString html_end = "</font>";
+		for (int i = 0; i < srcHashStr.size(); i++) {
+			if (srcHashStr[i] != destHashStr[i])
+				line = line % html_red % "1" % html_end;
+			else
+				line = line % html_green % "0" % html_end;
+		}
+		ui.label_diffHash->setText(line);
 	}
 }
 
-void MainWindow::displayHistogram(img::Image* src, bool source){
+void MainWindow::displayHistogram(img::Image* src, bool source, feat::Histogram* hist){
 	QList<int> histVals;
-	try {
+	if(!hist)
 		histVals = prepareHistogram();
-	}
-	catch (...) {
-		return; //TODO: HATAYI YAKALA
-	}
-	feat::Histogram* srcHist = lnkr::setHistogram(src, histVals[0], histVals[1], histVals[2], histVals[3]);
+	
+	feat::Histogram* srcHist = hist ? new feat::Histogram(*hist) : lnkr::setHistogram(src, histVals[0], histVals[1], histVals[2], histVals[3]);
 	cv::Mat histPtr = srcHist->getHistogramMat();
 
 	double max;
@@ -856,7 +1155,33 @@ void MainWindow::displayHistogram(img::Image* src, bool source){
 	plotSrc->axisRect()->insetLayout()->setMargins(QMargins(0, 2, 2, 0));
 	plotSrc->legend->setIconSize(QSize(10, 15));
 
-	if (histPtr.channels() == 1) {
+	if (srcHist->getVariablesFloat()[0] == HIST_DATA) {
+		QVector<double> data, keys;
+		for (int i = 0; i < histPtr.total(); i++) {
+			keys.push_back(static_cast<float>(100) / static_cast<float>(histPtr.total()) * i);
+			data.push_back(static_cast<double>(histPtr.at<float>(i)));
+		}
+
+		int pc = plotSrc->plottableCount();
+		for (int i = 0; i < pc; i++) {
+			plotSrc->removeGraph(plotSrc->graph(0));
+			plotSrc->removePlottable(plotSrc->plottable(0));
+		}
+		plotSrc->replot();
+
+		QCPBars* barSrc = new QCPBars(plotSrc->xAxis, plotSrc->yAxis);
+		//QCPGraph* graphPtr = new QCPGraph(plotSrc->xAxis, plotSrc->yAxis);
+		barSrc->setData(keys, data);
+		barSrc->setName("Data Histogram");
+		barSrc->setPen(QPen(QColor(Qt::black)));
+		plotSrc->xAxis->setLabel("Histogram bins");
+		plotSrc->yAxis->setLabel("Number of value");
+		plotSrc->yAxis->setRange(0, max + max * 0.10);
+		plotSrc->xAxis->setRange(0, 100 + 100 * 0.10);
+		plotSrc->replot();
+	}
+
+	else if (histPtr.channels() == 1) {
 		QVector<double> data, keys;
 		for (int i = 0; i < histPtr.total(); i++) {
 			keys.push_back(static_cast<float>(255) / static_cast<float>(histPtr.total()) * i);
@@ -983,10 +1308,23 @@ void MainWindow::displayHistogram(img::Image* src, bool source){
 
 	switchDisplayWidgets(false, source);
 
+	if (source) {
+		curr_feat_src.destroyCurrent();
+		new(&curr_feat_src.feature.histogram) feat::Histogram();
+		curr_feat_src.feature.histogram = *srcHist;
+		curr_feat_src.index = 1;
+	}
+	else {
+		curr_feat_dest.destroyCurrent();
+		new(&curr_feat_dest.feature.histogram) feat::Histogram();
+		curr_feat_dest.feature.histogram = *srcHist;
+		curr_feat_dest.index = 1;
+	}
+
 	delete(srcHist);
 }
 
-void MainWindow::displayEdge(img::Image* src, bool source) {
+void MainWindow::displayEdge(img::Image* src, bool source, feat::Edge* edge) {
 	QList<float> edgeVals = prepareEdge();
 	feat::Edge* srcEdge;
 
@@ -1006,17 +1344,20 @@ void MainWindow::displayEdge(img::Image* src, bool source) {
 			kernelX = feat::robertX;
 			kernelY = feat::robertY;
 			break;
+		case KERNEL_ISOBEL:
+			kernelX = feat::isobelX;
+			kernelY = feat::isobelY;
+			break;
 		default:
-			throw std::exception("Illegal kernel flag.");
+			throw gen::Warning("Illegal kernel flag.");
 			return;
 		}
 		feat::Edge::Canny* canny = new feat::Edge::Canny(edgeVals[1], edgeVals[4], edgeVals[3], edgeVals[2], kernelX, kernelY);
-		srcEdge = lnkr::setEdge(src, edgeVals[0], canny);
-		delete(canny);
+		srcEdge = edge ? new feat::Edge(*edge) : lnkr::setEdge(src, edgeVals[0], canny);
 	}
 
 	else {
-		srcEdge = lnkr::setEdge(src, edgeVals[0]);
+		srcEdge = edge ? new feat::Edge(*edge) : lnkr::setEdge(src, edgeVals[0]);
 	}
 	QImage image = cvMatToQImage(srcEdge->getEdgeMat());
 	if (source) {
@@ -1031,23 +1372,55 @@ void MainWindow::displayEdge(img::Image* src, bool source) {
 	}
 
 	switchDisplayWidgets(true, source);
+
+	if (source) {
+		curr_feat_src.destroyCurrent();
+		new(&curr_feat_src.feature.edge) feat::Edge();
+		curr_feat_src.feature.edge = *srcEdge;
+		curr_feat_src.index = 2;
+	}
+	else {
+		curr_feat_dest.destroyCurrent();
+		new(&curr_feat_dest.feature.edge) feat::Edge();
+		curr_feat_dest.feature.edge = *srcEdge;
+		curr_feat_dest.index = 2;
+	}
+
 	delete(srcEdge);
 }
 //cornerFlag, radius, squareSize, alpha, sigmai, sigmad
-void MainWindow::displayCorner(img::Image* src, bool source) {
+void MainWindow::displayCorner(img::Image* src, bool source, feat::Corner* corner) {
 	QList<float> cornerVals = prepareCorner();
 	feat::Corner* srcCorner;
 
 	feat::Corner::Harris* harris = new feat::Corner::Harris(cornerVals[1], cornerVals[2], cornerVals[4], cornerVals[5], cornerVals[3]);
-	srcCorner = lnkr::setCorner(src, *harris, cornerVals[0], cornerVals[6], 0);
+	srcCorner = corner ? new feat::Corner(*corner) : lnkr::setCorner(src, *harris, cornerVals[0], cornerVals[6], 0);
 
+	QImage image = cvMatToQImage(srcCorner->getCornerMarkedMat());
 	if (source) {
-		switchDisplayWidgets(true, true);
-		ui.label_derSrcBig->setPixmap(QPixmap::fromImage(QImage(cvMatToQImage(srcCorner->getCornerMarkedMat()))));
+		QLabel* imlabel = ui.label_derSrcBig;
+		scaleImage(image, imlabel, ui.stackedWidget_src);
+		imlabel->setPixmap(QPixmap::fromImage(image));
 	}
 	else {
-		switchDisplayWidgets(true, false);
-		ui.label_derDestBig->setPixmap(QPixmap::fromImage(QImage(cvMatToQImage(srcCorner->getCornerMarkedMat()))));
+		QLabel* imlabel = ui.label_derDestBig;
+		scaleImage(image, imlabel, ui.stackedWidget_dest);
+		imlabel->setPixmap(QPixmap::fromImage(image));
+	}
+
+	switchDisplayWidgets(true, source);
+
+	if (source) {
+		curr_feat_src.destroyCurrent();
+		new(&curr_feat_src.feature.corner) feat::Corner();
+		curr_feat_src.feature.corner = *srcCorner;
+		curr_feat_src.index = 3;
+	}
+	else {
+		curr_feat_dest.destroyCurrent();
+		new(&curr_feat_dest.feature.corner) feat::Corner();
+		curr_feat_dest.feature.corner = *srcCorner;
+		curr_feat_dest.index = 3;
 	}
 
 	delete(srcCorner);
@@ -1082,7 +1455,7 @@ QList<int> MainWindow::prepareHistogram() {
 	//if it is not gray hist and any of the sliders are zero OR if it is gray and first slider is zero ERROR
 	if ((histVals[0] != 0 && (histVals[1] == 0 || histVals[2] == 0 || histVals[3] == 0)) 
 		|| (histVals[0] == 0 && histVals[1] == 0))
-		throw std::exception("Zero value sliders. Sliders can't be zero, pick a value.");
+		throw gen::Warning("Zero value sliders. Sliders can't be zero, pick a value.");
 
 	return histVals;
 }
@@ -1102,7 +1475,7 @@ QList<float> MainWindow::prepareEdge() {
 	}
 
 	if (edgeVals[0] == EDGE_CANNY && (edgeVals[1] == 0 || edgeVals[2] == 0 || edgeVals[3] == 0))
-		throw std::exception("Zero value boxes. Canny values can't be zero, pick a value.");
+		throw gen::Warning("Zero value boxes. Canny values can't be zero, pick a value.");
 
 	return edgeVals;
 }
@@ -1121,33 +1494,49 @@ QList<float> MainWindow::prepareCorner() {
 
 	if (cornerVals[1] == 0 || cornerVals[2] == 0 || cornerVals[3] == 0 || cornerVals[4] == 0 || cornerVals[5] == 0
 		|| cornerVals[6] == 0)
-		throw std::exception("Zero value boxes. Harris values can't be zero, pick a value.");
+		throw gen::Warning("Zero value boxes. Harris values can't be zero, pick a value.");
 
 	return cornerVals;
 }
 
-bool MainWindow::loadFiles(const QStringList& fileNames) {
+bool MainWindow::loadFiles(const QStringList& fileNames, bool check) {
 	std::vector<img::Image> imgVec;
+
+	std::filesystem::path currentPath(fileNames[0].toStdString());
+	if (lastpath)
+		delete(lastpath);
+	lastpath = new QString(currentPath.string().c_str());
+
 	for (int i = 0; i < fileNames.size(); i++) {
 		QImageReader reader(fileNames[i]);
 		reader.setAutoTransform(true);
-		const QImage buffer = reader.read();
-		img::Image newImage(QDir::toNativeSeparators(fileNames[i]).toStdString(),cv::IMREAD_COLOR);
-		if (buffer.isNull()) {
-			QMessageBox::information(this, QGuiApplication::applicationDisplayName(),
-				tr("Cannot load %1: %2")
-				.arg(QDir::toNativeSeparators(fileNames[i]), reader.errorString()));
-			continue;
-		}
+		img::Image newImage(QDir::toNativeSeparators(fileNames[i]).toStdString(), check ? cv::IMREAD_COLOR : IMG_EMPTY);
 		imgVec.push_back(newImage);
 	}
-	for (img::Image iter : imgVec)
-		addToMainTable(&iter);
+
+	auto addToDB = [&](std::vector<img::Image> imgVec) {
+		int rc = sqlite3_exec(mw_dbPtr->databasePtr(), "BEGIN TRANSACTION;", NULL, NULL, NULL);
+		mw_dbPtr->errorCheck(rc, const_cast<char*>(sqlite3_errmsg(mw_dbPtr->databasePtr())));
+
+		for (auto& iter : imgVec) {
+			addToMainTableNoRefresh(&iter);
+		}
+
+		rc = sqlite3_exec(mw_dbPtr->databasePtr(), "END TRANSACTION;", NULL, NULL, NULL);
+		mw_dbPtr->errorCheck(rc, const_cast<char*>(sqlite3_errmsg(mw_dbPtr->databasePtr())));
+	};
+	std::thread thr(addToDB, imgVec);
+	thr.detach();
+
 	return true;
 }
 
-bool MainWindow::loadFile(const QString& fileName, bool source)
-{
+bool MainWindow::loadFile(const QString& fileName, bool source) {
+	std::filesystem::path currentPath(fileName.toStdString());
+	if (lastpath)
+		delete(lastpath);
+	lastpath = new QString(currentPath.string().c_str());
+
 	QImageReader reader(fileName);
 	reader.setAutoTransform(true);
 	const QImage newImage = reader.read();
@@ -1161,24 +1550,31 @@ bool MainWindow::loadFile(const QString& fileName, bool source)
 
 	setWindowFilePath(fileName);
 	if (source) {
-		auto* temp = new img::Image(lnkr::setSourceImage(QDir::cleanPath(fileName).toStdString(), cv::IMREAD_COLOR));
+		img::Image image(QDir::cleanPath(fileName).toStdString(), cv::IMREAD_COLOR);
+		lnkr::setSourceImage(image);
 		if (source_img) {
-			if (gen::cmpMat(temp->getImageMat(), source_img->getImageMat()));
+			if (gen::cmpMat(image.getImageMat(), source_img->getImageMat()));
 			else { 
-				delete(source_img); 
-				source_img = temp;
+				delete(source_img);
+				source_img = nullptr;
+				source_img = new img::Image(image);
 				lnkr::deleteFromSimAndWV();
-				refreshTable(resultModel);
+				resultModel->resetTable();
+				delete(comparator);
+				comparator = nullptr;
 			}
 		}
 		else {
-			source_img = temp;
+			source_img = new img::Image(image);
 		}		
 	}
 	else if (!source) {
-		if (dest_img)
+		if (dest_img) {
 			delete(dest_img);
-		dest_img = new img::Image(lnkr::setDestinationImage(QDir::cleanPath(fileName).toStdString(), cv::IMREAD_COLOR));
+			dest_img = nullptr;
+		}
+		img::Image image(QDir::cleanPath(fileName).toStdString(), cv::IMREAD_COLOR);
+		dest_img = new img::Image(lnkr::setDestinationImage(image));
 	}
 
 	return true;
@@ -1194,16 +1590,15 @@ void MainWindow::setImage(QLabel* imlabel, const QImage& newImage) {
 	imlabel->setPixmap(QPixmap::fromImage(image));
 }
 
-static void initializeImageFileDialog(QFileDialog& dialog, QFileDialog::AcceptMode acceptMode)
-{
+void MainWindow::initializeImageFileDialog(QFileDialog& dialog, QFileDialog::AcceptMode acceptMode, bool multipleSelection) {
 	static bool firstDialog = true;
 	if (firstDialog) {
 		firstDialog = false;
-		const QString picturesLocations = "C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/ukbench/full";		
+		const QString picturesLocations = *lastpath;		
 		dialog.setDirectory(picturesLocations.isEmpty() ? QDir::currentPath() : picturesLocations);
 	}
-	dialog.setFileMode(QFileDialog::ExistingFile);
-	dialog.setOption(QFileDialog::DontUseNativeDialog, true);
+	dialog.setFileMode(multipleSelection ? QFileDialog::ExistingFiles : QFileDialog::ExistingFile);
+	//dialog.setOption(QFileDialog::Option::DontUseNativeDialog, true);
 
 	QStringList mimeTypeFilters;
 	const QByteArrayList supportedMimeTypes = acceptMode == QFileDialog::AcceptOpen
@@ -1217,29 +1612,28 @@ static void initializeImageFileDialog(QFileDialog& dialog, QFileDialog::AcceptMo
 		dialog.setDefaultSuffix("jpg");
 }
 
-static void initializeImageFileDialog(QFileDialog& dialog, QFileDialog::AcceptMode acceptMode, bool multipleSelection) {
-	initializeImageFileDialog(dialog, acceptMode);
-	dialog.setFileMode(QFileDialog::ExistingFiles);
-}
-
 void MainWindow::openList() {
 	QFileDialog dialog(this, tr("Open Files"));
 	initializeImageFileDialog(dialog, QFileDialog::AcceptOpen, true);
 
-	while (dialog.exec() == QDialog::Accepted && !loadFiles(dialog.selectedFiles())) {}
+	while (dialog.exec() == QDialog::Accepted && !loadFiles(dialog.selectedFiles(), imageCheck)) {}
 }
 
-void MainWindow::openImageLabel()
-{
+void MainWindow::openImageLabel() {
 	QFileDialog dialog(this, tr("Open File"));
-	initializeImageFileDialog(dialog, QFileDialog::AcceptOpen);
+	initializeImageFileDialog(dialog, QFileDialog::AcceptOpen, false);
 
 	while (dialog.exec() == QDialog::Accepted && !loadFile(dialog.selectedFiles().first())) {}
 }
 
 void MainWindow::addToMainTable(img::Image* image) {
 	lnkr::addToMainTable(image);
-	refreshTable(mainModel);
+	mainModel->insertImage(*image);
+}
+
+void MainWindow::addToMainTableNoRefresh(img::Image* image) {
+	lnkr::addToMainTable(image);
+	mainModel->insertImage(*image);
 }
 
 void MainWindow::createActions()
@@ -1249,25 +1643,26 @@ void MainWindow::createActions()
 }
 
 void MainWindow::customMenuRequested_main(QPoint pos) {
-	QModelIndex index = ui.mainTableView->indexAt(pos);
-	auto hash = mainModel->data(index.siblingAtColumn(2));
+	QModelIndex index_proxy = ui.mainTableView->indexAt(pos);
+	auto index_main = proxyModel_main->mapToSource(index_proxy);
+	auto hash = mainModel->data(index_main.siblingAtColumn(1));
 	if (dir)
 		delete(dir);
 	dir = new QString(lnkr::getImageDir(hash.toString().toStdString()).c_str());
 
-	QMenu* menu = new QMenu(this);
-	QAction* action1 = new QAction("Pick as source image", menu);
-	QAction* action2 = new QAction("Pick as comparison image", menu);
-	QAction* action3 = new QAction("Delete from table(will also delete from database)", menu);
-	QAction* action4 = new QAction("Copy full path to clipboard", menu);
-	QAction* action5 = new QAction("Copy folder path to clipboard", menu);
+	QMenu* menu_main = new QMenu(this);
+	QAction* action1 = new QAction("Pick as source image", menu_main);
+	QAction* action2 = new QAction("Pick as comparison image", menu_main);
+	QAction* action3 = new QAction("Delete from table(will also delete from database)", menu_main);
+	QAction* action4 = new QAction("Copy full path to clipboard", menu_main);
+	QAction* action5 = new QAction("Copy folder path to clipboard", menu_main);
 
-	menu->addAction(action1);
-	menu->addAction(action2);
-	menu->addAction(action3);
-	menu->addAction(action4);
-	menu->addAction(action5);
-	menu->popup(ui.mainTableView->viewport()->mapToGlobal(pos));
+	menu_main->addAction(action1);
+	menu_main->addAction(action2);
+	menu_main->addAction(action3);
+	menu_main->addAction(action4);
+	menu_main->addAction(action5);
+	menu_main->popup(ui.mainTableView->viewport()->mapToGlobal(pos));
 
 	QObject::connect(action1, &QAction::triggered, this, [this] { loadFile(*dir); });
 	QObject::connect(action2, &QAction::triggered, this, [this] { loadFile(*dir, false); });
@@ -1277,17 +1672,20 @@ void MainWindow::customMenuRequested_main(QPoint pos) {
 }
 
 void MainWindow::customMenuRequested_result(QPoint pos) {
-	
 	QModelIndex index_proxy = ui.resultTableView->indexAt(pos);
 	auto index_result = proxyModel_result->mapToSource(index_proxy);
-	auto hash = resultModel->data(index_result.siblingAtColumn(3)).toString().toStdString();
+	auto hash = resultModel->data(index_result.siblingAtColumn(1)).toString().toStdString();
 	if (dir) 
 		delete(dir);
 	dir = new QString(lnkr::getImageDir(hash).c_str());
 
-	if (currentcomp)
+	if (currentcomp) {
 		delete(currentcomp);
+		currentcomp = nullptr;
+	}
 	currentcomp = new iop::Comparison(lnkr::getRawComparison(hash, false));
+	currentcomp->source_dir = source_img->getVariablesString()[1];
+	currentcomp->rhand_dir = dir->toStdString();
 
 	QMenu* menu = new QMenu(this);
 	QAction* action1 = new QAction("Pick as source image", menu);
@@ -1338,12 +1736,27 @@ void MainWindow::copyToClipboard(QString& str, bool folder) {
 void MainWindow::deleteImage(QString& fileName) {
 	auto image = lnkr::createImage(fileName.toStdString(), cv::IMREAD_COLOR);
 	lnkr::deleteImage(&image);
-	refreshTable(mainModel);
+	int i = 0;
+	for (i = 0; i < mainModel->rowCount(); i++)
+		if (mainModel->data(mainModel->index(i, 0), 0).toString().toStdString() == image.getVariablesString()[1])
+			break;
+	mainModel->removeRow(i);
 }
 
 void MainWindow::refreshTable(TableModel* table) {
-	table->query().exec();
-	table->setQuery(table->query());
+	if (table->getType() == table_type::TABLE_MAIN) {
+		table->removeRows(0, table->rowCount());
+		auto imageVec = lnkr::getImageTable();
+		for (auto i : imageVec)
+			table->insertImage(i);
+	}
+
+	else if (table->getType() == table_type::TABLE_RESULT) {
+		table->removeRows(0, table->rowCount());
+		auto compVec = lnkr::getSimilarityTable();
+		for (auto i : compVec)
+			table->insertComparison(i);
+	}
 }
 
 void MainWindow::enableCanny(int state) {
@@ -1369,14 +1782,14 @@ void MainWindow::compareMain() {
 		return;
 	}
 	else if (!currentfv && currentwv || currentfv && !currentwv) {
-		throw std::exception("One of feature vector or weight vector can't be null. They must both have the same state.");
+		throw gen::Warning("One of feature vector or weight vector can't be null. They must both have the same state.");
 		return;
 	}
 
 	lnkr::deleteFromSimAndWV();
 
 	if (!source_img) {
-		throw std::exception("Source image must be picked first.");
+		throw gen::Warning("Source image must be picked first.");
 		return;
 	}
 
@@ -1443,22 +1856,327 @@ void MainWindow::compareMain() {
 	auto imageVec = lnkr::getImageDirs();
 	if (!comparator)
 		delete(comparator);
+
 	comparator = new iop::Comparator();
 
-	comparator->beginMultiCompare(fv_source, imageVec, &wv, 10000);
-	for (auto i : comparator->getComparisonVector(false)) {
-		lnkr::setSimilarity(&i);
-	}
+	comparator->beginMultiCompare(fv_source, imageVec, &wv, CMP_MAX);
+
+	comparisonOperations(*comparator);
+
+	auto addToDB = [this](std::vector<iop::Comparison> compVec) {
+		auto* main_ptr = mainModel->getImgVecPtr();
+		for (int i = 0; i < main_ptr->size(); i++) {
+			resultModel->insertImage(main_ptr->at(i).first);
+		}
+		auto addToTable = [&](iop::Comparison comp) {
+			bool check = false;
+			int i = 0;
+			for (i = 0; i < main_ptr->size(); i++)
+				if (main_ptr->at(i).first.getVariablesString()[1] == comp.rhand_dir) {
+					check = true;
+					break;
+				}
+			if (check)
+				resultModel->updateComparison(i, comp);
+		};
+		int rc = sqlite3_exec(mw_dbPtr->databasePtr(), "BEGIN TRANSACTION;", NULL, NULL, NULL);
+		mw_dbPtr->errorCheck(rc, const_cast<char*>(sqlite3_errmsg(mw_dbPtr->databasePtr())));
+		int j = 1;
+		for (auto &i : compVec) {
+			lnkr::setSimilarity(&i);
+			std::thread tablethread(addToTable, i);
+			tablethread.detach();
+			j++;
+		}
+		rc = sqlite3_exec(mw_dbPtr->databasePtr(), "END TRANSACTION;", NULL, NULL, NULL);
+		mw_dbPtr->errorCheck(rc, const_cast<char*>(sqlite3_errmsg(mw_dbPtr->databasePtr())));
+	};
+	//SIMILARITY TABLOSUNU HALLEDERSIN YARIN ÞÝPÞAK DEMÝ ASLAN PARÇASI ASLAAAN
+	resultModel->resetTable();
 	lnkr::setWeightVector(&wv);
-	refreshTable(resultModel);
+	std::thread dbthread(addToDB, comparator->getComparisonVector(false));
+	dbthread.detach();
 	ui.stackedWidget_table->setCurrentIndex(1);
 
 	delete(fv_source);
 }
 
 void MainWindow::switchTables() {
-	if (ui.stackedWidget_table->currentIndex() == 0)
+	if (ui.stackedWidget_table->currentIndex() == 0) {
+		int pos_res = ui.resultTableView->indexAt(ui.resultTableView->rect().topLeft()).row();
+		proxyModel_result->suspendData({ pos_res - 5, pos_res + 15 });
 		ui.stackedWidget_table->setCurrentIndex(1);
-	else if (ui.stackedWidget_table->currentIndex() == 1)
+	}
+	else if (ui.stackedWidget_table->currentIndex() == 1) {
+		int pos_main = ui.mainTableView->indexAt(ui.mainTableView->rect().topLeft()).row();
+		proxyModel_main->suspendData({ pos_main - 5, pos_main + 15 });
 		ui.stackedWidget_table->setCurrentIndex(0);
+	}
+}
+
+void MainWindow::resizeEvent(QResizeEvent* event) {
+	QMainWindow::resizeEvent(event);
+	screenSize->setWidth(this->width());
+	screenSize->setHeight(this->height());
+	auto loadMain = [&]() {
+		if (source_img)
+			setImage(ui.label_imgSrc, cvMatToQImage(source_img->getImageMat()));
+		if (dest_img)
+			setImage(ui.label_imgDest, cvMatToQImage(dest_img->getImageMat()));
+	};
+
+	auto loadComp = [&]() {
+		displayFeature(false, curr_feat_src.index);
+	};
+	if (ui.mainTabWidget->currentIndex() == 0) {
+		loadMain();
+		if(curr_feat_src.index != -1) {
+			ui.mainTabWidget->setCurrentIndex(1);
+			loadComp();
+			ui.mainTabWidget->setCurrentIndex(0);
+		}
+	}
+	else if (ui.mainTabWidget->currentIndex() == 1) {
+		if (curr_feat_src.index != -1) {
+			loadComp();
+		}
+		ui.mainTabWidget->setCurrentIndex(0);
+		loadMain();
+		ui.mainTabWidget->setCurrentIndex(1);
+		
+	}
+}
+
+void currentFeature::destroyCurrent() {
+	int index = this->index;
+	if (index == -1)
+		return;
+	else if (index == 0)
+		return;
+	else if (index == 1)
+		return;
+	else if (index == 2)
+		this->feature.edge.~Edge();
+	else if (index == 3)
+		this->feature.corner.~Corner();
+}
+
+void MainWindow::comparisonOperations(iop::Comparator& comparator) {
+	auto normalizeFeature = [](std::vector<float*> featVec) {
+		std::vector<float> featVals;
+		for (int i = 0; i < featVec.size(); i++) {
+			featVals.push_back(*featVec[i]);
+		}
+
+		cv::Mat normOper(cv::Size(featVals.size(), 1), CV_32FC1, featVals.data());
+		cv::normalize(normOper, normOper, 1, 0, cv::NORM_MINMAX);
+
+		featVals.clear();
+		if (normOper.isContinuous()) {
+			featVals.assign((float*)normOper.data, (float*)normOper.data + normOper.total() * normOper.channels());
+		}
+		else {
+			for (int i = 0; i < normOper.rows; ++i) {
+				featVals.insert(featVals.end(), normOper.ptr<float>(i), normOper.ptr<float>(i) + normOper.cols * normOper.channels());
+			}
+		}
+
+		for (int i = 0; i < featVals.size(); i++) {
+			*featVec[i] = featVals[i];
+		}
+	};
+
+	auto& compVec = *comparator.getComparisonVector_ptr();
+	if (compVec.size() == 0)
+		return;
+	for (int i = 0; i < compVec.at(0).diff_total.size(); i++) {
+		std::vector<float*> featVec;
+		for (int j = 0; j < compVec.size(); j++) {
+			if (*compVec.at(j).diff_total[i] != -1)
+				featVec.push_back(compVec.at(j).diff_total[i]);
+		}
+		if (featVec.size() != 0)
+			normalizeFeature(featVec);
+	}
+
+	for (int i = 0; i < compVec.size(); i++) {
+		compVec[i].wvec = new iop::WeightVector(*comparator.getWeightVector());
+		compVec[i].calculateEuclideanDistance();
+		delete(compVec[i].wvec);
+	}
+}
+
+void MainWindow::statisticsOperations() {
+}
+
+void MainWindow::statsTab_enableBGR_src(int index) {
+	if (index == 3) {
+		ui.stackedWidget->setHidden(false);
+		ui.stackedWidget->setCurrentIndex(0);
+	}
+	else if (index == 4) {
+		ui.stackedWidget->setHidden(false);
+		ui.stackedWidget->setCurrentIndex(1);
+	}
+	else {
+		ui.stackedWidget->setHidden(true);
+	}
+}
+
+void MainWindow::statsTab_enableBGR_dest(int index) {
+	if (index == 3) {
+		ui.stackedWidget_2->setHidden(false);
+		ui.stackedWidget_2->setCurrentIndex(0);
+	}
+	else if (index == 4) {
+		ui.stackedWidget_2->setHidden(false);
+		ui.stackedWidget_2->setCurrentIndex(1);
+	}
+	else {
+		ui.stackedWidget_2->setHidden(true);
+	}
+}
+
+void MainWindow::displayStatistics() {
+	int src_index = ui.comboBox_statSrc->currentIndex();
+	int dest_index = ui.comboBox_statDest->currentIndex();
+
+	auto displayHist = [&](int index, bool source, bool bgr) {
+		cv::Mat1f histMat;
+		auto compVec = comparator->getComparisonVector(false);
+		if (bgr) {
+			if (index == 0) {
+				for (int i = 0; i < compVec.size(); i++)
+					histMat.push_back(compVec[i].diff_hbgrb);
+				feat::Histogram hist(histMat, HIST_DATA, 100);
+				displayHistogram(nullptr, source, &hist);
+			}
+			else if (index == 1) {
+				for (int i = 0; i < compVec.size(); i++)
+					histMat.push_back(compVec[i].diff_hbgrg);
+				feat::Histogram hist(histMat, HIST_DATA, 100);
+				displayHistogram(nullptr, source, &hist);
+			}
+			else if (index == 2) {
+				for (int i = 0; i < compVec.size(); i++)
+					histMat.push_back(compVec[i].diff_hbgrr);
+				feat::Histogram hist(histMat, HIST_DATA, 100);
+				displayHistogram(nullptr, source, &hist);
+			}
+		}
+		else {
+			if (index == 0) {
+				for (int i = 0; i < compVec.size(); i++)
+					histMat.push_back(compVec[i].diff_hhsvh);
+				feat::Histogram hist(histMat, HIST_DATA, 100);
+				displayHistogram(nullptr, source, &hist);
+			}
+			else if (index == 1) {
+				for (int i = 0; i < compVec.size(); i++)
+					histMat.push_back(compVec[i].diff_hhsvs);
+				feat::Histogram hist(histMat, HIST_DATA, 100);
+				displayHistogram(nullptr, source, &hist);
+			}
+			else if (index == 2) {
+				for (int i = 0; i < compVec.size(); i++)
+					histMat.push_back(compVec[i].diff_hhsvv);
+				feat::Histogram hist(histMat, HIST_DATA, 100);
+				displayHistogram(nullptr, source, &hist);
+			}
+		}
+	};
+
+	auto display = [&](int combobox_index, bool source) {
+		cv::Mat1f histMat;
+		auto compVec = comparator->getComparisonVector(false);
+		switch (combobox_index) {
+		case 0: {
+			for (int i = 0; i < compVec.size(); i++)
+				histMat.push_back(compVec[i].diff_gradm);
+			feat::Histogram hist(histMat, HIST_DATA, 100);
+			displayHistogram(nullptr, source, &hist);
+			break;
+		}
+		case 1: {
+			for (int i = 0; i < compVec.size(); i++)
+				histMat.push_back(compVec[i].diff_gradd);
+			feat::Histogram hist(histMat, HIST_DATA, 100);
+			displayHistogram(nullptr, source, &hist);
+			break;
+		}
+		case 2: {
+			for (int i = 0; i < compVec.size(); i++)
+				histMat.push_back(compVec[i].diff_hgray);
+			feat::Histogram hist(histMat, HIST_DATA, 100);
+			displayHistogram(nullptr, source, &hist);
+			break;
+		}
+		case 3: {
+			if (source) {
+				if (ui.radioButton_lb->isChecked())
+					displayHist(0, true, true);
+				else if (ui.radioButton_lg->isChecked())
+					displayHist(1, true, true);
+				else if (ui.radioButton_lr->isChecked())
+					displayHist(2, true, true);
+			}
+			else {
+				if (ui.radioButton_rb->isChecked())
+					displayHist(0, false, true);
+				else if (ui.radioButton_rg->isChecked())
+					displayHist(1, false, true);
+				else if (ui.radioButton_rr->isChecked())
+					displayHist(2, false, true);
+			}
+			break;
+		}
+		case 4: {
+			if (source) {
+				if (ui.radioButton_lh->isChecked())
+					displayHist(0, true, false);
+				else if (ui.radioButton_ls->isChecked())
+					displayHist(1, true, false);
+				else if (ui.radioButton_lv->isChecked())
+					displayHist(2, true, false);
+			}
+			else {
+				if (ui.radioButton_rh->isChecked())
+					displayHist(0, false, false);
+				else if (ui.radioButton_rs->isChecked())
+					displayHist(1, false, false);
+				else if (ui.radioButton_rv->isChecked())
+					displayHist(2, false, false);
+			}
+			break;
+		}
+		case 5: {
+			for (int i = 0; i < compVec.size(); i++)
+				histMat.push_back(compVec[i].diff_hashp);
+			feat::Histogram hist(histMat, HIST_DATA, 100);
+			displayHistogram(nullptr, source, &hist);
+			break;
+		}
+		case 6: {
+			for (int i = 0; i < compVec.size(); i++)
+				histMat.push_back(compVec[i].diff_hashd);
+			feat::Histogram hist(histMat, HIST_DATA, 100);
+			displayHistogram(nullptr, source, &hist);
+			break;
+		}
+		case 7: {
+			for (int i = 0; i < compVec.size(); i++)
+				histMat.push_back(compVec[i].euc_dist);
+			feat::Histogram hist(histMat, HIST_DATA, 100);
+			displayHistogram(nullptr, source, &hist);
+			break;
+		}
+		default:
+			throw std::exception("Illegal table index.");
+			break;
+		}
+	};
+	if (!comparator)
+		throw std::exception("You need to do comparison operation first to see it's statistics.");
+	display(src_index, true);
+	display(dest_index, false);
 }

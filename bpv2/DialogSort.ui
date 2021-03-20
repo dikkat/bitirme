@@ -11,7 +11,7 @@
    </rect>
   </property>
   <property name="windowTitle">
-   <string>Dialog</string>
+   <string>Build Feature Vector</string>
   </property>
   <layout class="QGridLayout" name="gridLayout_3">
    <item row="0" column="0">
@@ -38,7 +38,7 @@
         </sizepolicy>
        </property>
        <property name="currentIndex">
-        <number>1</number>
+        <number>0</number>
        </property>
        <widget class="QWidget" name="tab_Hash">
         <attribute name="title">
@@ -1896,7 +1896,7 @@
        <item>
         <widget class="QCheckBox" name="checkBox">
          <property name="text">
-          <string>Recommended</string>
+          <string>Simple</string>
          </property>
         </widget>
        </item>
@@ -1939,6 +1939,9 @@
            <width>75</width>
            <height>22</height>
           </size>
+         </property>
+         <property name="readOnly">
+          <bool>true</bool>
          </property>
         </widget>
        </item>

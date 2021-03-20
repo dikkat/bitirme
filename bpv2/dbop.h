@@ -1,11 +1,12 @@
 #pragma once
-#include <mysql.h>
 #include <iostream>
 #include "feat.h"
 #include "image.h"
 #include "iop.h"
 #include <sqlite3.h>
 #include <xxhash.h>
+
+class MainWindow;
 
 namespace dbop {
 	class Database {
@@ -15,7 +16,7 @@ namespace dbop {
 		void insert_Image(img::Image image);
 		void insert_SourceImage(img::Image image);
 		void insert_DestinationImage(img::Image image);
-		void insert_Histogram(int flag, int fb, int sb, int tb);
+		/*void insert_Histogram(int flag, int fb, int sb, int tb);
 		void insert_Histogram(feat::Histogram hist);
 		void insert_Edge(int flag, feat::Edge::Canny* edcOper = nullptr);
 		void insert_Edge(feat::Edge edge);
@@ -31,7 +32,7 @@ namespace dbop {
 		void insert_ImageCorner(XXH64_hash_t imHash, XXH64_hash_t cornerHash);
 		void insert_ImageIcon(XXH64_hash_t imHash, XXH64_hash_t iconHash);
 		void insert_EdgeCanny(feat::Edge::Canny canny);
-		void insert_EdgeCanny(int gaussKernelSize, float thigh, float tlow, float sigma, cv::Mat kernelx, cv::Mat kernely);
+		void insert_EdgeCanny(int gaussKernelSize, float thigh, float tlow, float sigma, cv::Mat kernelx, cv::Mat kernely);*/
 		void insert_Similarity(iop::Comparison comp);
 		void insert_WeightVector(iop::WeightVector wvec);
 
@@ -40,13 +41,17 @@ namespace dbop {
 		std::vector<string> select_Hash(string hashAbb, string className, string condition = "");
 		img::Image Database::select_SourceImage();
 		img::Image Database::select_DestinationImage();
+		std::vector<std::vector<string>> select_Similarity();
 
 		void delete_GENERAL(string table, string condition = "");
+
+		sqlite3* databasePtr();
 	private:
+		friend class MainWindow;
 		void initializeDatabase(string dbName);
 		void errorCheck(int rc, char* zErrMsg);
 		static int callback(void* NotUsed, int argc, char** argv, char** azColName);
-		static int callbackSELECT(void* data, int argc, char** argv, char** azColName);
+		//static int callbackSELECT(void* data, int argc, char** argv, char** azColName);
 		void initializeTables();
 		sqlite3* db;
 		char* zErrMsg = 0;

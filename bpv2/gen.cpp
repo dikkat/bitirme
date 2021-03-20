@@ -4,7 +4,7 @@ std::ostringstream gen::tout;
 
 void gen::printTesting(std::ostringstream &osoperator) {
 	std::fstream testfile;
-	testfile.open("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/testbridge.txt", std::ios::out);
+	testfile.open("testbridge.txt", std::ios::out);
 	testfile << tout.str();
 	testfile.close();
 }
@@ -17,9 +17,9 @@ void gen::imageTesting(cv::Mat imageMat, string filename) {
 	time_t now = time(0);
 	tm* ltm = localtime(&now);
 
-	boost::filesystem::create_directory("C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/test/" + std::to_string(1900 + ltm->tm_year) + "-"
+	boost::filesystem::create_directory("Resources/test/" + std::to_string(1900 + ltm->tm_year) + "-"
 		+ std::to_string(1 + ltm->tm_mon) + "-" + std::to_string(ltm->tm_mday) + "/");
-	string stroper = "C:/Users/ASUS/source/repos/bpv2/bpv2/Resources/test/" + std::to_string(1900 + ltm->tm_year) + "-" 
+	string stroper = "Resources/test/" + std::to_string(1900 + ltm->tm_year) + "-" 
 		+ std::to_string(1 + ltm->tm_mon) + "-" + std::to_string(ltm->tm_mday) + "/"  + std::to_string(ltm->tm_hour) + "-"
 		+ std::to_string(ltm->tm_min) + "-" + std::to_string(1 + ltm->tm_sec) + "--" 
 		+ filename + ".jpg";	
@@ -56,7 +56,17 @@ string gen::format(float f) {
 }
 
 bool gen::cmpMat(cv::Mat lh, cv::Mat rh) {
-	return cv::countNonZero(lh != rh) == 0;
+	if (lh.rows == rh.rows && lh.cols == rh.cols)
+		return cv::countNonZero(lh != rh) == 0;
+	else
+		return false;
+}
+
+std::string gen::dirnameOf(const std::string& fname) {
+	size_t pos = fname.find_last_of("\\/");
+	return (std::string::npos == pos)
+		? ""
+		: fname.substr(0, pos);
 }
 
 //ONLY FOR STORAGE MOVE TO SOMEWHERE ELSE

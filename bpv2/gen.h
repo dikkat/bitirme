@@ -24,4 +24,10 @@ namespace gen {
 	bool cmpMat(cv::Mat lh, cv::Mat rh);
 	cv::Mat realNormalize(cv::Mat operand, int bins);
 	string format(float f);
+	std::string dirnameOf(const std::string& fname);
+	struct Warning {
+	public:
+		string code;
+		Warning(string code) : code(code) {}
+	};
 }

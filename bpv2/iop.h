@@ -2,7 +2,6 @@
 #include "image.h"
 #include "sim.h"
 #include "feat.h"
-#include <QList>
 #include <mutex>
 
 enum cmpr_flag { SIM_COSSIM, SIM_MANDIST, SIM_EUCDIST, SIM_MINKDIST, SIM_JACSIM, SIM_HISINTR, SIM_CROCOR, SIM_CSQDIST };
@@ -13,7 +12,7 @@ namespace img {
 
 namespace iop {
 	bool checkVectorEmpty(vecf operand);
-	std::pair<float, bool> calculateVectorSimilarity(vecf const lh, vecf const rh, int flag);
+	std::pair<float, bool> calculateVectorSimilarity(const vecf& lh, const vecf& rh, int flag);
 	int getMinkowskiOrder();
 	void setMinkowskiOrder(int value);
 	extern int minkorder;
@@ -31,9 +30,9 @@ namespace iop {
 			hist_hsv(hist_hsv ? new feat::Histogram(*hist_hsv) : nullptr),
 			perc_hash(perc_hash ? new feat::Hash(*perc_hash) : nullptr) {}
 		~FeatureVector();
-		FeatureVector(FeatureVector& other) : FeatureVector(other.image, other.edge,
+		FeatureVector(const FeatureVector& other) : FeatureVector(other.image, other.edge,
 			other.hist_gray, other.hist_bgr, other.hist_hsv, other.perc_hash) {}
-		FeatureVector& operator=(const FeatureVector other) {
+		FeatureVector& operator=(const FeatureVector& other) {
 			if (this == &other)
 				return *this;
 			this->image = new img::Image(*other.image);
@@ -132,9 +131,9 @@ namespace iop {
 		std::vector<Comparison>* getComparisonVector_ptr();
 		WeightVector* getWeightVector();
 	private:
-		FeatureVector* source;
+		FeatureVector* source = nullptr;
 		std::vector<Comparison> dest;
-		WeightVector* wvec;
+		WeightVector* wvec = nullptr;
 	};
 	
 }

@@ -15,7 +15,7 @@ cv::Mat QImageToCvMat(const QImage& operand) {
 	return result;
 }
 
-QImage cvMatToQImage(const cv::Mat operand) {
+QImage cvMatToQImage(const cv::Mat& operand) {
 	QImage imgIn;
 	if (operand.channels() == 3)
 		imgIn = QImage((uchar*)operand.data, operand.cols, operand.rows, operand.step, QImage::Format_BGR888);
@@ -140,7 +140,7 @@ void TableModel::fetchMore(const QModelIndex& parent) {
 	endInsertRows();
 }
 
-void TableModel::insertImage(const img::Image image) {
+void TableModel::insertImage(const img::Image& image) {
 	/*int next_index = this->rowCount();*/
 
 	imgVec.push_back({ image, -1 });

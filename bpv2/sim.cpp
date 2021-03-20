@@ -138,7 +138,7 @@ float sim::crossCorrelation(vecf lefthand, vecf righthand) {
 }
 
 template<typename T> 
-std::vector<T> sim::matToVector(cv::Mat operand) {   //https://stackoverflow.com/questions/62325615/opencv-data-of-two-mats-are-the-same-but-values-when-retrieved-with-matat-are
+std::vector<T> sim::matToVector(const cv::Mat& operand) {   //https://stackoverflow.com/questions/62325615/opencv-data-of-two-mats-are-the-same-but-values-when-retrieved-with-matat-are
 	std::vector<T> vecoper;
 	uchar* pixelPtr = (uchar*)operand.data;
 
@@ -155,9 +155,9 @@ std::vector<T> sim::matToVector(cv::Mat operand) {   //https://stackoverflow.com
 	return vecoper;
 }
 
-template vecf sim::matToVector<float>(cv::Mat operand);
-template std::vector<std::complex<float>> sim::matToVector<std::complex<float>>(cv::Mat operand);
-template std::vector<uchar> sim::matToVector<uchar>(cv::Mat operand);
+template vecf sim::matToVector<float>(const cv::Mat& operand);
+template std::vector<std::complex<float>> sim::matToVector<std::complex<float>>(const cv::Mat& operand);
+template std::vector<uchar> sim::matToVector<uchar>(const cv::Mat& operand);
 
 template <typename T>
 cv::Mat sim::vectorToMat(std::vector<T> operand) { //PARALLELLISE
@@ -188,7 +188,7 @@ template cv::Mat sim::vectorToMat<float>(vecf operand);
 template cv::Mat sim::vectorToMat<uchar>(std::vector<uchar> operand);
 
 template <typename T>
-std::vector<T> sim::matElementsToVector(cv::Mat operand) {
+std::vector<T> sim::matElementsToVector(const cv::Mat& operand) {
 	std::vector<T> vecOper;
 	int cn = operand.channels();
 	for (int i = 0; i < operand.total(); i++) {
@@ -210,9 +210,9 @@ std::vector<T> sim::matElementsToVector(cv::Mat operand) {
 	return vecOper;
 }
 
-template vecf sim::matElementsToVector<float>(cv::Mat operand);
-template std::vector<uchar> sim::matElementsToVector<uchar>(cv::Mat operand);
-template std::vector<cf> sim::matElementsToVector<cf>(cv::Mat operand);
+template vecf sim::matElementsToVector<float>(const cv::Mat& operand);
+template std::vector<uchar> sim::matElementsToVector<uchar>(const cv::Mat& operand);
+template std::vector<cf> sim::matElementsToVector<cf>(const cv::Mat& operand);
 
 template <typename T>
 cv::Mat sim::vectorToMatElementsRowMajor(std::vector<T> operand, int mrows, int mcols, int mtype) {
@@ -226,8 +226,8 @@ cv::Mat sim::vectorToMatElementsRowMajor(std::vector<T> operand, int mrows, int 
 template cv::Mat sim::vectorToMatElementsRowMajor<float>(vecf operand, int mrows, int mcols, int mtype);
 template cv::Mat sim::vectorToMatElementsRowMajor<cf>(std::vector<cf> operand, int mrows, int mcols, int mtype);
 /*
-cv::Mat sim::fastFourierTransform_2D(cv::Mat const image) { //Introduction to Algorithms, 2009
-	auto zeroPadding = [](cv::Mat const operand, unsigned int noofBits) {
+cv::Mat sim::fastFourierTransform_2D(const cv::Mat image) { //Introduction to Algorithms, 2009
+	auto zeroPadding = [](const cv::Mat operand, unsigned int noofBits) {
 		cv::Mat oper = cv::Mat::zeros(sqrt(pow(2, noofBits)), sqrt(pow(2, noofBits)), operand.type());
 		for (int i = 0; i < operand.rows; i++) {
 			for (int j = 0; j < operand.cols; j++) {
@@ -244,7 +244,7 @@ cv::Mat sim::fastFourierTransform_2D(cv::Mat const image) { //Introduction to Al
 		return oper;
 	};
 
-	auto numOfBits = [](cv::Mat const operand) {
+	auto numOfBits = [](const cv::Mat operand) {
 		int i = 0;
 		while (pow(2, i) < operand.total() || sqrt(pow(2, i)) < operand.rows || sqrt(pow(2, i)) < operand.cols)
 			i += 2;
@@ -540,7 +540,7 @@ void sim::Convolution::fastFourierTransform2D(std::vector<cf>& a, bool invert) {
 }
 */
 
-cv::Mat sim::convolution2D(cv::Mat const imageMat, cv::Mat const kernel) {
+cv::Mat sim::convolution2D(const cv::Mat& imageMat, const cv::Mat& kernel) {
 	cv::Mat oper = channelCheck(imageMat);
 
 	cv::Mat resultMat = convolution2DHelix(oper, kernel);
@@ -549,8 +549,8 @@ cv::Mat sim::convolution2D(cv::Mat const imageMat, cv::Mat const kernel) {
 }
 
 
-cv::Mat sim::convolution2DSeparable(cv::Mat const imageMat, cv::Mat const kernel) {
-	auto decompose = [](cv::Mat const M) { //https://www.mathworks.com/matlabcentral/fileexchange/28238-kernel-decomposition
+cv::Mat sim::convolution2DSeparable(const cv::Mat& imageMat, const cv::Mat& kernel) {
+	auto decompose = [](const cv::Mat& M) { //https://www.mathworks.com/matlabcentral/fileexchange/28238-kernel-decomposition
 		cv::Mat S, U, VT;
 		cv::SVDecomp(M, S, U, VT, cv::SVD::FULL_UV);
 
@@ -613,7 +613,7 @@ cv::Mat sim::convolution2DSeparable(cv::Mat const imageMat, cv::Mat const kernel
 	return matOperX;
 }
 
-cv::Mat sim::convolution2DNormal(cv::Mat const imageMat, cv::Mat const kernel) {  // CPU INTENSIVE FUNCTION -- PARALLELISE
+cv::Mat sim::convolution2DNormal(const cv::Mat& imageMat, const cv::Mat& kernel) {  // CPU INTENSIVE FUNCTION -- PARALLELISE
 	cv::Mat imgOper = channelCheck(imageMat);
 	imgOper.convertTo(imgOper, CV_32FC1);
 
@@ -644,7 +644,7 @@ cv::Mat sim::convolution2DNormal(cv::Mat const imageMat, cv::Mat const kernel) {
 	return convMat;
 }
 
-cv::Mat sim::convolution2DHelix(cv::Mat const imageMat, cv::Mat kernel) { //https://sites.ualberta.ca/~mostafan/Files/Papers/md_convolution_TLE2009.pdf
+cv::Mat sim::convolution2DHelix(const cv::Mat& imageMat, const cv::Mat& kernel) { //https://sites.ualberta.ca/~mostafan/Files/Papers/md_convolution_TLE2009.pdf
 	cv::Mat imgOper = channelCheck(imageMat);
 	imgOper.convertTo(imgOper, CV_32FC1);
 	
@@ -720,7 +720,7 @@ cv::Mat sim::convolution2DHelix(cv::Mat const imageMat, cv::Mat kernel) { //http
 	return convMat;
 }
 
-cv::Mat sim::convolution2DOpenCV(cv::Mat const imageMat, cv::Mat const kernel) {
+cv::Mat sim::convolution2DOpenCV(const cv::Mat& imageMat, const cv::Mat& kernel) {
 	cv::Mat paddedImage, paddedKernel, imgOper, kerOper;
 
 	imgOper = channelCheck(imageMat);
@@ -757,7 +757,7 @@ cv::Mat sim::convolution2DOpenCV(cv::Mat const imageMat, cv::Mat const kernel) {
 	return temp;
 }
 
-cv::Mat sim::rotateMatrix180(cv::Mat srcmat)
+cv::Mat sim::rotateMatrix180(const cv::Mat& srcmat)
 {
 	if (srcmat.rows != srcmat.cols)
 		throw std::exception("Matrix to be rotated must be square.");
@@ -773,7 +773,7 @@ cv::Mat sim::rotateMatrix180(cv::Mat srcmat)
 	return retmat;
 }
 
-cv::Mat sim::filterGauss(cv::Mat const operand, int ksize, float sigma, float mu, bool openCV) {
+cv::Mat sim::filterGauss(const cv::Mat& operand, int ksize, float sigma, float mu, bool openCV) {
 	auto gaussKernel = [](float kernel_size, float sigma, float mu) {
 		auto erf = [](float x) {
 			float a1 = 0.254829592;
@@ -935,58 +935,6 @@ float sim::sumOfVectorMembers(vecf operand, int offset) {
 	return vecOper;
 }
 
-
-
-int sim::rankOfMatrix(cv::Mat const mat) { //https://www.geeksforgeeks.org/program-for-rank-of-matrix/
-	auto swap = [](cv::Mat mat, int row1, int row2, int col) {
-		for (int i = 0; i < col; i++) {
-			int temp = mat.at<float>(row1, i);
-			mat.at<float>(row1, i) = mat.at<float>(row2, i);
-			mat.at<float>(row2, i) = temp;
-		}
-	};
-
-	cv::Mat matOper = mat.clone();
-	int R = matOper.rows;
-	int C = matOper.cols;
-
-	int rank = C;
-
-	for (int row = 0; row < rank; row++) {
-		if (matOper.at<float>(row, row)) {
-			for (int col = 0; col < R; col++) {
-				if (col != row) {
-					float mult = matOper.at<float>(col, row) / matOper.at<float>(row, row);
-					for (int i = 0; i < rank; i++)
-						matOper.at<float>(col, i) -= mult * matOper.at<float>(row, i);
-				}
-			}
-		}
-
-		else {
-			bool reduce = true;
-
-			for (int i = row + 1; i < R; i++) {
-				if (matOper.at<float>(i, row)) {
-					swap(matOper, row, i, rank);
-					reduce = false;
-					break;
-				}
-			}
-
-			if (reduce) {
-				rank--;
-
-				for (int i = 0; i < R; i++)
-					matOper.at<float>(i, row) = matOper.at<float>(i, rank);
-			}
-
-			row--;
-		}
-	}
-	return rank;
-}
-
 template <typename T>
 int sim::getI(std::vector<T> operand) {
 	return 0;
@@ -1001,7 +949,7 @@ template int sim::getI<uchar>(std::vector<uchar> operand);
 	return y;
 }*/
 
-cv::Mat sim::channelCheck(cv::Mat const imageMat) {
+cv::Mat sim::channelCheck(const cv::Mat& imageMat) {
 	cv::Mat oper;
 	if (imageMat.channels() == 3)
 		cv::cvtColor(imageMat, oper, cv::COLOR_BGR2GRAY);

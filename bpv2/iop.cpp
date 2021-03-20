@@ -7,8 +7,7 @@ bool iop::checkVectorEmpty(vecf operand) {
 		return true;
 
 	float sum = 0;
-	for (auto i : operand)
-		sum += i;
+	std::accumulate(operand.begin(), operand.end(), sum);
 
 	if (gen::cmpf(sum, 0, 0.0005))
 		return true;
@@ -17,7 +16,7 @@ bool iop::checkVectorEmpty(vecf operand) {
 }
 
 std::pair<vecf, bool> iop::Comparison::calculateHistogramSimilarity(feat::Histogram* lh, 
-	feat::Histogram* rh, int flagsim) { //PARALLELISE
+	feat::Histogram* rh, int flagsim) {
 	if (lh == nullptr || rh == nullptr)
 		return std::make_pair(vecf{}, true);
 
@@ -44,7 +43,7 @@ std::pair<vecf, bool> iop::Comparison::calculateHistogramSimilarity(feat::Histog
 	return std::make_pair(simVec, dir);
 }
 
-std::pair<float, bool> iop::calculateVectorSimilarity(vecf const lh, vecf const rh, int flag) {
+std::pair<float, bool> iop::calculateVectorSimilarity(const vecf& lh, const vecf& rh, int flag) {
 	float foper;
 	bool direction;
 
@@ -171,7 +170,7 @@ iop::WeightVector::WeightVector(vecf* wv_grad, float* w_hgray, vecf* wv_hbgr, ve
 	float sum = 0;
 	if (wv_grad) {
 		this->wv_grad = *wv_grad;
-		for (auto i : *wv_grad) sum += i;
+		std::accumulate(wv_grad->begin(), wv_grad->end(), sum);
 	}
 	else {
 		this->wv_grad = vecf(2, 0);
@@ -186,7 +185,7 @@ iop::WeightVector::WeightVector(vecf* wv_grad, float* w_hgray, vecf* wv_hbgr, ve
 
 	if (wv_hbgr) {
 		this->wv_hbgr = *wv_hbgr;
-		for (auto i : *wv_hbgr) sum += i;
+		std::accumulate(wv_hbgr->begin(), wv_hbgr->end(), sum);
 	}
 	else {
 		this->wv_hbgr = vecf(3, 0);
@@ -194,7 +193,7 @@ iop::WeightVector::WeightVector(vecf* wv_grad, float* w_hgray, vecf* wv_hbgr, ve
 
 	if (wv_hhsv) {
 		this->wv_hhsv = *wv_hhsv;
-		for (auto i : *wv_hhsv) sum += i;
+		std::accumulate(wv_hhsv->begin(), wv_hhsv->end(), sum);
 	}
 	else {
 		this->wv_hhsv = vecf(3, 0);
@@ -202,7 +201,7 @@ iop::WeightVector::WeightVector(vecf* wv_grad, float* w_hgray, vecf* wv_hbgr, ve
 
 	if (wv_hash) {
 		this->wv_hash = *wv_hash;
-		for (auto i : *wv_hash) sum += i;
+		std::accumulate(wv_hash->begin(), wv_hash->end(), sum);
 	}
 	else {
 		this->wv_hash = vecf(2, 0);
@@ -213,8 +212,7 @@ iop::WeightVector::WeightVector(vecf* wv_grad, float* w_hgray, vecf* wv_hbgr, ve
 }
 
 iop::WeightVector::WeightVector(float* w_grad, float* w_hgray, float* w_hbgr, float* w_hhsv, 
-	float* w_hash) {
-	wvv_total = std::vector<vecf*>(5, new vecf{});
+	float* w_hash) : wvv_total(std::vector<vecf*>(5, new vecf{})) {
 	float sum = 0;
 	if (w_grad) {
 		float per = *w_grad / 2;
@@ -291,7 +289,7 @@ std::vector<iop::Comparison> iop::Comparator::beginMultiCompare(FeatureVector* s
 		return num;
 	};
 
-	std::function<void(int, string, FeatureVector*, WeightVector*)> task;
+	std::function<void(int, const string&, FeatureVector*, WeightVector*)> task;
 
 	std::mutex m;
 
@@ -301,7 +299,7 @@ std::vector<iop::Comparison> iop::Comparator::beginMultiCompare(FeatureVector* s
 		for (int j = 0; j < 8; j++) i.push_back(vecf());
 	}
 
-	task = [&](int i, string str, FeatureVector* source, WeightVector* wvec) {
+	task = [&](int i, const string& str, FeatureVector* source, WeightVector* wvec) {
 		if (cmpVec.size() > cmpNum) {
 			thrCond[i] = true;
 			return;
@@ -536,7 +534,7 @@ bool iop::WeightVector::vectorAtIndexIsZero(int index) {
 			sum += wvv_total.at(index)->at(i);
 		return sum == 0;
 	}
-	catch (std::out_of_range e) {
-		throw e;
+	catch (const std::out_of_range& e) {
+		throw;
 	}
 }

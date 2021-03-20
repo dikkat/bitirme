@@ -29,8 +29,6 @@
 #include "ui_DialogSort.h"
 #include "ui_DialogDetail.h"
 
-#include "iop.h"
-#include "dbop.h"
 #include "linker.h"
 #include "qcustomplot.h"
 
@@ -56,7 +54,7 @@ struct currentFeature {
 
 enum class table_type{ TABLE_MAIN, TABLE_RESULT };
 
-QImage cvMatToQImage(const cv::Mat operand);
+QImage cvMatToQImage(const cv::Mat& operand);
 cv::Mat QImageToCvMat(const QImage& operand);
 
 class SortProxyModel : public QSortFilterProxyModel {
@@ -84,7 +82,7 @@ public:
 	QVariant headerData(int section, Qt::Orientation orientation, int role = Qt::DisplayRole) const override;
 	void updateComparison(int row, const iop::Comparison comparison);
 	void fetchMore(const QModelIndex& parent);
-	void insertImage(const img::Image image);
+	void insertImage(const img::Image& image);
 	void insertComparison(const iop::Comparison comparison);
 	table_type getType();
 	void setIconColumnHidden(bool hidden);

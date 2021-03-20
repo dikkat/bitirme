@@ -20,7 +20,7 @@ class TableModel;
 namespace img {
 	class Image {
 	public:
-		Image(string imgdir, int flag);
+		Image(const string& imgdir, int flag);
 		Image();
 		Image(const Image& other);
 		Image& operator=(const Image& other) {
@@ -40,24 +40,12 @@ namespace img {
 		XXH64_hash_t hash;
 		cv::Mat imageMat;
 		string name, dir;
-		void setImageDirectory(string imgdir);
-		cv::Mat readImageFile(string imgdir, int flag);
+		void setImageDirectory(const string& imgdir);
+		cv::Mat readImageFile(const string& imgdir, int flag);
 	};
 
-	class Icon {
-	public:
-		Icon(cv::Mat iconMat_src);
-		cv::Mat getIconMat();
-		XXH64_hash_t getHash();
-	private:
-		XXH64_hash_t hash;
-		cv::Mat iconMat;
-	};
-
-	string buildImageName(string imgdir);
-	std::vector<Image> readImageFolder(string imagefoldername, int flag, bool all, int number);
+	string buildImageName(const string& imgdir);
+	std::vector<Image> readImageFolder(const string& imagefoldername, int flag, bool all, int number);
 	string typeToString(int type);
-	void displayImage(cv::Mat imgmat);
-
-	void imageTesting(cv::Mat imageMat, string filename);
+	void displayImage(const cv::Mat& imgmat);
 }

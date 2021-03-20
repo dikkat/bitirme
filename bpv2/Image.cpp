@@ -1,12 +1,8 @@
 #include "image.h"
 
-img::Image::Image() {
-	dir = "";
-	name = "";
-	hash = XXH64(dir.c_str(), dir.size(), NULL);
-}
+img::Image::Image() : dir(""), name(""), hash(XXH64(dir.c_str(), dir.size(), NULL)) {}
 
-img::Image::Image(string imgdir, int flag) {
+img::Image::Image(const string& imgdir, int flag) {
 	if(flag != IMG_EMPTY)
 		imageMat = readImageFile(imgdir, flag);
     name = buildImageName(imgdir);
@@ -36,7 +32,7 @@ XXH64_hash_t img::Image::getHash() const {
     return hash;
 }
 
-string img::buildImageName(string imgdir) {
+string img::buildImageName(const string& imgdir) {
     int j = 0;
     for (int i = 0; i < imgdir.size(); i++) {
         if (imgdir[i] == '/' || imgdir[i] == '\\') {
@@ -47,12 +43,12 @@ string img::buildImageName(string imgdir) {
     return imnm;
 }
 
-void img::Image::setImageDirectory(string imgdir) {
+void img::Image::setImageDirectory(const string& imgdir) {
     name = buildImageName(imgdir);
     dir = imgdir;
 }
 
-cv::Mat img::Image::readImageFile(string imgdir, int flag) {
+cv::Mat img::Image::readImageFile(const string& imgdir, int flag) {
 	if (flag != cv::IMREAD_UNCHANGED && flag != cv::IMREAD_COLOR && flag != cv::IMREAD_GRAYSCALE)
 		throw std::exception("Illegal image read flag.1");
 	cv::Mat matoperator;
@@ -63,31 +59,10 @@ cv::Mat img::Image::readImageFile(string imgdir, int flag) {
 }
 
 void img::Image::correctDir() {
-	for (auto& i : this->dir)
-		if (i == '\\')
-			i = '/';
+	std::replace_if(this->dir.begin(), this->dir.end(), [](char c) { return c == '/'; }, '/');
 }
 
-img::Icon::Icon(cv::Mat iconMat_src) {
-    cv::Mat iconMatOper = iconMat_src.clone();
-
-    int maximumWidth = 100;
-    int maximumHeight = MIN(maximumWidth * iconMatOper.rows / iconMatOper.cols, maximumWidth);
-    cv::resize(iconMatOper, iconMatOper, cv::Size(maximumWidth, maximumHeight));
-
-    hash = feat::Hash::setHash(&std::vector<cv::Mat>{iconMatOper}, nullptr);
-    iconMat = iconMatOper;
-}
-
-cv::Mat img::Icon::getIconMat() {
-    return iconMat;
-}
-
-XXH64_hash_t img::Icon::getHash() {
-    return hash;
-}
-
-std::vector<img::Image> img::readImageFolder(string imageFolderDirectory, int flag, bool all, int number) {
+std::vector<img::Image> img::readImageFolder(const string& imageFolderDirectory, int flag, bool all, int number) {
     if (imageFolderDirectory.find(".") != string::npos)
         throw std::exception("Illegal folder path.");
     else if (flag != cv::IMREAD_UNCHANGED && flag != cv::IMREAD_COLOR && flag != cv::IMREAD_GRAYSCALE)
@@ -133,7 +108,7 @@ string img::typeToString(int type) {
     return r;
 }
 
-void img::displayImage(cv::Mat imgmat) {
+void img::displayImage(const cv::Mat& imgmat) {
     cv::namedWindow("testing", cv::WINDOW_AUTOSIZE);
     cv::imshow("testing", imgmat);
 }

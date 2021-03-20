@@ -20,3 +20,7 @@ build-bpv2-Desktop_Qt_5_14_1_MSVC2017_64bit-Debug/
 /bpv2/ClassDiagram.cd
 /bpv2/buffer.jpg
 /ClassDiagram.png
+/bpv2_solution_suppressions.cfg
+/bpv2/bpv2_project_suppressions.cfg
+*.filters
+*.user
